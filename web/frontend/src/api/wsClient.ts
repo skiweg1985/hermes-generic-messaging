@@ -1,4 +1,5 @@
 import type { EventEnvelope } from "../types/events";
+import { newId } from "../lib/uuid";
 
 export type MessageHandler = (event: EventEnvelope) => void;
 export type StatusHandler = (status: "connecting" | "connected" | "error") => void;
@@ -6,10 +7,6 @@ export type StatusHandler = (status: "connecting" | "connected" | "error") => vo
 function wsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.host}/ws/chat`;
-}
-
-function newId(): string {
-  return crypto.randomUUID();
 }
 
 function nowIso(): string {

@@ -23,7 +23,13 @@ ERROR_CODES = frozenset(
 )
 
 INBOUND_TYPES = frozenset(
-    {"message.create", "command.create", "audio.uploaded", "message.cancel"}
+    {
+        "message.create",
+        "command.create",
+        "audio.uploaded",
+        "message.cancel",
+        "button.click",
+    }
 )
 OUTBOUND_TYPES = frozenset(
     {
@@ -32,6 +38,10 @@ OUTBOUND_TYPES = frozenset(
         "assistant_done",
         "assistant_audio",
         "assistant_error",
+        "assistant_buttons",
+        "assistant_notice",
+        "assistant_image",
+        "typing",
     }
 )
 
@@ -98,6 +108,24 @@ class AudioUploadedPayload(BaseModel):
 
 class MessageCancelPayload(BaseModel):
     target_message_id: str
+
+
+class ButtonClickPayload(BaseModel):
+    """User clicked an interactive button rendered by an outbound event."""
+
+    message_id: str
+    confirm_id: Optional[str] = None
+    button_id: str
+    choice: Optional[str] = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class ButtonSpec(BaseModel):
+    """Single button in an `assistant_buttons` outbound event."""
+
+    id: str
+    label: str
+    style: Literal["primary", "secondary", "danger"] = "secondary"
 
 
 def parse_inbound_envelope(data: dict[str, Any]) -> EventEnvelope:

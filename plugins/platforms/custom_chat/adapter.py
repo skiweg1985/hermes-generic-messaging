@@ -17,7 +17,6 @@ from .events.mapping import inbound_to_message_event
 from .events.schema import (
     InboundEventError,
     parse_inbound,
-    text_to_command_event,
 )
 from .media import (
     synthesize_audio_url,
@@ -48,11 +47,17 @@ except ImportError:
             self,
             success: bool = True,
             message_id: Optional[str] = None,
-            already_sent: bool = False,
+            error: Optional[str] = None,
+            raw_response: Any = None,
+            retryable: bool = False,
+            continuation_message_ids: tuple = (),
         ) -> None:
             self.success = success
             self.message_id = message_id
-            self.already_sent = already_sent
+            self.error = error
+            self.raw_response = raw_response
+            self.retryable = retryable
+            self.continuation_message_ids = continuation_message_ids
 
     class BasePlatformAdapter:  # type: ignore[no-redef]
         def __init__(self, config: PlatformConfig, platform: Platform) -> None:
@@ -123,6 +128,12 @@ class CustomChatAdapter(BasePlatformAdapter):
     self._reply_routes: Dict[str, Dict[str, str]] = {}
     self._ws_by_chat: Dict[str, Any] = {}
     self._use_streaming = True
+    # confirm_id -> session_key mapping for interactive slash confirmations
+    self._slash_confirm_state: Dict[str, str] = {}
+    # approval_id -> session_key mapping for tool/skill extra approvals
+    self._approval_state: Dict[str, str] = {}
+    # Optional callback the gateway runner sets; falls back to no-op in tests.
+    self._gateway_runner: Any = None
 
   def _now_iso(self) -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -266,11 +277,11 @@ class CustomChatAdapter(BasePlatformAdapter):
         logger.debug("no active stream for %s", payload_model.target_message_id)
       return
 
-    try:
-      if envelope.type == "message.create" and payload_model.text.startswith("/"):
-        envelope = text_to_command_event(envelope, payload_model.text)
-        _, payload_model = parse_inbound(envelope.model_dump())
+    if envelope.type == "button.click":
+      await self._handle_button_click(payload_model, chat_id=chat_id, user_id=user_id, ws=ws)
+      return
 
+    try:
       source = self.build_source(
         chat_id=envelope.chat_id,
         chat_name=envelope.chat_id,
@@ -414,7 +425,7 @@ class CustomChatAdapter(BasePlatformAdapter):
     handle = self.state.get_stream(reply_id)
     if handle and handle.cancelled:
       self.state.end_stream(reply_id)
-      return SendResult(success=False, message_id=reply_id, already_sent=True)
+      return SendResult(success=False, message_id=reply_id, error="cancelled")
 
     session = self.streams.get_or_create(
       reply_id,
@@ -455,7 +466,220 @@ class CustomChatAdapter(BasePlatformAdapter):
     self.streams.remove(reply_id)
     self.state.end_stream(reply_id)
     self._reply_routes.pop(reply_id, None)
-    return SendResult(success=True, message_id=reply_id, already_sent=bool(session.started))
+    return SendResult(success=True, message_id=reply_id)
+
+  async def send_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    """Emit a typing indicator. Frontend should auto-stop after a short timeout."""
+    route = self._route_for_send(chat_id, metadata)
+    await self._emit_outbound(
+      chat_id=route.get("chat_id", chat_id),
+      user_id=route.get("user_id", "assistant"),
+      event_type="typing",
+      payload={"state": "start"},
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+
+  async def stop_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    route = self._route_for_send(chat_id, metadata)
+    await self._emit_outbound(
+      chat_id=route.get("chat_id", chat_id),
+      user_id=route.get("user_id", "assistant"),
+      event_type="typing",
+      payload={"state": "stop"},
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+
+  async def send_image(
+    self,
+    chat_id: str,
+    image_url: str,
+    caption: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Emit an assistant_image event with the given URL and optional caption."""
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    reply_id = meta.get("reply_id") or self._new_event_id()
+    payload: dict[str, Any] = {
+      "message_id": reply_id,
+      "url": image_url,
+    }
+    if caption:
+      payload["caption"] = caption
+    mime_type = meta.get("mime_type")
+    if mime_type:
+      payload["mime_type"] = mime_type
+    await self._emit_outbound(
+      chat_id=route.get("chat_id", chat_id),
+      user_id=route.get("user_id", "assistant"),
+      event_type="assistant_image",
+      payload=payload,
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+    return SendResult(success=True, message_id=reply_id)
+
+  async def send_private_notice(
+    self,
+    chat_id: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Emit an out-of-band notice (system/info bubble, not part of streaming reply)."""
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    notice_id = meta.get("notice_id") or self._new_event_id()
+    payload: dict[str, Any] = {
+      "message_id": notice_id,
+      "text": content,
+      "kind": meta.get("kind", "info"),
+    }
+    await self._emit_outbound(
+      chat_id=route.get("chat_id", chat_id),
+      user_id=route.get("user_id", "assistant"),
+      event_type="assistant_notice",
+      payload=payload,
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+    return SendResult(success=True, message_id=notice_id)
+
+  async def send_slash_confirm(
+    self,
+    chat_id: str,
+    title: str,
+    message: str,
+    session_key: str,
+    confirm_id: str,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Render a three-button slash-command confirmation prompt.
+
+    Mirrors the Telegram adapter contract; button clicks come back as a
+    `button.click` inbound event with confirm_id + choice, which is routed
+    to GatewayRunner._resolve_slash_confirm.
+    """
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    payload = {
+      "message_id": confirm_id,
+      "confirm_id": confirm_id,
+      "title": title,
+      "body": message,
+      "kind": "slash_confirm",
+      "buttons": [
+        {"id": "once", "label": "Approve Once", "style": "primary"},
+        {"id": "always", "label": "Always Approve", "style": "primary"},
+        {"id": "cancel", "label": "Cancel", "style": "danger"},
+      ],
+    }
+    try:
+      await self._emit_outbound(
+        chat_id=route.get("chat_id", chat_id),
+        user_id=route.get("user_id", "assistant"),
+        event_type="assistant_buttons",
+        payload=payload,
+        thread_id=route.get("thread_id") or None,
+        session_id=route.get("session_id") or None,
+      )
+    except Exception as exc:
+      logger.warning("send_slash_confirm failed: %s", exc)
+      return SendResult(success=False, message_id=confirm_id, error=str(exc))
+
+    self._slash_confirm_state[confirm_id] = session_key
+    return SendResult(success=True, message_id=confirm_id)
+
+  async def _handle_button_click(
+    self,
+    payload_model: Any,
+    *,
+    chat_id: str,
+    user_id: str,
+    ws: Any,
+  ) -> None:
+    """Route an inbound button.click to the gateway runner."""
+    confirm_id = getattr(payload_model, "confirm_id", None) or getattr(
+      payload_model, "message_id", ""
+    )
+    choice = getattr(payload_model, "choice", None) or getattr(
+      payload_model, "button_id", ""
+    )
+    if not confirm_id or not choice:
+      await self._emit_error(
+        chat_id=chat_id,
+        user_id=user_id,
+        message_id=getattr(payload_model, "message_id", ""),
+        code="BAD_REQUEST",
+        message="button.click requires confirm_id and choice",
+        ws=ws,
+      )
+      return
+
+    runner = self._resolve_runner()
+    if confirm_id in self._slash_confirm_state:
+      session_key = self._slash_confirm_state.pop(confirm_id, None)
+      resolver = getattr(runner, "_resolve_slash_confirm", None) if runner else None
+      if resolver is not None:
+        try:
+          result = resolver(confirm_id, choice)
+          if asyncio.iscoroutine(result):
+            await result
+        except Exception:
+          logger.exception("slash_confirm resolver failed")
+      else:
+        logger.debug(
+          "no gateway runner attached; dropping slash_confirm %s (session=%s)",
+          confirm_id,
+          session_key,
+        )
+      return
+
+    if confirm_id in self._approval_state:
+      session_key = self._approval_state.pop(confirm_id, None)
+      if runner is not None and session_key:
+        try:
+          from tools.approval import resolve_gateway_approval  # type: ignore
+          resolve_gateway_approval(session_key, choice)
+        except Exception:
+          logger.exception("approval resolver failed")
+      return
+
+    logger.debug("button.click for unknown confirm_id %s", confirm_id)
+
+  def _resolve_runner(self) -> Any:
+    """Look up the gateway runner via the message handler closure (Telegram pattern)."""
+    if self._gateway_runner is not None:
+      return self._gateway_runner
+    handler = getattr(self, "_message_handler", None)
+    return getattr(handler, "__self__", None)
+
+  async def interrupt_session_activity(self, chat_id: str) -> None:
+    """Cancel any active streams for this chat and emit assistant_done(interrupted=True)."""
+    affected: list[str] = []
+    for reply_id, route in list(self._reply_routes.items()):
+      if route.get("chat_id") != chat_id:
+        continue
+      self.state.cancel_stream(reply_id)
+      affected.append(reply_id)
+
+    for reply_id in affected:
+      route = self._reply_routes.get(reply_id, {})
+      try:
+        await self._emit_outbound(
+          chat_id=route.get("chat_id", chat_id),
+          user_id=route.get("user_id", "assistant"),
+          event_type="assistant_done",
+          payload={"message_id": reply_id, "final_text": "", "interrupted": True},
+          thread_id=route.get("thread_id") or None,
+          session_id=route.get("session_id") or None,
+        )
+      except Exception:
+        logger.exception("interrupt emit failed for %s", reply_id)
+      self.streams.remove(reply_id)
+      self.state.end_stream(reply_id)
+      self._reply_routes.pop(reply_id, None)
 
   async def get_chat_info(self, chat_id: str) -> dict:
     return {"name": chat_id, "type": "dm"}
@@ -487,20 +711,72 @@ def _env_enablement() -> dict | None:
   port = os.getenv("CUSTOM_CHAT_WS_PORT", "").strip()
   if port:
     seed["ws_port"] = int(port)
+  home = os.getenv("CUSTOM_CHAT_HOME_CHANNEL", "").strip()
+  if home:
+    seed["home_channel"] = {
+      "chat_id": home,
+      "name": os.getenv("CUSTOM_CHAT_HOME_CHANNEL_NAME", "Home"),
+    }
   return seed
 
 
+def _apply_yaml_config(yaml_cfg: dict, platform_cfg: dict) -> dict | None:
+  """Translate config.yaml `custom_chat:` keys into env vars."""
+  if "ws_host" in platform_cfg and not os.getenv("CUSTOM_CHAT_WS_HOST"):
+    os.environ["CUSTOM_CHAT_WS_HOST"] = str(platform_cfg["ws_host"])
+  if "ws_port" in platform_cfg and not os.getenv("CUSTOM_CHAT_WS_PORT"):
+    os.environ["CUSTOM_CHAT_WS_PORT"] = str(platform_cfg["ws_port"])
+  allowed = platform_cfg.get("allowed_users")
+  if allowed is not None and not os.getenv("CUSTOM_CHAT_ALLOWED_USERS"):
+    if isinstance(allowed, list):
+      allowed = ",".join(str(v) for v in allowed)
+    os.environ["CUSTOM_CHAT_ALLOWED_USERS"] = str(allowed)
+  if "allow_all_users" in platform_cfg and not os.getenv("CUSTOM_CHAT_ALLOW_ALL_USERS"):
+    os.environ["CUSTOM_CHAT_ALLOW_ALL_USERS"] = str(
+      platform_cfg["allow_all_users"]
+    ).lower()
+  if "home_channel" in platform_cfg and not os.getenv("CUSTOM_CHAT_HOME_CHANNEL"):
+    os.environ["CUSTOM_CHAT_HOME_CHANNEL"] = str(platform_cfg["home_channel"])
+  return None
+
+
 def register(ctx: Any) -> None:
-  ctx.register_platform(
-    name="custom_chat",
-    label="Custom Chat",
-    adapter_factory=lambda cfg: CustomChatAdapter(cfg),
-    check_fn=check_requirements,
-    validate_config=validate_config,
-    env_enablement_fn=_env_enablement,
-    allowed_users_env="CUSTOM_CHAT_ALLOWED_USERS",
-    allow_all_env="CUSTOM_CHAT_ALLOW_ALL_USERS",
-    max_message_length=32000,
-    platform_hint="You are chatting via a custom WebSocket client (Event Schema v1).",
-    emoji="💬",
-  )
+  kwargs: dict[str, Any] = {
+    "name": "custom_chat",
+    "label": "Custom Chat",
+    "adapter_factory": lambda cfg: CustomChatAdapter(cfg),
+    "check_fn": check_requirements,
+    "validate_config": validate_config,
+    "env_enablement_fn": _env_enablement,
+    "apply_yaml_config_fn": _apply_yaml_config,
+    "cron_deliver_env_var": "CUSTOM_CHAT_HOME_CHANNEL",
+    "allowed_users_env": "CUSTOM_CHAT_ALLOWED_USERS",
+    "allow_all_env": "CUSTOM_CHAT_ALLOW_ALL_USERS",
+    "max_message_length": 0,
+    "platform_hint": (
+      "You are chatting via a custom WebSocket client (Event Schema v1). "
+      "Supports streaming deltas, slash commands, interactive button "
+      "confirmations, and audio uploads."
+    ),
+    "emoji": "💬",
+  }
+  # Older Hermes versions reject kwargs they don't know. Retry-with-trim
+  # so the plugin still loads on those installs without changing semantics
+  # for newer ones.
+  while True:
+    try:
+      ctx.register_platform(**kwargs)
+      return
+    except TypeError as exc:
+      msg = str(exc)
+      dropped = False
+      for key in list(kwargs.keys()):
+        if key in {"name", "label", "adapter_factory", "check_fn"}:
+          continue
+        if f"'{key}'" in msg:
+          kwargs.pop(key)
+          logger.warning("register_platform: dropping unsupported kwarg %s", key)
+          dropped = True
+          break
+      if not dropped:
+        raise

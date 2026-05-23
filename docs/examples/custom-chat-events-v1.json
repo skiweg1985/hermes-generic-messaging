@@ -40,6 +40,21 @@
         "size_bytes": 4096,
         "url": "https://example.local/voice.ogg"
       }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000004",
+      "timestamp": "2026-05-23T10:49:15Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "button.click",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000300",
+        "confirm_id": "00000000-0000-4000-8000-000000000300",
+        "button_id": "once",
+        "choice": "once"
+      }
     }
   ],
   "outbound_examples": [
@@ -80,6 +95,68 @@
       "payload": {
         "message_id": "00000000-0000-4000-8000-000000000200",
         "final_text": "Hello back"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000103",
+      "timestamp": "2026-05-23T10:49:15Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_buttons",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000300",
+        "confirm_id": "00000000-0000-4000-8000-000000000300",
+        "title": "Reload MCP",
+        "body": "This will invalidate the provider prompt cache.",
+        "kind": "slash_confirm",
+        "buttons": [
+          {"id": "once", "label": "Approve Once", "style": "primary"},
+          {"id": "always", "label": "Always Approve", "style": "primary"},
+          {"id": "cancel", "label": "Cancel", "style": "danger"}
+        ]
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000104",
+      "timestamp": "2026-05-23T10:49:16Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_notice",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000400",
+        "kind": "info",
+        "text": "Provider switched to gpt-5"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000105",
+      "timestamp": "2026-05-23T10:49:17Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_image",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000500",
+        "url": "https://example.local/cat.png",
+        "caption": "a cat",
+        "mime_type": "image/png"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000106",
+      "timestamp": "2026-05-23T10:49:18Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "typing",
+      "payload": {
+        "state": "start"
       }
     }
   ]

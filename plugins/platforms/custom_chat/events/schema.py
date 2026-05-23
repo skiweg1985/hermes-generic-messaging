@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from ..config import (
     AudioUploadedPayload,
+    ButtonClickPayload,
     CommandCreatePayload,
     EventEnvelope,
     MessageCancelPayload,
@@ -37,6 +38,8 @@ def parse_inbound(data: dict[str, Any]) -> tuple[EventEnvelope, Any]:
             payload_model = AudioUploadedPayload.model_validate(envelope.payload)
         elif envelope.type == "message.cancel":
             payload_model = MessageCancelPayload.model_validate(envelope.payload)
+        elif envelope.type == "button.click":
+            payload_model = ButtonClickPayload.model_validate(envelope.payload)
         else:
             raise InboundEventError("BAD_REQUEST", f"unsupported inbound type: {envelope.type}")
     except InboundEventError:

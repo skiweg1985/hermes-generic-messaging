@@ -62,6 +62,8 @@ Set in `~/.hermes/.env` or the process environment. Env values **override** the 
 | `CUSTOM_CHAT_WS_PORT` | Bind port (only applied when set) |
 | `CUSTOM_CHAT_ALLOWED_USERS` | Comma-separated user IDs allowed to interact |
 | `CUSTOM_CHAT_ALLOW_ALL_USERS` | Set to allow any user ID |
+| `CUSTOM_CHAT_HOME_CHANNEL` | Default `chat_id` for cron-delivered messages (`deliver=custom_chat`) |
+| `CUSTOM_CHAT_HOME_CHANNEL_NAME` | Human-readable name for the home channel |
 
 Example for LAN access (VM or host `192.168.177.149`):
 
@@ -128,7 +130,56 @@ asyncio.run(main())
 
 ## Slash commands
 
-Messages starting with `/` are routed as `command.create` to the Hermes command layer (`/model`, `/reset`, etc.).
+Messages starting with `/` are forwarded verbatim as text to Hermes (same pass-through behavior as the Telegram adapter). The gateway runner detects the leading `/` and routes commands like `/model`, `/reset`, `/reload-mcp`.
+
+The `command.create` inbound event type is still accepted by the schema as an explicit form, but the resulting `MessageEvent` is plain text — no `metadata.is_command` flag.
+
+## Interactive button confirmations
+
+For commands that need user approval (e.g. `/reload-mcp`), Hermes calls `adapter.send_slash_confirm(...)`. The adapter emits an `assistant_buttons` event with three buttons:
+
+```json
+{
+  "type": "assistant_buttons",
+  "payload": {
+    "message_id": "<confirm_id>",
+    "confirm_id": "<confirm_id>",
+    "title": "Reload MCP",
+    "body": "...",
+    "kind": "slash_confirm",
+    "buttons": [
+      {"id": "once",   "label": "Approve Once",   "style": "primary"},
+      {"id": "always", "label": "Always Approve", "style": "primary"},
+      {"id": "cancel", "label": "Cancel",         "style": "danger"}
+    ]
+  }
+}
+```
+
+The client sends the user's choice back as a `button.click` inbound event:
+
+```json
+{
+  "type": "button.click",
+  "payload": {
+    "message_id": "<confirm_id>",
+    "confirm_id": "<confirm_id>",
+    "button_id": "once",
+    "choice": "once"
+  }
+}
+```
+
+The adapter then calls `GatewayRunner._resolve_slash_confirm(confirm_id, choice)`, which unblocks the agent.
+
+## Additional outbound events
+
+| Type | Purpose |
+|------|---------|
+| `assistant_buttons` | Interactive button prompt (slash confirm, approvals) |
+| `assistant_notice` | System/info bubble outside the streaming reply flow |
+| `assistant_image` | Image attachment with optional caption |
+| `typing` | Typing indicator (`state: "start"` / `"stop"`) |
 
 ## Audio
 

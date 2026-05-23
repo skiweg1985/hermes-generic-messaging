@@ -197,3 +197,51 @@
   - yes (Added under Unreleased)
 - Follow-ups:
   - Tab vs. Session-Menü vor PR3 festlegen
+
+## 2026-05-23 14:50 – cursor – Custom-Chat Hermes alignment + Telegram parity
+
+- Done:
+  - API alignment to real Hermes `MessageEvent` (`raw_message` / `media_urls` / `media_types`) and `SendResult` (no `already_sent`); fixes the two `TypeError` crashes observed live on Homer
+  - Slash command pass-through (Telegram parity): `text_to_command_event` no longer wraps inbound text; `command.create` is still accepted but the resulting event is plain `TEXT`
+  - Event Schema v1.1 added: `assistant_buttons`, `assistant_notice`, `assistant_image`, `typing` outbound; `button.click` inbound; new Pydantic models `ButtonClickPayload`, `ButtonSpec`
+  - Adapter hooks: `send_slash_confirm` (3-button confirm), `send_typing` / `stop_typing`, `send_image`, `send_private_notice`, `interrupt_session_activity`
+  - `button.click` inbound routed to `GatewayRunner._resolve_slash_confirm` via `_message_handler.__self__` (same pattern as Telegram); fallback for approvals
+  - `register()` extended (`cron_deliver_env_var`, `apply_yaml_config_fn`, `platform_hint`, `emoji`) with defensive kwarg drop for older Hermes versions
+  - `plugin.yaml` `optional_env` extended with `CUSTOM_CHAT_HOME_CHANNEL`, `CUSTOM_CHAT_HOME_CHANNEL_NAME`, `CUSTOM_CHAT_ALLOW_ALL_USERS`
+  - Test stubs in `tests/conftest.py` re-aligned to the real Hermes signatures; existing `test_commands.py::test_model_command_routed` updated for pass-through; new tests `test_slash_confirm.py`, `test_interrupt.py`, `test_notice_image_typing.py`
+  - Deployed to Homer (`rsync` of plugin + schema), gateway restarted, plugin loaded (kwarg `apply_yaml_config_fn` dropped with warning), 6 platforms connected; WS smoke `say hello in 4 words` → `assistant_start` + `assistant_done`, no Tracebacks
+- Next:
+  - Frontend: render `assistant_buttons` in the React UI and send `button.click` back when the user clicks one of the buttons
+  - Tool/skill approval pattern (`extra_approval` / `ea:once|session|always|deny`) on top of the same button mechanism
+  - Once Homer's Hermes catches up to a build that knows `apply_yaml_config_fn`, the defensive kwarg-drop warning will go away on its own
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - plugins/platforms/custom_chat/events/mapping.py
+  - plugins/platforms/custom_chat/events/schema.py
+  - plugins/platforms/custom_chat/config.py
+  - plugins/platforms/custom_chat/plugin.yaml
+  - packages/custom_chat_schema/schema.py
+  - packages/custom_chat_schema/__init__.py
+  - tests/conftest.py
+  - tests/plugins/custom_chat/test_commands.py
+  - tests/plugins/custom_chat/test_slash_confirm.py (new)
+  - tests/plugins/custom_chat/test_interrupt.py (new)
+  - tests/plugins/custom_chat/test_notice_image_typing.py (new)
+  - docs/custom_chat.md
+  - docs/examples/custom-chat-events-v1.json
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - `python -m pytest tests/plugins/custom_chat -q` → 39 passed
+  - `python -m pytest -q` (full) → 45 passed
+  - Homer: `systemctl --user is-active hermes-gateway.service` → `active`, gateway log: `Gateway running with 6 platform(s)`, `✓ custom_chat connected`
+  - WS smoke (`ws://192.168.177.149:8765`, bearer): `message.create` "say hello in 4 words" → received `assistant_start` + `assistant_done`, no TypeError in `errors.log`
+- Changelog updated:
+  - yes (Fixed / Changed / Added under Unreleased)
+- Follow-ups:
+  - Frontend rendering for `assistant_buttons` + `button.click` outbound from web UI (out of scope for this work)

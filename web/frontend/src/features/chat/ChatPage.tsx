@@ -7,6 +7,7 @@ import { AttachControls } from "./AttachControls";
 import { chatReducer, initialChatState } from "./chatReducer";
 import { PromptLine } from "./PromptLine";
 import { Transcript } from "./Transcript";
+import { newId } from "../../lib/uuid";
 
 const CHAT_ID = "workspace:demo";
 const USER_ID = "user-demo";
@@ -77,7 +78,7 @@ export function ChatPage() {
         });
         wsRef.current.sendAudioUploaded(
           {
-            message_id: crypto.randomUUID(),
+            message_id: newId(),
             mime_type: result.mime_type,
             size_bytes: result.size_bytes,
             url: result.url,

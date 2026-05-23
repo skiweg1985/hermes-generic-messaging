@@ -1,12 +1,19 @@
-"""Shared test fixtures and Hermes type stubs."""
+"""Shared test fixtures and Hermes type stubs.
+
+Stubs mirror the real Hermes API shape on the target VM:
+- MessageEvent has raw_message / media_urls / media_types (no `metadata`)
+- SendResult has success / message_id / error / raw_response / retryable
+  (no `already_sent`)
+"""
 
 from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from types import ModuleType
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 
 class MessageType(Enum):
@@ -16,7 +23,7 @@ class MessageType(Enum):
 
 @dataclass
 class SessionSource:
-    platform: Platform
+    platform: "Platform"
     chat_id: str
     chat_name: Optional[str] = None
     chat_type: str = "dm"
@@ -31,15 +38,27 @@ class MessageEvent:
     text: str
     message_type: MessageType
     source: SessionSource
-    message_id: str
-    metadata: dict[str, Any] = field(default_factory=dict)
+    raw_message: Any = None
+    message_id: Optional[str] = None
+    platform_update_id: Optional[int] = None
+    media_urls: List[str] = field(default_factory=list)
+    media_types: List[str] = field(default_factory=list)
+    reply_to_message_id: Optional[str] = None
+    reply_to_text: Optional[str] = None
+    auto_skill: Any = None
+    channel_prompt: Optional[str] = None
+    internal: bool = False
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
 class SendResult:
     success: bool = True
     message_id: Optional[str] = None
-    already_sent: bool = False
+    error: Optional[str] = None
+    raw_response: Any = None
+    retryable: bool = False
+    continuation_message_ids: tuple = ()
 
 
 class Platform:

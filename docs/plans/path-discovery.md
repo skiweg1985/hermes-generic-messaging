@@ -16,6 +16,7 @@ Concrete paths for the Universal Hermes Platform Adapter in this repository.
 | State (dedupe/cancel) | `plugins/platforms/custom_chat/state.py` |
 | Tests | `tests/plugins/custom_chat/` |
 | Contract doc | `docs/plans/universal-platform-adapter-v1.md` |
+| Multi-chat UI plan | `docs/plans/multi-chat-sessions-web-ui.md` |
 | Operator docs | `docs/custom_chat.md` |
 | Example events | `docs/examples/custom-chat-events-v1.json` |
 

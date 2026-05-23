@@ -7,6 +7,8 @@ from custom_chat_schema.schema import (
     PLATFORM_NAME,
     SCHEMA_VERSION,
     AudioUploadedPayload,
+    ButtonClickPayload,
+    ButtonSpec,
     CommandCreatePayload,
     EventEnvelope,
     MessageCancelPayload,
@@ -28,6 +30,8 @@ __all__ = [
     "CommandCreatePayload",
     "AudioUploadedPayload",
     "MessageCancelPayload",
+    "ButtonClickPayload",
+    "ButtonSpec",
     "parse_inbound_envelope",
     "build_outbound_event",
 ]

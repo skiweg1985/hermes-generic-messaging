@@ -24,3 +24,15 @@ optional_env:
     description: "Comma-separated user IDs allowed to interact"
     prompt: "Allowed users"
     password: false
+  - name: CUSTOM_CHAT_ALLOW_ALL_USERS
+    description: "Set to true to skip user allowlist (open access)"
+    prompt: "Allow all users"
+    password: false
+  - name: CUSTOM_CHAT_HOME_CHANNEL
+    description: "Default chat_id for cron-delivered messages"
+    prompt: "Home channel chat_id"
+    password: false
+  - name: CUSTOM_CHAT_HOME_CHANNEL_NAME
+    description: "Human-readable name for the home channel"
+    prompt: "Home channel name"
+    password: false

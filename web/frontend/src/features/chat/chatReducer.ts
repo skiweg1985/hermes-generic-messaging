@@ -1,4 +1,5 @@
 import type { ChatState, EventEnvelope, TranscriptLine } from "../../types/events";
+import { newId } from "../../lib/uuid";
 
 export const initialChatState = (sessionLabel: string): ChatState => ({
   connection: "connecting",
@@ -38,25 +39,25 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, recording: action.recording };
     case "USER_TEXT":
       return appendLine(state, {
-        id: crypto.randomUUID(),
+        id: newId(),
         kind: "user",
         text: action.text,
       });
     case "USER_COMMAND":
       return appendLine(state, {
-        id: crypto.randomUUID(),
+        id: newId(),
         kind: "command",
         text: action.command,
       });
     case "USER_UPLOAD":
       return appendLine(state, {
-        id: crypto.randomUUID(),
+        id: newId(),
         kind: "upload",
         text: `[upload] ${action.filename} (${action.mime}, ${formatSize(action.size)})`,
       });
     case "USER_ERROR":
       return appendLine(state, {
-        id: crypto.randomUUID(),
+        id: newId(),
         kind: "error",
         text: `error: ${action.code} — ${action.message}`,
       });
@@ -76,7 +77,7 @@ function reduceInbound(state: ChatState, event: EventEnvelope): ChatState {
   const p = event.payload;
   switch (event.type) {
     case "assistant_start": {
-      const messageId = String(p.message_id ?? crypto.randomUUID());
+      const messageId = String(p.message_id ?? newId());
       return {
         ...appendLine(
           { ...state, streamingMessageId: messageId },
@@ -121,7 +122,7 @@ function reduceInbound(state: ChatState, event: EventEnvelope): ChatState {
       return { ...state, lines, streamingMessageId: null };
     }
     case "assistant_audio": {
-      const messageId = String(p.message_id ?? crypto.randomUUID());
+      const messageId = String(p.message_id ?? newId());
       const url = String(p.url ?? p.file_ref ?? "");
       return appendLine(
         { ...state, streamingMessageId: null },
@@ -137,7 +138,7 @@ function reduceInbound(state: ChatState, event: EventEnvelope): ChatState {
     case "assistant_error": {
       return {
         ...appendLine(state, {
-          id: crypto.randomUUID(),
+          id: newId(),
           kind: "error",
           text: `error: ${String(p.code ?? "ERROR")} — ${String(p.message ?? "unknown")}`,
         }),
