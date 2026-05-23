@@ -19,6 +19,7 @@ def _hermes_types():
 def inbound_to_message_event(
     envelope: EventEnvelope,
     payload_model: Any,
+    source: Any,
     *,
     transcribed_text: Optional[str] = None,
 ) -> Any:
@@ -28,18 +29,6 @@ def inbound_to_message_event(
             "INTERNAL_ERROR",
             "hermes-agent not installed; MessageEvent unavailable",
         )
-
-    chat_type = "dm"
-    source = {
-        "chat_id": envelope.chat_id,
-        "chat_name": envelope.chat_id,
-        "chat_type": chat_type,
-        "user_id": envelope.user_id,
-        "user_name": envelope.user_id,
-        "thread_id": envelope.thread_id,
-        "platform": envelope.platform,
-        "session_id": envelope.session_id,
-    }
 
     if envelope.type == "message.create":
         text = payload_model.text

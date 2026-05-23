@@ -15,10 +15,22 @@ class MessageType(Enum):
 
 
 @dataclass
+class SessionSource:
+    platform: Platform
+    chat_id: str
+    chat_name: Optional[str] = None
+    chat_type: str = "dm"
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+    thread_id: Optional[str] = None
+    message_id: Optional[str] = None
+
+
+@dataclass
 class MessageEvent:
     text: str
     message_type: MessageType
-    source: dict[str, Any]
+    source: SessionSource
     message_id: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -60,6 +72,27 @@ class _BasePlatformAdapter:
         if self._message_handler:
             await self._message_handler(event)
 
+    def build_source(
+        self,
+        chat_id: str,
+        chat_name: Optional[str] = None,
+        chat_type: str = "dm",
+        user_id: Optional[str] = None,
+        user_name: Optional[str] = None,
+        thread_id: Optional[str] = None,
+        message_id: Optional[str] = None,
+    ) -> SessionSource:
+        return SessionSource(
+            platform=self.platform,
+            chat_id=str(chat_id),
+            chat_name=chat_name,
+            chat_type=chat_type,
+            user_id=str(user_id) if user_id else None,
+            user_name=user_name,
+            thread_id=str(thread_id) if thread_id else None,
+            message_id=str(message_id) if message_id else None,
+        )
+
 
 def _install_hermes_stubs() -> None:
     base_mod = ModuleType("gateway.platforms.base")
@@ -67,6 +100,9 @@ def _install_hermes_stubs() -> None:
     base_mod.MessageType = MessageType  # type: ignore[attr-defined]
     base_mod.SendResult = SendResult  # type: ignore[attr-defined]
     base_mod.BasePlatformAdapter = _BasePlatformAdapter  # type: ignore[attr-defined]
+
+    session_mod = ModuleType("gateway.session")
+    session_mod.SessionSource = SessionSource  # type: ignore[attr-defined]
 
     config_mod = ModuleType("gateway.config")
     config_mod.Platform = Platform  # type: ignore[attr-defined]
@@ -77,6 +113,7 @@ def _install_hermes_stubs() -> None:
     sys.modules.setdefault("gateway", gateway_mod)
     sys.modules.setdefault("gateway.platforms", platforms_mod)
     sys.modules.setdefault("gateway.platforms.base", base_mod)
+    sys.modules.setdefault("gateway.session", session_mod)
     sys.modules.setdefault("gateway.config", config_mod)
 
 

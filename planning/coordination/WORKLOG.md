@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-05-23 14:15 – cursor – SessionSource inbound mapping fix
+
+- Done:
+  - `inbound_to_message_event` takes Hermes `SessionSource` from `adapter.build_source()` instead of a dict
+  - Test stubs: `SessionSource`, `build_source()` on base adapter; assertion on `source.platform.value`
+  - Deployed `adapter.py` + `events/mapping.py` to homer VM; `systemctl --user restart hermes-gateway.service`
+  - WS smoke: `assistant_start` received; no `custom_chat inbound failed` / AttributeError in gateway log
+  - Docs: CHANGELOG Fixed, troubleshooting row in `custom_chat.md`
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - plugins/platforms/custom_chat/events/mapping.py
+  - tests/conftest.py
+  - tests/plugins/custom_chat/test_adapter.py
+  - docs/CHANGELOG.md
+  - docs/custom_chat.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python -m pytest tests/plugins/custom_chat -q` → 30 passed
+  - VM: WS `message.create` → `assistant_start`
+- Changelog updated:
+  - yes (Fixed under Unreleased)
+- Follow-ups:
+  - none
+
 ## 2026-05-23 14:05 – cursor – Operator docs (Hermes config path)
 
 - Done:

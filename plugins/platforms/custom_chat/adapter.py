@@ -74,6 +74,40 @@ except ImportError:
             if handler:
                 await handler(event)
 
+        def build_source(
+            self,
+            chat_id: str,
+            chat_name: Optional[str] = None,
+            chat_type: str = "dm",
+            user_id: Optional[str] = None,
+            user_name: Optional[str] = None,
+            thread_id: Optional[str] = None,
+            message_id: Optional[str] = None,
+        ) -> Any:
+            from dataclasses import dataclass
+
+            @dataclass
+            class _SessionSource:
+                platform: Any
+                chat_id: str
+                chat_name: Optional[str] = None
+                chat_type: str = "dm"
+                user_id: Optional[str] = None
+                user_name: Optional[str] = None
+                thread_id: Optional[str] = None
+                message_id: Optional[str] = None
+
+            return _SessionSource(
+                platform=self.platform,
+                chat_id=str(chat_id),
+                chat_name=chat_name,
+                chat_type=chat_type,
+                user_id=str(user_id) if user_id else None,
+                user_name=user_name,
+                thread_id=str(thread_id) if thread_id else None,
+                message_id=str(message_id) if message_id else None,
+            )
+
 
 class CustomChatAdapter(BasePlatformAdapter):
   def __init__(self, config: PlatformConfig):
@@ -237,14 +271,24 @@ class CustomChatAdapter(BasePlatformAdapter):
         envelope = text_to_command_event(envelope, payload_model.text)
         _, payload_model = parse_inbound(envelope.model_dump())
 
+      source = self.build_source(
+        chat_id=envelope.chat_id,
+        chat_name=envelope.chat_id,
+        chat_type="dm",
+        user_id=envelope.user_id,
+        user_name=envelope.user_id,
+        thread_id=envelope.thread_id or None,
+        message_id=getattr(payload_model, "message_id", None),
+      )
+
       if envelope.type == "audio.uploaded":
         validate_audio_payload(payload_model, self.settings)
         transcribed = transcribe_audio(payload_model)
         msg_event = inbound_to_message_event(
-          envelope, payload_model, transcribed_text=transcribed
+          envelope, payload_model, source, transcribed_text=transcribed
         )
       else:
-        msg_event = inbound_to_message_event(envelope, payload_model)
+        msg_event = inbound_to_message_event(envelope, payload_model, source)
 
       reply_id = self._new_event_id()
       self._reply_routes[reply_id] = {

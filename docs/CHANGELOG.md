@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Inbound `MessageEvent.source` built via `build_source()` as Hermes `SessionSource` (fixes `AttributeError: 'dict' object has no attribute 'platform'` in gateway session routing)
 - Plugin loaded by Hermes `discover_plugins`: `__init__.py` now exports `register` and bootstraps `packages/` onto `sys.path`
 - Plugin-internal imports use relative paths so the adapter works when Hermes loads it via `spec_from_file_location` (no global `plugins.platforms.custom_chat` package required)
 - `_env_enablement` no longer overwrites YAML `extra.ws_host` / `ws_port` with hard-coded defaults when the env vars are unset

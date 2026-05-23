@@ -143,6 +143,7 @@ Inbound `audio.uploaded` events require allowed MIME types and size under the co
 | `ws_host` / `ws_port` stay at defaults | Keys must be under `extra`, not directly under `custom_chat` |
 | Log: `Skipping 'custom_chat-platform' (not in plugins.enabled)` | Add plugin to `plugins.enabled` or run `hermes plugins enable custom_chat-platform` |
 | Log: `has no register() function` | Update plugin: `__init__.py` must export `register` (current repo version) |
+| Log: `'dict' object has no attribute 'platform'` on inbound | Update plugin (`adapter.py`, `events/mapping.py`); restart gateway |
 | Connection closed immediately | Bearer token mismatch |
 | `assistant_error` after connect | User allowlist (`CUSTOM_CHAT_ALLOWED_USERS`) or Hermes authorization for `user_id` |
 | `RATE_LIMITED` errors | Reduce message frequency or raise `rate_limit_per_minute` in config extra |
