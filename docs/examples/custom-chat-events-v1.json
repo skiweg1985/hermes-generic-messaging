@@ -1,0 +1,86 @@
+{
+  "inbound_examples": [
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000001",
+      "timestamp": "2026-05-23T10:49:09Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "message.create",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000010",
+        "text": "Hello"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000002",
+      "timestamp": "2026-05-23T10:49:10Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "command.create",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000011",
+        "command": "/model"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000003",
+      "timestamp": "2026-05-23T10:49:11Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "audio.uploaded",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000012",
+        "mime_type": "audio/ogg",
+        "size_bytes": 4096,
+        "url": "https://example.local/voice.ogg"
+      }
+    }
+  ],
+  "outbound_examples": [
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000100",
+      "timestamp": "2026-05-23T10:49:12Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_start",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000200"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000101",
+      "timestamp": "2026-05-23T10:49:13Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_delta",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000200",
+        "sequence": 1,
+        "delta": "Hel"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000102",
+      "timestamp": "2026-05-23T10:49:14Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_done",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000200",
+        "final_text": "Hello back"
+      }
+    }
+  ]
+}

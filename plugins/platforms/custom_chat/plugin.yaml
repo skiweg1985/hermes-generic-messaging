@@ -1,0 +1,26 @@
+name: custom_chat-platform
+label: Custom Chat
+kind: platform
+version: 1.0.0
+description: >
+  Universal WebSocket messaging adapter for Hermes Agent.
+  Speaks Event Schema v1 for text, streaming, slash commands, and audio.
+author: Hermes Generic Messaging
+requires_env:
+  - name: CUSTOM_CHAT_BEARER_TOKEN
+    description: "Bearer token clients must send on WebSocket upgrade"
+    prompt: "Bearer token"
+    password: true
+optional_env:
+  - name: CUSTOM_CHAT_WS_HOST
+    description: "WebSocket bind host (default 127.0.0.1)"
+    prompt: "Bind host"
+    password: false
+  - name: CUSTOM_CHAT_WS_PORT
+    description: "WebSocket bind port (default 8765)"
+    prompt: "Bind port"
+    password: false
+  - name: CUSTOM_CHAT_ALLOWED_USERS
+    description: "Comma-separated user IDs allowed to interact"
+    prompt: "Allowed users"
+    password: false
