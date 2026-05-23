@@ -13,14 +13,23 @@ Universal Hermes platform adapter (`custom_chat`) that speaks **Event Schema v1*
 
 ## Plugin install
 
-Requires **pip ≥ 23** and a current **setuptools** (PEP 660 editable install). On older systems:
+**Python ≥ 3.10.** On servers where `pip install --user` fails (permission denied, user-site disabled), use a **venv** — do not install into system Python.
 
 ```bash
-python3 -m pip install --user -U pip setuptools wheel
+./scripts/bootstrap-venv.sh
+source .venv/bin/activate
+```
+
+Manual equivalent:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip setuptools wheel
 pip install -e ".[dev]"
 ```
 
-If editable mode still fails, use a regular install: `pip install ".[dev]"`.
+Plugin-only without web extras: `EXTRAS=dev ./scripts/bootstrap-venv.sh`
 
 Copy or symlink this repo into the Hermes plugins directory:
 
@@ -43,7 +52,7 @@ gateway:
 ## Web app
 
 ```bash
-pip install -e ".[dev,web]"
+source .venv/bin/activate   # after bootstrap-venv.sh
 cd web/backend && uvicorn app.main:app --reload --port 8000
 # other terminal:
 cd web/frontend && npm install && npm run dev

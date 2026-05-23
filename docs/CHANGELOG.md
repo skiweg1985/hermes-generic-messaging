@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Install: use `scripts/bootstrap-venv.sh` on hosts without writable system/user site-packages; removed `setup.py` legacy develop shim
+- `requires-python` set to `>=3.10`
+
+### Added
+
+- `scripts/bootstrap-venv.sh` for venv-based editable install
+
 ### Added
 
 - Plan: multi-chat sessions in web UI (`docs/plans/multi-chat-sessions-web-ui.md`)

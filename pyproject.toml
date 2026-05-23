@@ -7,7 +7,7 @@ name = "hermes-generic-messaging"
 version = "0.1.0"
 description = "Universal Hermes platform adapter (custom_chat) with WebSocket Event Schema v1 and web UI"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",
     "websockets>=12.0",
