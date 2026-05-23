@@ -13,9 +13,14 @@ Universal Hermes platform adapter (`custom_chat`) that speaks **Event Schema v1*
 
 ## Plugin install
 
+Requires **pip ≥ 23** and a current **setuptools** (PEP 660 editable install). On older systems:
+
 ```bash
+python3 -m pip install --user -U pip setuptools wheel
 pip install -e ".[dev]"
 ```
+
+If editable mode still fails, use a regular install: `pip install ".[dev]"`.
 
 Copy or symlink this repo into the Hermes plugins directory:
 

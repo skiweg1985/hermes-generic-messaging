@@ -4,6 +4,7 @@
 
 ### Added
 
+- Plan: multi-chat sessions in web UI (`docs/plans/multi-chat-sessions-web-ui.md`)
 - Web app: FastAPI BFF (`web/backend`) with WebSocket proxy and audio media upload API
 - Terminal-style React UI (`web/frontend`) with full Event Schema v1 client support
 - Shared package `packages/custom_chat_schema` for plugin and BFF models

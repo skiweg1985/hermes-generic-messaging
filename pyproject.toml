@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=75", "wheel>=0.43"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,9 +26,13 @@ web = [
     "websockets>=12.0",
 ]
 
+[tool.setuptools.package-dir]
+"custom_chat_schema" = "packages/custom_chat_schema"
+
 [tool.setuptools.packages.find]
 where = ["packages", "."]
 include = ["custom_chat_schema*", "plugins*"]
+namespaces = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -57,3 +57,27 @@
   - yes (Added under Unreleased)
 - Follow-ups:
   - Publish initial commit and open PR1–PR7 split if review prefers smaller PRs
+
+## 2026-05-23 – composer – Multi-chat sessions plan
+
+- Done:
+  - Plan document `docs/plans/multi-chat-sessions-web-ui.md` (4 PRs: state/persistenz, inbound routing, tab UI, docs)
+  - Verweis in `docs/plans/path-discovery.md`
+- Next:
+  - Hermes-Verifikation: Kontexttrennung pro `chat_id`
+  - Implementierung PR1 (Session-Modell) nach Freigabe
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (current)
+  - PR: none
+- Files touched:
+  - docs/plans/multi-chat-sessions-web-ui.md
+  - docs/plans/path-discovery.md
+  - docs/CHANGELOG.md
+- Test notes:
+  - none (plan only)
+- Changelog updated:
+  - yes (Added under Unreleased)
+- Follow-ups:
+  - Tab vs. Session-Menü vor PR3 festlegen
