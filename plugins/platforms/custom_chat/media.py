@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from plugins.platforms.custom_chat.config import AudioUploadedPayload, CustomChatSettings
-from plugins.platforms.custom_chat.events.schema import InboundEventError
+from .config import AudioUploadedPayload, CustomChatSettings
+from .events.schema import InboundEventError
 
 
 def validate_audio_payload(

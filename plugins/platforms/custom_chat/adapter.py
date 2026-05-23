@@ -9,24 +9,24 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from plugins.platforms.custom_chat.config import (
+from .config import (
     CustomChatSettings,
     build_outbound_event,
 )
-from plugins.platforms.custom_chat.events.mapping import inbound_to_message_event
-from plugins.platforms.custom_chat.events.schema import (
+from .events.mapping import inbound_to_message_event
+from .events.schema import (
     InboundEventError,
     parse_inbound,
     text_to_command_event,
 )
-from plugins.platforms.custom_chat.media import (
+from .media import (
     synthesize_audio_url,
     transcribe_audio,
     validate_audio_payload,
 )
-from plugins.platforms.custom_chat.state import AdapterState
-from plugins.platforms.custom_chat.streaming import StreamManager
-from plugins.platforms.custom_chat.transport.ws_server import WebSocketHub
+from .state import AdapterState
+from .streaming import StreamManager
+from .transport.ws_server import WebSocketHub
 
 logger = logging.getLogger(__name__)
 
@@ -433,14 +433,17 @@ def _env_enablement() -> dict | None:
   token = os.getenv("CUSTOM_CHAT_BEARER_TOKEN", "").strip()
   if not token:
     return None
-  host = os.getenv("CUSTOM_CHAT_WS_HOST", "127.0.0.1").strip()
-  port = os.getenv("CUSTOM_CHAT_WS_PORT", "8765").strip()
-  return {
+  seed: dict[str, Any] = {
     "bearer_token": token,
-    "ws_host": host,
-    "ws_port": int(port),
     "enabled": True,
   }
+  host = os.getenv("CUSTOM_CHAT_WS_HOST", "").strip()
+  if host:
+    seed["ws_host"] = host
+  port = os.getenv("CUSTOM_CHAT_WS_PORT", "").strip()
+  if port:
+    seed["ws_port"] = int(port)
+  return seed
 
 
 def register(ctx: Any) -> None:

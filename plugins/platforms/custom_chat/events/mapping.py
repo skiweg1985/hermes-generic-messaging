@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from plugins.platforms.custom_chat.config import EventEnvelope
-from plugins.platforms.custom_chat.events.schema import InboundEventError
+from ..config import EventEnvelope
+from .schema import InboundEventError
 
 
 def _hermes_types():

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from plugins.platforms.custom_chat.config import (
+from ..config import (
     AudioUploadedPayload,
     CommandCreatePayload,
     EventEnvelope,

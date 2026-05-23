@@ -1,5 +1,42 @@
 # Worklog
 
+## 2026-05-23 13:55 – cursor – Plugin load fix on Hermes host
+
+- Done:
+  - Verified live Hermes setup on `homer@192.168.177.149`: plugin symlink present but `Skipping 'custom_chat-platform' (not in plugins.enabled)` and later `no register() function`
+  - `~/.hermes/config.yaml` moved `custom_chat` from `gateway.platforms.*` (ignored by loader) to top-level `platforms.*` and added `plugins.enabled: [custom_chat-platform]`; backup at `config.yaml.bak.20260523-134559`
+  - Plugin code refactored to relative imports (`__init__.py`, `adapter.py`, `events/*`, `media.py`); `__init__.py` adds `<repo>/packages/` to `sys.path` so `custom_chat_schema` resolves
+  - `_env_enablement` only seeds env-derived keys; YAML `extra` for `ws_host` / `ws_port` is preserved
+  - Files synced to VM via scp, gateway restarted
+- Next:
+  - Decide if `~/.hermes/.env` should pin `CUSTOM_CHAT_WS_HOST=192.168.177.149` (currently driven by YAML extra)
+  - Confirm user-allowlist for non-test `user_id`s (smoke send returned `assistant_error` from Hermes authorization layer)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/__init__.py
+  - plugins/platforms/custom_chat/adapter.py
+  - plugins/platforms/custom_chat/events/__init__.py
+  - plugins/platforms/custom_chat/events/mapping.py
+  - plugins/platforms/custom_chat/events/schema.py
+  - plugins/platforms/custom_chat/media.py
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+  - (remote only) /home/homer/.hermes/config.yaml
+- Test notes:
+  - `python -m pytest tests/plugins/custom_chat -q` → 30 passed
+  - VM: `ss -tlnp | grep 8765` → `LISTEN 192.168.177.149:8765`
+  - VM gateway.log: `Connecting to custom_chat... ✓ custom_chat connected`, `Gateway running with 6 platform(s)`
+  - WS smoke (`ws://192.168.177.149:8765`, bearer): connected, sent `message.create`, received `assistant_error` envelope
+- Changelog updated:
+  - yes (Fixed under Unreleased)
+- Follow-ups:
+  - Consider vendoring `custom_chat_schema` into the plugin to drop the `sys.path` shim
+  - Update `docs/custom_chat.md` example: top-level `platforms:` (not `gateway.platforms:`) plus `plugins.enabled` entry
+
 ## 2026-05-23 – composer – Web app (custom_chat BFF + terminal UI)
 
 - Done:
