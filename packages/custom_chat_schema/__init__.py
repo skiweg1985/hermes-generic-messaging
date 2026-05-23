@@ -1,6 +1,6 @@
-"""Configuration and Event Schema v1 — re-exports from shared package."""
+"""Shared Event Schema v1 models for custom_chat plugin and web BFF."""
 
-from custom_chat_schema import (
+from custom_chat_schema.schema import (
     ERROR_CODES,
     INBOUND_TYPES,
     OUTBOUND_TYPES,
@@ -8,14 +8,13 @@ from custom_chat_schema import (
     SCHEMA_VERSION,
     AudioUploadedPayload,
     CommandCreatePayload,
-    CustomChatSettings,
     EventEnvelope,
     MessageCancelPayload,
     MessageCreatePayload,
     build_outbound_event,
     parse_inbound_envelope,
 )
-from custom_chat_schema.schema import DEFAULT_ALLOWED_AUDIO_MIME_TYPES
+from custom_chat_schema.settings import CustomChatSettings
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -23,7 +22,6 @@ __all__ = [
     "ERROR_CODES",
     "INBOUND_TYPES",
     "OUTBOUND_TYPES",
-    "DEFAULT_ALLOWED_AUDIO_MIME_TYPES",
     "CustomChatSettings",
     "EventEnvelope",
     "MessageCreatePayload",

@@ -1,8 +1,17 @@
 # Hermes Generic Messaging
 
-Universal Hermes platform adapter (`custom_chat`) that speaks **Event Schema v1** over WebSocket.
+Universal Hermes platform adapter (`custom_chat`) that speaks **Event Schema v1** over WebSocket, plus a terminal-style web UI.
 
-## Install
+## Repository layout
+
+| Path | Description |
+|------|-------------|
+| `plugins/platforms/custom_chat/` | Hermes platform plugin |
+| `packages/custom_chat_schema/` | Shared Event Schema v1 models |
+| `web/backend/` | FastAPI BFF (WS proxy, media upload) |
+| `web/frontend/` | React terminal chat UI |
+
+## Plugin install
 
 ```bash
 pip install -e ".[dev]"
@@ -26,7 +35,18 @@ gateway:
         ws_port: 8765
 ```
 
-## Environment
+## Web app
+
+```bash
+pip install -e ".[dev,web]"
+cd web/backend && uvicorn app.main:app --reload --port 8000
+# other terminal:
+cd web/frontend && npm install && npm run dev
+```
+
+See [docs/web-app.md](docs/web-app.md) and [web/README.md](web/README.md).
+
+## Environment (plugin)
 
 | Variable | Description |
 |----------|-------------|
@@ -39,5 +59,6 @@ See [docs/custom_chat.md](docs/custom_chat.md) and [docs/plans/universal-platfor
 ## Tests
 
 ```bash
-python -m pytest tests/plugins/custom_chat -q
+python -m pytest tests/plugins/custom_chat tests/web -q
+cd web/frontend && npm test
 ```

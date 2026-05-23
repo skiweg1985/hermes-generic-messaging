@@ -1,0 +1,131 @@
+"""Event Schema v1 — envelope, payloads, builders."""
+
+from __future__ import annotations
+
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+SCHEMA_VERSION = "v1"
+PLATFORM_NAME = "custom_chat"
+
+ERROR_CODES = frozenset(
+    {
+        "BAD_REQUEST",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "RATE_LIMITED",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "PAYLOAD_TOO_LARGE",
+        "STREAM_TIMEOUT",
+        "INTERNAL_ERROR",
+    }
+)
+
+INBOUND_TYPES = frozenset(
+    {"message.create", "command.create", "audio.uploaded", "message.cancel"}
+)
+OUTBOUND_TYPES = frozenset(
+    {
+        "assistant_start",
+        "assistant_delta",
+        "assistant_done",
+        "assistant_audio",
+        "assistant_error",
+    }
+)
+
+DEFAULT_ALLOWED_AUDIO_MIME_TYPES = [
+    "audio/ogg",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/webm",
+    "audio/mp4",
+]
+
+
+class EventEnvelope(BaseModel):
+    schema_version: Literal["v1"]
+    event_id: str
+    timestamp: str
+    platform: Literal["custom_chat"]
+    chat_id: str
+    user_id: str
+    thread_id: Optional[str] = None
+    session_id: Optional[str] = None
+    type: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        if v not in INBOUND_TYPES and v not in OUTBOUND_TYPES:
+            raise ValueError(f"unknown event type: {v}")
+        return v
+
+
+class MessageCreatePayload(BaseModel):
+    message_id: str
+    text: str
+    idempotency_key: Optional[str] = None
+
+
+class CommandCreatePayload(BaseModel):
+    message_id: str
+    command: str
+
+    @field_validator("command")
+    @classmethod
+    def must_start_with_slash(cls, v: str) -> str:
+        if not v.startswith("/"):
+            raise ValueError("command must start with /")
+        return v
+
+
+class AudioUploadedPayload(BaseModel):
+    message_id: str
+    mime_type: str
+    size_bytes: int
+    url: Optional[str] = None
+    file_ref: Optional[str] = None
+
+    @model_validator(mode="after")
+    def url_or_file_ref(self) -> "AudioUploadedPayload":
+        if not self.url and not self.file_ref:
+            raise ValueError("url or file_ref required")
+        return self
+
+
+class MessageCancelPayload(BaseModel):
+    target_message_id: str
+
+
+def parse_inbound_envelope(data: dict[str, Any]) -> EventEnvelope:
+    return EventEnvelope.model_validate(data)
+
+
+def build_outbound_event(
+    *,
+    event_id: str,
+    timestamp: str,
+    chat_id: str,
+    user_id: str,
+    event_type: str,
+    payload: dict[str, Any],
+    thread_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> dict[str, Any]:
+    if event_type not in OUTBOUND_TYPES:
+        raise ValueError(f"not an outbound type: {event_type}")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "event_id": event_id,
+        "timestamp": timestamp,
+        "platform": PLATFORM_NAME,
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "thread_id": thread_id,
+        "session_id": session_id,
+        "type": event_type,
+        "payload": payload,
+    }

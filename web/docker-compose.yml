@@ -1,0 +1,27 @@
+services:
+  bff:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile.bff
+    ports:
+      - "8000:8000"
+    environment:
+      CUSTOM_CHAT_WS_URL: ws://host.docker.internal:8765
+      CUSTOM_CHAT_BEARER_TOKEN: ${CUSTOM_CHAT_BEARER_TOKEN:-}
+      WEB_PUBLIC_MEDIA_BASE_URL: http://host.docker.internal:8000
+    volumes:
+      - bff-uploads:/app/data/uploads
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_PROXY: http://bff:8000
+
+volumes:
+  bff-uploads:

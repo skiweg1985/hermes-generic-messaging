@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hermes-generic-messaging"
 version = "0.1.0"
-description = "Universal Hermes platform adapter (custom_chat) with WebSocket Event Schema v1"
+description = "Universal Hermes platform adapter (custom_chat) with WebSocket Event Schema v1 and web UI"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -17,13 +17,20 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+]
+web = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.12",
+    "websockets>=12.0",
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["plugins*"]
+where = ["packages", "."]
+include = ["custom_chat_schema*", "plugins*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "web/backend"]

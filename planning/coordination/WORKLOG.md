@@ -1,5 +1,37 @@
 # Worklog
 
+## 2026-05-23 – composer – Web app (custom_chat BFF + terminal UI)
+
+- Done:
+  - Monorepo layout: `packages/custom_chat_schema`, `web/backend`, `web/frontend`
+  - Plugin `config.py` re-exports shared schema package
+  - FastAPI: health, WS proxy, media upload/download
+  - React terminal UI: text, commands, streaming, cancel, audio in/out
+  - Tests: `tests/web/`, frontend Vitest reducer tests
+  - Docs: `docs/web-app.md`, README, path-discovery, CHANGELOG
+- Next:
+  - Auth (fastapi-auth) when required
+  - E2E Playwright against live Hermes stack
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (current)
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/
+  - plugins/platforms/custom_chat/config.py
+  - web/
+  - tests/web/
+  - docs/web-app.md, docs/CHANGELOG.md, docs/plans/path-discovery.md
+  - README.md, pyproject.toml, scripts/dev.sh
+- Test notes:
+  - `pip install -e ".[dev,web]" && python -m pytest tests/plugins/custom_chat tests/web -q`
+  - `cd web/frontend && npm test`
+- Changelog updated:
+  - yes (Added under Unreleased)
+- Follow-ups:
+  - Set `WEB_PUBLIC_MEDIA_BASE_URL` for Docker/Hermes media fetch
+
 ## 2026-05-23 – composer – Universal Hermes Platform Adapter (full plan)
 
 - Done:
