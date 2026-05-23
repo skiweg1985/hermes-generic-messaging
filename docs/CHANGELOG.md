@@ -10,6 +10,7 @@
 
 ### Changed
 
+- Operator docs: Hermes config uses top-level `platforms:` and `plugins.enabled: [custom_chat-platform]` (not `gateway.platforms`)
 - Install: use `scripts/bootstrap-venv.sh` on hosts without writable system/user site-packages; removed `setup.py` legacy develop shim
 - `requires-python` set to `>=3.10`
 

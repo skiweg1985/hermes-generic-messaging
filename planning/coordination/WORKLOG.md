@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-05-23 14:05 – cursor – Operator docs (Hermes config path)
+
+- Done:
+  - `docs/custom_chat.md`: correct `plugins.enabled` + top-level `platforms.custom_chat.extra`, env/LAN notes, troubleshooting table
+  - `README.md`: same config snippet; link to operator doc
+  - `docs/web-app.md`: pointer to `custom_chat.md` for Hermes setup
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - docs/custom_chat.md
+  - README.md
+  - docs/web-app.md
+  - docs/CHANGELOG.md
+- Test notes:
+  - none (docs only)
+- Changelog updated:
+  - yes (Changed under Unreleased)
+- Follow-ups:
+  - none
+
 ## 2026-05-23 13:55 – cursor – Plugin load fix on Hermes host
 
 - Done:
@@ -35,7 +60,6 @@
   - yes (Fixed under Unreleased)
 - Follow-ups:
   - Consider vendoring `custom_chat_schema` into the plugin to drop the `sys.path` shim
-  - Update `docs/custom_chat.md` example: top-level `platforms:` (not `gateway.platforms:`) plus `plugins.enabled` entry
 
 ## 2026-05-23 – composer – Web app (custom_chat BFF + terminal UI)
 

@@ -37,17 +37,23 @@ Copy or symlink this repo into the Hermes plugins directory:
 ln -s "$(pwd)/plugins/platforms/custom_chat" ~/.hermes/plugins/custom_chat
 ```
 
-Enable in `config.yaml`:
+Enable in `~/.hermes/config.yaml` (top-level `platforms:`, not `gateway.platforms:`):
 
 ```yaml
-gateway:
-  platforms:
-    custom_chat:
+plugins:
+  enabled:
+    - custom_chat-platform
+
+platforms:
+  custom_chat:
+    enabled: true
+    extra:
       enabled: true
-      extra:
-        ws_host: "127.0.0.1"
-        ws_port: 8765
+      ws_host: "127.0.0.1"
+      ws_port: 8765
 ```
+
+Set `CUSTOM_CHAT_BEARER_TOKEN` in `~/.hermes/.env`. Full setup, LAN bind, and troubleshooting: [docs/custom_chat.md](docs/custom_chat.md).
 
 ## Web app
 

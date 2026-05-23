@@ -31,7 +31,7 @@ When Hermes runs in Docker and the BFF on the host, set `WEB_PUBLIC_MEDIA_BASE_U
 # Repo root
 pip install -e ".[dev,web]"
 
-# Terminal 1 — Hermes with custom_chat enabled
+# Terminal 1 — Hermes with custom_chat enabled (see docs/custom_chat.md for config.yaml)
 
 # Terminal 2 — BFF
 cd web/backend
