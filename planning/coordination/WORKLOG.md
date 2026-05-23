@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-05-23 14:25 – cursor – Web dev stack on Homer VM
+
+- Done:
+  - Rsynced `web/` + `packages/` to `homer@192.168.177.149:~/hermes-generic-messaging`
+  - Created `web/.env` (BFF → `ws://127.0.0.1:8765`, CORS for LAN `:5173`)
+  - `npm install` in `web/frontend`; started BFF `:8000` and Vite `:5173` (`--host 0.0.0.0`, nohup)
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - (remote) ~/hermes-generic-messaging/web/.env, processes in /tmp/*.log
+- Test notes:
+  - UI: http://192.168.177.149:5173/
+  - BFF health: http://192.168.177.149:8000/api/v1/health
+  - logs: `/tmp/custom-chat-vite.log`, `/tmp/custom-chat-bff.log`
+- Changelog updated:
+  - no
+- Follow-ups:
+  - Stop: `pkill -f "uvicorn app.main:app.*8000"; pkill -f "vite.*5173"`
+
 ## 2026-05-23 14:15 – cursor – SessionSource inbound mapping fix
 
 - Done:
