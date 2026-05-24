@@ -773,3 +773,14 @@
   - PR: none
 - Changelog updated:
   - yes (Fixed)
+
+## 2026-05-24 14:10 – cursor – Repo commit + push session_meta
+
+- Done:
+  - `apply-hermes-session-meta-patch.sh` chained mit v2-Upgrade (idempotent one-shot)
+  - Deploy-Hinweis in `docs/custom_chat.md` ergänzt
+  - Branch `feat/adapter-contract-v1` committed und gepusht
+- Next:
+  - none
+- Changelog updated:
+  - no (docs only)

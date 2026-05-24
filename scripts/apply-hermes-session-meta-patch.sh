@@ -10,10 +10,19 @@ if [[ ! -f "$RUN_PY" ]]; then
   exit 1
 fi
 
-if grep -q "_notify_custom_chat_session_title" "$RUN_PY"; then
-  echo "already patched: $RUN_PY"
+if grep -q "_resolve_custom_chat_source_for_session_id" "$RUN_PY"; then
+  echo "already patched (v2): $RUN_PY"
   exit 0
 fi
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+APPLY_V1=true
+if grep -q "_notify_custom_chat_session_title" "$RUN_PY"; then
+  echo "base patch present, applying v2 upgrade..."
+  APPLY_V1=false
+fi
+
+if [[ "$APPLY_V1" == "true" ]]; then
 
 python3 - "$RUN_PY" <<'PY'
 from __future__ import annotations
@@ -149,4 +158,6 @@ path.write_text(text)
 print(f"patched {path}")
 PY
 
-echo "done"
+fi
+
+exec "$SCRIPT_DIR/upgrade-hermes-session-meta-patch.sh" "$RUN_PY"

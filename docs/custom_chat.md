@@ -248,6 +248,17 @@ Emitted by the plugin when Hermes assigns or updates the session title (manual `
 
 The web client stores the title on the session and renders it in the chat header instead of the generic local label.
 
+On the Hermes host, deploy the plugin/schema and patch the gateway so auto-title callbacks reach the web UI:
+
+```bash
+rsync -av packages/custom_chat_schema/ HOST:~/packages/custom_chat_schema/
+rsync -av plugins/platforms/custom_chat/ HOST:~/.hermes/plugins/custom_chat/
+bash scripts/apply-hermes-session-meta-patch.sh   # idempotent v1 + v2
+systemctl --user restart hermes-gateway.service
+```
+
+The plugin broadcasts `session_meta` to all connected WebSocket clients (the web BFF multiplexes every chat over one upstream socket); the frontend routes by `chat_id`.
+
 ## Agent inner steps (tool / reasoning)
 
 Tool output and model reasoning appear as **plain text** in the transcript — the same approach as Telegram and Discord.
