@@ -336,4 +336,25 @@ describe("chatReducer", () => {
     expect(session(s).lines[0].kind).toBe("notice");
     expect(session(s).lines[0].noticeKind).toBe("tool");
   });
+
+  it("upserts tool progress notices by message_id", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "💻 ls",
+      }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "💻 ls -la",
+      }),
+    });
+    expect(session(s).lines.filter((l) => l.kind === "notice")).toHaveLength(1);
+    expect(session(s).lines[0].text).toBe("💻 ls -la");
+  });
 });

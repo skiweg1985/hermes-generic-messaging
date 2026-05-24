@@ -455,17 +455,17 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     }
     case "assistant_notice": {
       const messageId = String(p.message_id ?? newId());
-      return appendLine(
-        withoutTyping(session),
-        {
-          id: messageId,
-          kind: "notice",
-          text: String(p.text ?? ""),
-          noticeKind: String(p.kind ?? "info"),
-          threadId: event.thread_id,
-          sessionId: event.session_id,
-        },
-      );
+      const noticeKind = String(p.kind ?? "info");
+      const line: TranscriptLine = {
+        id: messageId,
+        kind: "notice",
+        text: String(p.text ?? ""),
+        noticeKind,
+        threadId: event.thread_id,
+        sessionId: event.session_id,
+      };
+      const upsert = noticeKind === "tool" || noticeKind === "reasoning";
+      return (upsert ? upsertLine : appendLine)(withoutTyping(session), line);
     }
     case "assistant_image": {
       const messageId = String(p.message_id ?? newId());

@@ -122,6 +122,40 @@ async def test_reasoning_prepend_on_send(adapter: CustomChatAdapter, parse_sent_
 
 
 @pytest.mark.asyncio
+async def test_tool_progress_send_without_reply_id(adapter: CustomChatAdapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    result = await adapter.send("c1", "💻 ls -la")
+
+    events = parse_sent_events(ws)
+    assert result.success
+    assert len(events) == 1
+    assert events[0]["type"] == "assistant_notice"
+    assert events[0]["payload"]["kind"] == "tool"
+    assert "ls -la" in events[0]["payload"]["text"]
+    assert events[0]["payload"]["message_id"] == result.message_id
+
+
+@pytest.mark.asyncio
+async def test_tool_progress_edit_message(adapter: CustomChatAdapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    first = await adapter.send("c1", "💻 ls")
+    ws.sent.clear()
+    result = await adapter.edit_message("c1", first.message_id, "💻 ls -la\n🔍 read_file")
+
+    events = parse_sent_events(ws)
+    assert result.success
+    assert len(events) == 1
+    assert events[0]["payload"]["message_id"] == first.message_id
+    assert "read_file" in events[0]["payload"]["text"]
+
+
+@pytest.mark.asyncio
 async def test_tool_status_routes_to_notice(adapter: CustomChatAdapter, parse_sent_events):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

@@ -240,12 +240,17 @@ Enable reasoning display in Hermes:
 ```yaml
 display:
   show_reasoning: true
+  tool_progress: all
+  tool_progress_command: true
 gateway:
   streaming: true
 ```
 
+`tool_progress_command: true` enables `/verbose` in messaging chats. `tool_progress: all` shows each tool call (default on most platforms; required for custom_chat because the adapter implements `edit_message` for in-place progress updates).
+
 Behavior:
 
+- Hermes skips tool progress entirely unless the adapter implements `edit_message` (custom_chat does).
 - Streaming text (`send_draft`) emits incremental `assistant_delta` chunks.
 - An empty draft after a tool call emits `assistant_segment` and continues in a new assistant line.
 - Reasoning blocks (`💭 Reasoning:`) are prepended to `assistant_done.final_text` when Hermes passes `metadata.reasoning` or when the gateway already included them in the response text.

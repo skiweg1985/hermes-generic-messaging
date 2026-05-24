@@ -596,6 +596,33 @@ class CustomChatAdapter(BasePlatformAdapter):
     )
     return SendResult(success=True, message_id=line_id)
 
+  async def _send_tool_progress(
+    self,
+    chat_id: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    *,
+    message_id: Optional[str] = None,
+  ) -> SendResult:
+    """Tool-progress bubble from gateway ``send_progress_messages`` (editable in-place)."""
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    notice_id = message_id or meta.get("notice_id") or self._new_event_id()
+    payload: dict[str, Any] = {
+      "message_id": notice_id,
+      "text": content,
+      "kind": "tool",
+    }
+    await self._emit_outbound(
+      chat_id=route.get("chat_id", chat_id),
+      user_id=route.get("user_id", "assistant"),
+      event_type="assistant_notice",
+      payload=payload,
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+    return SendResult(success=True, message_id=notice_id)
+
   async def send(
     self,
     chat_id: str,
@@ -613,8 +640,11 @@ class CustomChatAdapter(BasePlatformAdapter):
         metadata={**meta, "kind": notice_kind or "tool"},
       )
 
+    reply_id = meta.get("reply_id")
+    if reply_id is None:
+      return await self._send_tool_progress(chat_id, content, metadata=meta)
+
     route = self._route_for_send(chat_id, meta)
-    reply_id = meta.get("reply_id") or self._new_event_id()
 
     handle = self.state.get_stream(reply_id)
     if handle and handle.cancelled:
@@ -819,6 +849,24 @@ class CustomChatAdapter(BasePlatformAdapter):
       session_id=route.get("session_id") or None,
     )
     return SendResult(success=True, message_id=notice_id)
+
+  async def edit_message(
+    self,
+    chat_id: str,
+    message_id: str,
+    content: str,
+    *,
+    finalize: bool = False,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Update an in-flight tool-progress notice (Telegram ``editMessageText`` parity)."""
+    _ = finalize
+    return await self._send_tool_progress(
+      chat_id,
+      content,
+      metadata=metadata,
+      message_id=str(message_id),
+    )
 
   async def send_slash_confirm(
     self,
