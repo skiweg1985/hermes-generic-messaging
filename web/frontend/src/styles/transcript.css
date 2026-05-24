@@ -262,20 +262,37 @@
   );
 }
 
-.reasoning-paragraph {
-  margin: 0;
-  transition: opacity var(--dur-slow) var(--ease-standard);
+.reasoning-body .markdown-text {
+  font-size: 13px;
+  color: inherit;
 }
-.reasoning-paragraph + .reasoning-paragraph {
-  margin-top: var(--s-2);
+.reasoning-body .markdown-text :where(p, ul, ol, pre, blockquote, table) {
+  margin: 6px 0;
+}
+.reasoning-body .markdown-text > :first-child {
+  margin-top: 0;
+}
+.reasoning-body .markdown-text > :last-child {
+  margin-bottom: 0;
+}
+.reasoning-body .markdown-text :where(strong, em) {
+  color: var(--text-secondary);
+}
+.reasoning-body .markdown-text h1,
+.reasoning-body .markdown-text h2,
+.reasoning-body .markdown-text h3,
+.reasoning-body .markdown-text h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 10px 0 4px;
+  letter-spacing: 0;
+  line-height: 1.4;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .reasoning-pulse {
     animation: none;
-  }
-  .reasoning-paragraph {
-    transition: none;
   }
 }
 

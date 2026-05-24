@@ -1,5 +1,63 @@
 # Worklog
 
+## 2026-05-24 – cursor – Config-Vereinfachung BFF/Plugin
+
+- Done:
+  - Schema v1: inbound `client.register` + `ClientRegisterPayload`
+  - Plugin: empfängt `client.register`, nutzt registrierte Media-URL vor Env/YAML
+  - BFF: `CUSTOM_CHAT_TARGET`, Auto-Detect `WEB_PUBLIC_MEDIA_BASE_URL`, sendet `client.register` nach Upstream-Connect
+  - Dev: `WEB_CORS_REFLECT_ORIGIN`, Vite `VITE_API_PROXY`, Docker Compose `CUSTOM_CHAT_TARGET`
+  - Tests: `test_client_register.py`, `test_network.py`, `test_client_register` (web)
+  - Docs: `web-app.md`, `custom_chat.md`, `.env.example`, CHANGELOG
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/
+  - plugins/platforms/custom_chat/
+  - web/backend/
+  - web/frontend/vite.config.ts
+  - web/.env.example
+  - web/docker-compose.yml
+  - scripts/dev.sh
+  - docs/
+  - tests/
+- Test notes:
+  - `python -m pytest tests/web tests/plugins/custom_chat/test_client_register.py -q`
+- Changelog updated:
+  - yes (Added)
+- Follow-ups:
+  - Deploy updated plugin + BFF to Homer VM; remove redundant `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` if BFF registers
+
+## 2026-05-24 21:47 – cursor – Homer Plugin deploy (client.register)
+
+- Done:
+  - rsync `packages/custom_chat_schema/` → `homer@192.168.177.149:~/packages/custom_chat_schema/`
+  - rsync `adapter.py`, `media.py` → `homer@192.168.177.149:~/.hermes/plugins/custom_chat/`
+  - `systemctl --user restart hermes-gateway.service` → active; WS `:8765` on `192.168.177.149`
+  - Remote verify: `_handle_client_register` in adapter, `client.register` in schema
+- Next:
+  - BFF neu verbinden (Browser/WS öffnen), dann optional `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` aus `~/.hermes/.env` entfernen
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Files touched:
+  - (remote) ~/.hermes/plugins/custom_chat/adapter.py, media.py
+  - (remote) ~/packages/custom_chat_schema/
+- Test notes:
+  - `ss -tlnp | grep 8765` → listening
+  - `systemctl --user is-active hermes-gateway.service` → active
+- Changelog updated:
+  - no
+- Follow-ups:
+  - Smoke: BFF connect → Log auf Homer sollte `client.register: media base ...` zeigen
+
 ## 2026-05-23 14:25 – cursor – Web dev stack on Homer VM
 
 - Done:
@@ -784,3 +842,37 @@
   - none
 - Changelog updated:
   - no (docs only)
+
+## 2026-05-24 22:05 – cursor – Reasoning-Panel rendert Markdown + dangling Fence wird entfernt
+
+- Done:
+  - `MessageReasoning` rendert den Reasoning-Body via `MarkdownText`; bisher wurde der Text als rohe `<p>`-Absätze gezeigt, sodass `**bold**` und ` ``` ` literal erschienen
+  - `MarkdownText` läuft jetzt durch `balanceFencedCode`: ein offener Fence-Opener ohne passenden Closer wird entfernt, damit nachfolgender Markdown-Inhalt (Bold, Listen, Links) nicht in einem `<pre><code>`-Block verschwindet
+  - Reasoning-CSS angepasst (gemeinsame `.markdown-text`-Regeln im Reasoning-Body, ohne die `prose`-Größe zu erben)
+  - Tests: neue Vitest-Cases für `balanceFencedCode` und für „Bold tail nach offenem Fence rendert weiterhin"
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - web/frontend/src/features/chat/MarkdownText.tsx
+  - web/frontend/src/features/chat/MarkdownText.test.tsx
+  - web/frontend/src/features/chat/messages/MessageReasoning.tsx
+  - web/frontend/src/styles/transcript.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `npx vitest run` (38 passed), `npx tsc --noEmit` (clean)
+  - UI path: Sidebar → demo → Reasoning-Toggle „Thought for …" expandiert; Antwortliste mit Bold-Produktnamen, Preisen und Links rendert ohne Code-Block
+- Changelog updated:
+  - yes (Fixed)
+- Follow-ups:
+  - Backend-seitig: prüfen, ob `_prepend_reasoning` auf einen klareren Separator (oder eigenes Notice-Event) umgestellt werden soll, sobald die Splitting-Heuristik im Frontend an weiteren Edge Cases scheitert
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none

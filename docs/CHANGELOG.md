@@ -2,8 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Config simplification: BFF accepts `CUSTOM_CHAT_TARGET` (host, `host:port`, or `ws://` URL) instead of coordinating multiple IP/URL env vars
+- Inbound `client.register` event: web BFF announces `public_media_base_url` on upstream connect; plugin uses it for outbound media uploads (overrides `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`)
+- BFF auto-detects public media base URL from bind host (`BFF_HOST=0.0.0.0` → LAN IP); overrides via `WEB_PUBLIC_MEDIA_BASE_URL`, `WEB_PUBLIC_HOST`, `WEB_PUBLIC_PORT`
+- Dev: `WEB_CORS_REFLECT_ORIGIN=true` allows any HTTP(S) Origin; Vite reads `VITE_API_PROXY` for `/api` and `/ws` proxy targets
+
 ### Fixed
 
+- Web UI: Reasoning-Panel rendert Markdown (Bold, Listen, Code-Fences) statt der bisher angezeigten Roh-Asterisken/Backticks; gemeinsame Markdown-Pipeline für Reasoning- und Antworttext
+- Web UI: Unbalancierte Code-Fences (`\`\`\``) im Assistant-Stream werden vor dem Rendern entfernt, damit nachfolgender Markdown (Bold, Listen, Links) nicht mehr in einem `<pre><code>`-Block verschwindet
 - Web UI: Auto-Titel (`session_meta`) erreicht den Client auch bei Hintergrund-Generierung — der BFF nutzt eine gemeinsame Upstream-WebSocket-Verbindung; `session_meta` wird deshalb an alle Clients gebroadcastet (Routing im Frontend per `chat_id`), und Chat-Sockets werden bei Single-Client-Betrieb auf die aktive Verbindung umgebunden
 - Hermes Gateway (Homer): Auto-Title-Callback löst Session-Titel über `session_id` → `session_store.origin` auf statt nur über das zur Laufzeit erfasste `source`-Objekt
 

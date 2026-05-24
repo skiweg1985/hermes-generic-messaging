@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TranscriptLine } from "../../../types/events";
 import { IconBrain, IconChevronDown } from "../../shell/icons";
+import { MarkdownText } from "../MarkdownText";
 
 interface MessageReasoningProps {
   /** Reasoning text (may stream). */
@@ -12,7 +13,6 @@ interface MessageReasoningProps {
 }
 
 const COLLAPSE_DELAY_MS = 600;
-const TAIL_PARAGRAPHS = 4; // last N paragraphs fully opaque while streaming
 
 function stripPrefix(text: string): string {
   return text.replace(/^💭\s*(reasoning:?\s*)?/i, "").trim();
@@ -73,7 +73,6 @@ export function MessageReasoning({ text, active, line }: MessageReasoningProps) 
   const open =
     userOverride !== null ? userOverride : active;
 
-  const paragraphs = stripped.split(/\n+/);
   const headerLabel = active
     ? `Thinking · ${formatElapsed(startedAtRef.current)}`
     : `Thought for ${formatElapsed(startedAtRef.current)}`;
@@ -109,30 +108,7 @@ export function MessageReasoning({ text, active, line }: MessageReasoningProps) 
           ref={bodyRef}
           className={`reasoning-body${active ? " reasoning-body-active" : ""}`}
         >
-          {paragraphs.map((p, i) => {
-            // While active, fade older paragraphs to create a tail effect.
-            const fade =
-              active &&
-              i < Math.max(0, paragraphs.length - TAIL_PARAGRAPHS);
-            const distance =
-              active && fade
-                ? paragraphs.length - TAIL_PARAGRAPHS - i
-                : 0;
-            const opacity = active
-              ? fade
-                ? Math.max(0.18, 0.7 - distance * 0.18)
-                : 1
-              : undefined;
-            return (
-              <p
-                key={i}
-                className="reasoning-paragraph"
-                style={opacity !== undefined ? { opacity } : undefined}
-              >
-                {p}
-              </p>
-            );
-          })}
+          <MarkdownText text={stripped} />
         </div>
       ) : null}
     </section>
