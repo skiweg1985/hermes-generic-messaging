@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -37,6 +38,10 @@ from .transport.ws_server import WebSocketHub
 logger = logging.getLogger(__name__)
 
 REASONING_PREFIX = "💭 Reasoning:"
+# Hermes tool-progress lines: ``{emoji} {tool_name}: "preview"`` or ``{emoji} {tool_name}...``
+_TOOL_PROGRESS_LINE_RE = re.compile(
+  r"^[\s]*[^\w\s]{1,4}\s+[\w.-]+(?::\s[\"'].+[\"']|\.\.\.|\([^)]*\))?(?:\s*\(×\d+\))?$"
+)
 
 try:
     from gateway.config import Platform, PlatformConfig
@@ -150,6 +155,8 @@ class CustomChatAdapter(BasePlatformAdapter):
     # reply was already emitted. custom_chat typing is explicit state, so late
     # starts must be ignored until a new inbound turn opens the chat again.
     self._typing_closed_chats: set[str] = set()
+    # message_ids of in-flight tool-progress notice bubbles (editable)
+    self._tool_progress_ids: set[str] = set()
 
   def _now_iso(self) -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -463,6 +470,39 @@ class CustomChatAdapter(BasePlatformAdapter):
     return self._use_streaming
 
   @staticmethod
+  def _looks_like_tool_progress(content: str) -> bool:
+    text = (content or "").strip()
+    if not text:
+      return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+      return False
+    # Verbose progress may append a JSON args line after the tool header.
+    if _TOOL_PROGRESS_LINE_RE.match(lines[0]):
+      if len(lines) == 1:
+        return True
+      rest = lines[1:]
+      return all(
+        line.startswith("{")
+        or line.startswith("[")
+        or _TOOL_PROGRESS_LINE_RE.match(line)
+        for line in rest
+      )
+    return all(_TOOL_PROGRESS_LINE_RE.match(line) for line in lines)
+
+  def _active_reply_id_for_chat(self, chat_id: str) -> Optional[str]:
+    for reply_id, route in self._reply_routes.items():
+      if route.get("chat_id") != chat_id:
+        continue
+      session = self.streams._sessions.get(reply_id)
+      if session and not session.done:
+        return reply_id
+    for reply_id, route in self._reply_routes.items():
+      if route.get("chat_id") == chat_id:
+        return reply_id
+    return None
+
+  @staticmethod
   def _compute_incremental_delta(previous: str, content: str) -> tuple[str, str]:
     if content.startswith(previous):
       return content[len(previous) :], content
@@ -621,6 +661,7 @@ class CustomChatAdapter(BasePlatformAdapter):
       thread_id=route.get("thread_id") or None,
       session_id=route.get("session_id") or None,
     )
+    self._tool_progress_ids.add(notice_id)
     return SendResult(success=True, message_id=notice_id)
 
   async def send(
@@ -642,9 +683,16 @@ class CustomChatAdapter(BasePlatformAdapter):
 
     reply_id = meta.get("reply_id")
     if reply_id is None:
-      return await self._send_tool_progress(chat_id, content, metadata=meta)
+      if self._looks_like_tool_progress(content):
+        return await self._send_tool_progress(chat_id, content, metadata=meta)
+      route = self._route_for_send(chat_id, meta)
+      reply_id = self._active_reply_id_for_chat(route.get("chat_id", chat_id))
+      if reply_id is None:
+        reply_id = self._new_event_id()
+      meta = {**meta, "reply_id": reply_id}
 
     route = self._route_for_send(chat_id, meta)
+    reply_id = str(meta.get("reply_id") or reply_id)
 
     handle = self.state.get_stream(reply_id)
     if handle and handle.cancelled:
@@ -861,12 +909,17 @@ class CustomChatAdapter(BasePlatformAdapter):
   ) -> SendResult:
     """Update an in-flight tool-progress notice (Telegram ``editMessageText`` parity)."""
     _ = finalize
-    return await self._send_tool_progress(
+    msg_id = str(message_id)
+    if msg_id not in self._tool_progress_ids and not self._looks_like_tool_progress(content):
+      return SendResult(success=False, error="Not supported")
+    result = await self._send_tool_progress(
       chat_id,
       content,
       metadata=metadata,
-      message_id=str(message_id),
+      message_id=msg_id,
     )
+    self._tool_progress_ids.add(msg_id)
+    return result
 
   async def send_slash_confirm(
     self,

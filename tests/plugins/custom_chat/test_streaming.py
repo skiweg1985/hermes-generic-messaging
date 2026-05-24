@@ -127,7 +127,7 @@ async def test_tool_progress_send_without_reply_id(adapter: CustomChatAdapter, p
     ws = MockWebSocket()
     adapter._ws_by_chat["c1"] = ws
 
-    result = await adapter.send("c1", "💻 ls -la")
+    result = await adapter.send("c1", '💻 terminal: "ls -la"')
 
     events = parse_sent_events(ws)
     assert result.success
@@ -144,15 +144,51 @@ async def test_tool_progress_edit_message(adapter: CustomChatAdapter, parse_sent
     ws = MockWebSocket()
     adapter._ws_by_chat["c1"] = ws
 
-    first = await adapter.send("c1", "💻 ls")
+    first = await adapter.send("c1", '💻 terminal: "ls"')
     ws.sent.clear()
-    result = await adapter.edit_message("c1", first.message_id, "💻 ls -la\n🔍 read_file")
+    result = await adapter.edit_message(
+        "c1", first.message_id, '💻 terminal: "ls -la"\n🔍 read_file: "config.yaml"'
+    )
 
     events = parse_sent_events(ws)
     assert result.success
     assert len(events) == 1
     assert events[0]["payload"]["message_id"] == first.message_id
     assert "read_file" in events[0]["payload"]["text"]
+
+
+@pytest.mark.asyncio
+async def test_final_answer_without_reply_id_not_tool_notice(adapter: CustomChatAdapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._reply_routes["stream-final"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter._ws_by_chat["c1"] = ws
+
+    await adapter.send_draft("c1", 1, "partial", metadata={"reply_id": "stream-final"})
+    ws.sent.clear()
+    await adapter.send("c1", "Here is the final answer in plain prose.")
+
+    events = parse_sent_events(ws)
+    assert any(e["type"] == "assistant_done" for e in events)
+    assert not any(e["type"] == "assistant_notice" for e in events)
+    done = next(e for e in events if e["type"] == "assistant_done")
+    assert "final answer" in done["payload"]["final_text"]
+
+
+@pytest.mark.asyncio
+async def test_edit_message_rejects_non_tool_content(adapter: CustomChatAdapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    result = await adapter.edit_message("c1", "unknown-id", "Plain final answer text.")
+    assert result.success is False
+    assert parse_sent_events(ws) == []
 
 
 @pytest.mark.asyncio

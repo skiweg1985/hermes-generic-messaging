@@ -13,7 +13,8 @@
 
 ### Fixed
 
-- Tool progress invisible in web chat: Hermes drops tool-progress events when `edit_message` is missing; custom_chat now implements `edit_message` and routes progress `send()` calls (no `reply_id`) to updatable `assistant_notice` bubbles local filesystem paths in `send` / `send_file` / `send_image` are uploaded to the web BFF and emitted as HTTP URLs (`CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`) instead of unusable `file://` or absolute-path links in the chat UI
+- Tool progress invisible in web chat: Hermes drops tool-progress events when `edit_message` is missing; custom_chat now implements `edit_message` and routes progress `send()` calls (no `reply_id`) to updatable `assistant_notice` bubbles
+- Final assistant answers no longer misclassified as tool progress when `send()` lacks `reply_id` local filesystem paths in `send` / `send_file` / `send_image` are uploaded to the web BFF and emitted as HTTP URLs (`CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`) instead of unusable `file://` or absolute-path links in the chat UI
 - Outbound `send()` text that embeds a local path (e.g. `🖼️ Image: /home/.../shot.png`) is parsed, the file is published, and an `assistant_image` / `assistant_file` event is emitted before `assistant_done`
 - Frontend surfaces a chat error line when `file.uploaded` cannot be sent because the WebSocket is not open (previously the upload appeared successful in the UI while the agent never learned about the attachment)
 - Inbound `file.uploaded` / `audio.uploaded` events now include the filename and media URL in `MessageEvent.text`, so the agent can recognise the attachment even when it does not fetch `media_urls` itself
