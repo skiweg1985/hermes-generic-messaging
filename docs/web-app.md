@@ -12,20 +12,26 @@ Browser UI and FastAPI BFF for Event Schema v1. Hermes must run the `custom_chat
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `CUSTOM_CHAT_WS_URL` | `ws://127.0.0.1:8765` | Upstream adapter WebSocket |
+| `CUSTOM_CHAT_TARGET` | — | Hermes plugin target: host, `host:port`, or `ws://` URL (preferred) |
+| `CUSTOM_CHAT_WS_URL` | `ws://127.0.0.1:8765` | Legacy upstream WebSocket URL (used when `CUSTOM_CHAT_TARGET` is unset) |
 | `CUSTOM_CHAT_BEARER_TOKEN` | — | Bearer token for upstream |
 | `WEB_CHAT_ID` | `workspace:demo` | Default `chat_id` in enriched events |
 | `WEB_USER_ID` | `user-demo` | Default `user_id` |
 | `WEB_MEDIA_UPLOAD_DIR` | `./data/uploads` | Stored audio files |
 | `WEB_MAX_AUDIO_BYTES` | `10485760` | Upload size limit |
-| `WEB_PUBLIC_MEDIA_BASE_URL` | `http://127.0.0.1:8000` | Base URL in `audio.uploaded` payloads |
+| `WEB_PUBLIC_MEDIA_BASE_URL` | auto | Base URL in `audio.uploaded` payloads and `client.register` (override for Docker/proxy) |
+| `WEB_PUBLIC_HOST` | auto | Host part when auto-detecting public media URL |
+| `WEB_PUBLIC_PORT` | `8000` | Port part when auto-detecting public media URL |
 | `WEB_CORS_ORIGINS` | localhost:5173 | Comma-separated CORS origins |
+| `WEB_CORS_REFLECT_ORIGIN` | `false` | When `true`, allow any `http(s)` Origin (dev/LAN) |
 
-Copy `web/.env.example` to `web/.env` and set `CUSTOM_CHAT_BEARER_TOKEN`.
+Copy `web/.env.example` to `web/.env` and set `CUSTOM_CHAT_TARGET` plus `CUSTOM_CHAT_BEARER_TOKEN`.
+
+On connect, the BFF sends `client.register` with its public media base URL. The plugin uses that URL for outbound file uploads, so `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` on Hermes is optional when the web BFF is connected.
 
 When Hermes runs in Docker and the BFF on the host, set `WEB_PUBLIC_MEDIA_BASE_URL` to a URL the adapter container can reach (e.g. `http://host.docker.internal:8000`).
 
-When Hermes runs on a different machine on the LAN, set `WEB_PUBLIC_MEDIA_BASE_URL` to the BFF host's reachable IP (e.g. `http://192.0.2.10:8000`) and start the BFF with `BFF_HOST=0.0.0.0 ./scripts/dev.sh` so it binds beyond loopback. Otherwise the agent receives a URL it cannot fetch and treats the attachment as missing.
+When Hermes runs on a different machine on the LAN, set `CUSTOM_CHAT_TARGET` to the Hermes host and start the BFF with `BFF_HOST=0.0.0.0 ./scripts/dev.sh` so it binds beyond loopback. The BFF auto-detects a LAN IP for media URLs unless you set `WEB_PUBLIC_MEDIA_BASE_URL` explicitly.
 
 ## Run locally
 

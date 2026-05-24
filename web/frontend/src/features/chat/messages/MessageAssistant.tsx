@@ -22,9 +22,12 @@ export function MessageAssistant({ line }: MessageAssistantProps) {
       {line.title ? (
         <div className="msg-assistant-label t-label">{line.title}</div>
       ) : null}
-      <div className="prose">
-        <MarkdownText text={text} />
-        {streaming ? <Caret /> : null}
+      <span className="msg-sender-label">assistant</span>
+      <div className="msg-assistant-bubble">
+        <div className="prose">
+          <MarkdownText text={text} />
+          {streaming ? <Caret /> : null}
+        </div>
       </div>
       {interrupted ? (
         <div className="t-meta msg-assistant-meta">Interrupted</div>

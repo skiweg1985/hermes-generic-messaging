@@ -11,25 +11,11 @@ import { ImageCard } from "../media/ImageCard";
 import { FileCard } from "../media/FileCard";
 import { AudioCard } from "../media/AudioCard";
 import { ActivityCard } from "../activity/ActivityCard";
+import { splitReasoning } from "./reasoningSplit";
 
 interface TurnGroupProps {
   turn: Turn;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
-  isLast: boolean;
-  showTyping: boolean;
-}
-
-function splitReasoning(text: string): { reasoning: string; answer: string } {
-  // Heuristic: if the text begins with 💭 and contains a blank line,
-  // split into reasoning + answer; otherwise treat all as reasoning.
-  if (!text.trimStart().startsWith("💭")) return { reasoning: "", answer: text };
-  const stripped = text.replace(/^\s*💭\s*(reasoning:?\s*)?/i, "");
-  const idx = stripped.search(/\n\s*\n/);
-  if (idx < 0) return { reasoning: stripped, answer: "" };
-  return {
-    reasoning: stripped.slice(0, idx).trim(),
-    answer: stripped.slice(idx).trim(),
-  };
 }
 
 function renderOutput(
@@ -40,20 +26,24 @@ function renderOutput(
   switch (line.kind) {
     case "assistant":
     case "audio-out": {
-      // Reasoning embedded in assistant text → split.
       if (line.kind === "assistant") {
-        const { reasoning, answer } = splitReasoning(line.text);
-        if (reasoning) {
+        const reasoningText =
+          line.reasoningText?.trim() ||
+          splitReasoning(line.text).reasoning;
+        const answerText = line.reasoningText
+          ? line.text
+          : splitReasoning(line.text).answer;
+        if (reasoningText) {
           return (
             <Fragment>
               <MessageReasoning
-                text={reasoning}
+                text={reasoningText}
                 active={Boolean(line.streaming)}
                 line={line}
               />
-              {answer ? (
+              {answerText ? (
                 <MessageAssistant
-                  line={{ ...line, text: answer }}
+                  line={{ ...line, text: answerText }}
                 />
               ) : null}
             </Fragment>
@@ -109,8 +99,6 @@ function renderOutput(
 export function TurnGroup({
   turn,
   onButtonClick,
-  isLast,
-  showTyping,
 }: TurnGroupProps) {
   const userLine = turn.user;
   const showSpine = turn.outputs.length > 1;
@@ -127,7 +115,7 @@ export function TurnGroup({
         )
       ) : null}
 
-      {turn.outputs.length > 0 || (isLast && showTyping) ? (
+      {turn.outputs.length > 0 ? (
         <div
           className={`turn-outputs${showSpine ? " turn-outputs-with-spine" : ""}`}
         >
@@ -138,11 +126,6 @@ export function TurnGroup({
                 {renderOutput(line, turn, onButtonClick)}
               </div>
             ))}
-            {isLast && showTyping ? (
-              <div className="turn-output">
-                <ActivityTyping />
-              </div>
-            ) : null}
           </div>
         </div>
       ) : null}
@@ -150,12 +133,3 @@ export function TurnGroup({
   );
 }
 
-function ActivityTyping() {
-  return (
-    <div className="typing-indicator" role="status" aria-label="Assistant is typing">
-      <span className="typing-dot" />
-      <span className="typing-dot" />
-      <span className="typing-dot" />
-    </div>
-  );
-}

@@ -76,6 +76,22 @@
   transform: translateX(-50%) scale(1.03);
 }
 
+.transcript-typing-float {
+  position: absolute;
+  bottom: var(--s-4);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--s-6);
+  pointer-events: none;
+  z-index: 1;
+}
+.transcript-typing-float-inner {
+  width: 100%;
+  max-width: var(--content-max-width);
+}
+
 /* ── Turn architecture ───────────────────────────────────────────────── */
 
 .turn {
@@ -127,6 +143,26 @@
   justify-content: flex-end;
 }
 
+.msg-user-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-1);
+  max-width: 560px;
+  min-width: 0;
+}
+
+.msg-sender-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--text-quaternary);
+  padding: 0 var(--s-1);
+  user-select: none;
+}
+
 .msg-user-bubble {
   max-width: 560px;
   padding: var(--s-3) var(--s-4);
@@ -153,7 +189,29 @@
 /* ── Assistant message ───────────────────────────────────────────────── */
 
 .msg-assistant {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  min-width: 0;
   color: var(--text-primary);
+}
+
+.msg-assistant .msg-sender-label {
+  padding-left: var(--s-1);
+}
+
+.msg-assistant-bubble {
+  max-width: 560px;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.msg-assistant-bubble .prose {
+  max-width: none;
 }
 
 .msg-assistant-interrupted {
@@ -186,6 +244,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  min-width: 0;
+  width: 100%;
 }
 
 .reasoning-header {
@@ -238,13 +298,18 @@
   font-size: 13px;
   line-height: 1.7;
   font-style: normal;
+  min-width: 0;
+  max-width: 68ch;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   animation: hermes-fade-in var(--dur-base) var(--ease-standard);
 }
 
 .reasoning-body-active {
   /* While streaming, cap the visible height and scroll to the tail. */
   max-height: 240px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
   mask-image: linear-gradient(
     to bottom,
@@ -265,6 +330,11 @@
 .reasoning-body .markdown-text {
   font-size: 13px;
   color: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.reasoning-body .markdown-text p {
+  white-space: pre-wrap;
 }
 .reasoning-body .markdown-text :where(p, ul, ol, pre, blockquote, table) {
   margin: 6px 0;

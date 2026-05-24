@@ -21,7 +21,7 @@ async def test_interrupt_marks_streams_cancelled(adapter, parse_sent_events):
     }
     adapter.state.register_stream("reply-x")
 
-    await adapter.interrupt_session_activity("c-int")
+    await adapter.interrupt_session_activity("agent:main:custom_chat:dm:c-int", "c-int")
 
     handle = adapter.state.get_stream("reply-x")
     assert handle is None or handle.cancelled is True
@@ -46,7 +46,7 @@ async def test_interrupt_unrelated_chat_is_noop(adapter, parse_sent_events):
     }
     adapter.state.register_stream("reply-y")
 
-    await adapter.interrupt_session_activity("c-different")
+    await adapter.interrupt_session_activity("agent:main:custom_chat:dm:c-different", "c-different")
 
     assert "reply-y" in adapter._reply_routes
     assert parse_sent_events(ws) == []

@@ -48,7 +48,7 @@ The lookup key is `custom_chat-platform` (from `plugin.yaml` `name:`), not `cust
 | `bearer_token` | no* | — | Bearer token for WebSocket upgrade (*or set env, see below) |
 | `rate_limit_per_minute` | no | `60` | Per-user rate limit |
 | `dedupe_ttl_seconds` | no | `300` | Duplicate `event_id` window |
-| `media_public_base_url` | no | — | Web BFF base URL used when Hermes sends local file paths (must match `WEB_PUBLIC_MEDIA_BASE_URL`) |
+| `media_public_base_url` | no | — | Web BFF base URL for outbound local file uploads (fallback when no `client.register` from BFF) |
 
 Top-level `platforms.custom_chat.enabled` tells Hermes to include the platform. The plugin additionally requires `extra.enabled: true` (or env-based enablement below).
 
@@ -65,7 +65,7 @@ Set in `~/.hermes/.env` or the process environment. Env values **override** the 
 | `CUSTOM_CHAT_ALLOW_ALL_USERS` | Set to allow any user ID |
 | `CUSTOM_CHAT_HOME_CHANNEL` | Default `chat_id` for cron-delivered messages (`deliver=custom_chat`) |
 | `CUSTOM_CHAT_HOME_CHANNEL_NAME` | Human-readable name for the home channel |
-| `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | Web BFF base URL for publishing outbound attachments (same host as `WEB_PUBLIC_MEDIA_BASE_URL`) |
+| `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | Web BFF base URL for publishing outbound attachments (optional when the web BFF sends `client.register` on connect) |
 
 Example for LAN access (VM or host `192.168.177.149`):
 
@@ -281,7 +281,7 @@ Behavior:
 - Hermes skips tool progress entirely unless the adapter implements `edit_message` (custom_chat does).
 - Streaming text (`send_draft`) emits incremental `assistant_delta` chunks.
 - An empty draft after a tool call emits `assistant_segment` and continues in a new assistant line.
-- Reasoning blocks (`💭 Reasoning:`) are prepended to `assistant_done.final_text` when Hermes passes `metadata.reasoning` or when the gateway already included them in the response text.
+- When Hermes passes `metadata.reasoning`, `assistant_done` includes `reasoning_text` (full thinking for the web UI) and `final_text` (user-facing answer only). If the gateway already embedded `💭 Reasoning:` in the response text, it remains in `final_text` for Telegram/Discord-style clients.
 - Interim tool status messages routed through `send()` with `metadata.kind: tool` appear as `assistant_notice` bubbles.
 
 ## Audio
@@ -290,15 +290,17 @@ Inbound `audio.uploaded` events require allowed MIME types and size under the co
 
 ## Outbound attachments
 
-When Hermes calls `send_file`, `send_image`, or `send` with a local path, the adapter uploads the bytes to `{media_public_base_url}/api/v1/media/upload` and emits an `assistant_file` / `assistant_image` event with the returned HTTP URL. Without `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`, local paths appear in the chat as plain filesystem links the browser cannot open.
+When Hermes calls `send_file`, `send_image`, or `send` with a local path, the adapter uploads the bytes to `{media_public_base_url}/api/v1/media/upload` and emits an `assistant_file` / `assistant_image` event with the returned HTTP URL.
 
-On the Hermes host (e.g. Homer VM), set the same reachable base URL as the web BFF:
+The web BFF announces its public media base URL via inbound `client.register` on WebSocket connect. That URL takes precedence over `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` / `extra.media_public_base_url`. Without either, local paths appear in the chat as plain filesystem links the browser cannot open.
+
+For setups without the web BFF (or before the BFF connects), set a reachable base URL on the Hermes host:
 
 ```bash
 CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL=http://192.0.2.10:8000
 ```
 
-The BFF must listen on `0.0.0.0` (or the LAN interface) so the Hermes host can POST uploads.
+The BFF must listen on `0.0.0.0` (or the LAN interface) so the Hermes host can POST uploads when using LAN split deployments.
 
 ## Troubleshooting
 

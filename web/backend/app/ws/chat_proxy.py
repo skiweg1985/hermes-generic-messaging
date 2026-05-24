@@ -27,6 +27,8 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     out = dict(data)
     if out.get("type") not in INBOUND_TYPES:
         return out
+    if out.get("type") == "client.register":
+        return out
     out.setdefault("schema_version", SCHEMA_VERSION)
     out.setdefault("platform", PLATFORM_NAME)
     out.setdefault("chat_id", settings.web_chat_id)
@@ -34,6 +36,22 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     out.setdefault("timestamp", _now_iso())
     out.setdefault("event_id", str(uuid.uuid4()))
     return out
+
+
+def build_client_register(settings: Settings) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "event_id": str(uuid.uuid4()),
+        "timestamp": _now_iso(),
+        "platform": PLATFORM_NAME,
+        "chat_id": settings.web_chat_id,
+        "user_id": settings.web_user_id,
+        "type": "client.register",
+        "payload": {
+            "public_media_base_url": settings.public_media_base_url,
+            "client_kind": "web_bff",
+        },
+    }
 
 
 async def proxy_chat(client_ws: WebSocket, settings: Settings) -> None:
@@ -47,6 +65,7 @@ async def proxy_chat(client_ws: WebSocket, settings: Settings) -> None:
             settings.custom_chat_ws_url,
             additional_headers=headers,
         ) as upstream:
+            await upstream.send(json.dumps(build_client_register(settings)))
             await _relay(client_ws, upstream, settings)
     except ConnectionClosed as exc:
         logger.warning("upstream closed: %s", exc)
@@ -80,8 +99,8 @@ async def _relay(
         try:
             async for raw in upstream:
                 await client_ws.send_text(raw)
-        except ConnectionClosed:
-            pass
+        except ConnectionClosed as exc:
+            logger.warning("upstream closed during relay: %s", exc)
 
     done, pending = await asyncio.wait(
         [

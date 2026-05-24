@@ -3,6 +3,7 @@ import type { AssistantButton, TranscriptLine } from "../../types/events";
 import { useScrollFollow } from "../../hooks/useScrollFollow";
 import { groupTurns } from "./turnGrouping";
 import { TurnGroup } from "./TurnGroup";
+import { TypingIndicator } from "./messages/TypingIndicator";
 import { IconArrowUp } from "../shell/icons";
 import { MediaProvider, type MediaImage } from "../media/MediaProvider";
 import { Lightbox } from "../media/Lightbox";
@@ -49,31 +50,24 @@ export function Transcript({ lines, typing = false, onButtonClick }: TranscriptP
             <EmptyState />
           ) : (
             <div className="transcript-content">
-              {turns.map((turn, idx) => (
+              {turns.map((turn) => (
                 <TurnGroup
                   key={turn.id}
                   turn={turn}
                   onButtonClick={onButtonClick}
-                  isLast={idx === turns.length - 1}
-                  showTyping={idx === turns.length - 1 && typing}
                 />
               ))}
-              {turns.length === 0 && typing ? (
-                <div className="turn">
-                  <div className="turn-outputs">
-                    <div className="turn-outputs-list">
-                      <div className="typing-indicator" role="status">
-                        <span className="typing-dot" />
-                        <span className="typing-dot" />
-                        <span className="typing-dot" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
             </div>
           )}
         </div>
+
+        {typing ? (
+          <div className="transcript-typing-float" aria-live="polite">
+            <div className="transcript-typing-float-inner">
+              <TypingIndicator />
+            </div>
+          </div>
+        ) : null}
 
         {!isPinned && hasNew ? (
           <button

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TranscriptLine } from "../../../types/events";
 import { IconBrain, IconChevronDown } from "../../shell/icons";
 import { MarkdownText } from "../MarkdownText";
+import { normalizeReasoningDisplay, stripReasoningPrefix } from "../reasoningSplit";
 
 interface MessageReasoningProps {
   /** Reasoning text (may stream). */
@@ -14,12 +15,8 @@ interface MessageReasoningProps {
 
 const COLLAPSE_DELAY_MS = 600;
 
-function stripPrefix(text: string): string {
-  return text.replace(/^💭\s*(reasoning:?\s*)?/i, "").trim();
-}
-
-function formatElapsed(start: number): string {
-  const sec = Math.max(0, Math.round((Date.now() - start) / 100) / 10);
+function formatDurationMs(ms: number): string {
+  const sec = Math.max(0, Math.round(ms / 100) / 10);
   if (sec < 60) return `${sec.toFixed(1)}s`;
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
@@ -27,8 +24,10 @@ function formatElapsed(start: number): string {
 }
 
 export function MessageReasoning({ text, active, line }: MessageReasoningProps) {
-  const stripped = stripPrefix(text);
+  const stripped = normalizeReasoningDisplay(stripReasoningPrefix(text));
   const startedAtRef = useRef<number>(Date.now());
+  /** Frozen duration once the turn ends — avoids counting up on expand/collapse re-renders. */
+  const finishedElapsedMsRef = useRef<number | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [userOverride, setUserOverride] = useState<null | boolean>(null);
   const [tick, setTick] = useState(0);
@@ -38,7 +37,11 @@ export function MessageReasoning({ text, active, line }: MessageReasoningProps) 
   useEffect(() => {
     if (active) {
       wasActiveRef.current = true;
+      finishedElapsedMsRef.current = null;
       return;
+    }
+    if (finishedElapsedMsRef.current === null) {
+      finishedElapsedMsRef.current = Math.max(0, Date.now() - startedAtRef.current);
     }
     if (wasActiveRef.current && userOverride === null) {
       const id = window.setTimeout(() => {
@@ -73,9 +76,12 @@ export function MessageReasoning({ text, active, line }: MessageReasoningProps) 
   const open =
     userOverride !== null ? userOverride : active;
 
+  const elapsedMs = active
+    ? Date.now() - startedAtRef.current
+    : (finishedElapsedMsRef.current ?? Date.now() - startedAtRef.current);
   const headerLabel = active
-    ? `Thinking · ${formatElapsed(startedAtRef.current)}`
-    : `Thought for ${formatElapsed(startedAtRef.current)}`;
+    ? `Thinking · ${formatDurationMs(elapsedMs)}`
+    : `Thought for ${formatDurationMs(elapsedMs)}`;
 
   return (
     <section

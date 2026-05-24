@@ -13,6 +13,9 @@ cd ..
 pip install -e "..[dev,web]"
 cd backend
 uvicorn app.main:app --reload --port 8000
+
+# App logs (upstream errors etc.), less access-log noise:
+uvicorn app.main:app --reload --port 8000 --log-config log_config.yaml --no-access-log
 ```
 
 ## Frontend

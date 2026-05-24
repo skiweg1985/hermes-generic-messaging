@@ -11,10 +11,12 @@
 
 ### Fixed
 
-- Web UI: Reasoning-Panel rendert Markdown (Bold, Listen, Code-Fences) statt der bisher angezeigten Roh-Asterisken/Backticks; gemeinsame Markdown-Pipeline für Reasoning- und Antworttext
+- Plugin: `interrupt_session_activity(session_key, chat_id)` matches current Hermes gateway API (was single-arg; broke `/new` and session reset with `TypeError`)
 - Web UI: Unbalancierte Code-Fences (`\`\`\``) im Assistant-Stream werden vor dem Rendern entfernt, damit nachfolgender Markdown (Bold, Listen, Links) nicht mehr in einem `<pre><code>`-Block verschwindet
 - Web UI: Auto-Titel (`session_meta`) erreicht den Client auch bei Hintergrund-Generierung — der BFF nutzt eine gemeinsame Upstream-WebSocket-Verbindung; `session_meta` wird deshalb an alle Clients gebroadcastet (Routing im Frontend per `chat_id`), und Chat-Sockets werden bei Single-Client-Betrieb auf die aktive Verbindung umgebunden
 - Hermes Gateway (Homer): Auto-Title-Callback löst Session-Titel über `session_id` → `session_store.origin` auf statt nur über das zur Laufzeit erfasste `source`-Objekt
+- Reasoning-Panel: `assistant_done.reasoning_text` trennt strukturiert Gedankengang und Antwort; gestreamter Thinking-Text landet nicht mehr in der Antwort-Bubble, wenn Hermes nur Abschnitts-Header in `metadata.reasoning` liefert
+- Web UI: Reasoning-Split im Fallback nutzt die letzte Leerzeile statt der ersten, damit mehrzeiliger Reasoning-Text nicht abgeschnitten wird
 
 ### Added
 

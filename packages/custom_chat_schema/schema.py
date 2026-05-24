@@ -30,6 +30,7 @@ INBOUND_TYPES = frozenset(
         "file.uploaded",
         "message.cancel",
         "button.click",
+        "client.register",
     }
 )
 OUTBOUND_TYPES = frozenset(
@@ -141,6 +142,21 @@ class FileUploadedPayload(BaseModel):
         if not self.url and not self.file_ref:
             raise ValueError("url or file_ref required")
         return self
+
+
+class ClientRegisterPayload(BaseModel):
+    """BFF-only registration announcing the public media API base URL."""
+
+    public_media_base_url: str
+    client_kind: Literal["web_bff"] = "web_bff"
+
+    @field_validator("public_media_base_url")
+    @classmethod
+    def must_be_http_url(cls, v: str) -> str:
+        stripped = v.strip().rstrip("/")
+        if not stripped.startswith(("http://", "https://")):
+            raise ValueError("public_media_base_url must be an http(s) URL")
+        return stripped
 
 
 class MessageCancelPayload(BaseModel):

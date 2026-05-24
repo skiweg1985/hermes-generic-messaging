@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      CUSTOM_CHAT_WS_URL: ws://host.docker.internal:8765
+      CUSTOM_CHAT_TARGET: host.docker.internal:8765
       CUSTOM_CHAT_BEARER_TOKEN: ${CUSTOM_CHAT_BEARER_TOKEN:-}
       WEB_PUBLIC_MEDIA_BASE_URL: http://host.docker.internal:8000
     volumes:

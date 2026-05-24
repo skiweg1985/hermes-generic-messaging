@@ -249,8 +249,13 @@ def publish_local_file_sync(path: Path, base_url: str) -> dict[str, Any]:
     return payload
 
 
-async def publish_local_file(path: Path, settings: CustomChatSettings) -> dict[str, Any]:
-    base = settings.media_public_base_url.strip()
+async def publish_local_file(
+    path: Path,
+    settings: CustomChatSettings,
+    *,
+    media_base_url: str | None = None,
+) -> dict[str, Any]:
+    base = (media_base_url or settings.media_public_base_url or "").strip().rstrip("/")
     if not base:
         raise InboundEventError(
             "INTERNAL_ERROR",

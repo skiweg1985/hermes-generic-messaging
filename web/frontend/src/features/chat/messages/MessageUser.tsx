@@ -9,12 +9,15 @@ export function MessageUser({ line }: MessageUserProps) {
   const isCommand = line.kind === "command";
   return (
     <div className="msg-user motion-rise-in-soft">
-      <div className={`msg-user-bubble${isCommand ? " msg-user-bubble-command" : ""}`}>
-        {isCommand ? (
-          <span className="msg-user-cmd">{line.text}</span>
-        ) : (
-          <MarkdownText text={line.text} />
-        )}
+      <div className="msg-user-stack">
+        <span className="msg-sender-label">you</span>
+        <div className={`msg-user-bubble${isCommand ? " msg-user-bubble-command" : ""}`}>
+          {isCommand ? (
+            <span className="msg-user-cmd">{line.text}</span>
+          ) : (
+            <MarkdownText text={line.text} />
+          )}
+        </div>
       </div>
     </div>
   );

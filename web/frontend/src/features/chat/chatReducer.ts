@@ -394,6 +394,10 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const interrupted = p.interrupted === true;
       const rawFinalText = p.final_text != null ? String(p.final_text) : undefined;
       const finalText = interrupted && rawFinalText === "" ? undefined : rawFinalText;
+      const reasoningText =
+        p.reasoning_text != null && String(p.reasoning_text).trim()
+          ? String(p.reasoning_text)
+          : undefined;
       const idx = findAssistantLineIndex(session.lines, messageId);
       let lines = session.lines;
       if (idx >= 0) {
@@ -403,6 +407,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           text: finalText ?? lines[idx].text,
           streaming: false,
           interrupted,
+          ...(reasoningText ? { reasoningText } : {}),
         };
       } else if (interrupted) {
         lines = [

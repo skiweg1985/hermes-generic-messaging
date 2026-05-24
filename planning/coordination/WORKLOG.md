@@ -876,3 +876,87 @@ Security leak check: PASS
 PII check: PASS
 Sensitive data touched: no
 Redactions performed: none
+
+## 2026-05-24 22:20 – composer – interrupt_session_activity API fix
+
+- Done:
+  - Root cause für hängende Session `workspace:a0f9a64f-…`: Hermes gateway ruft `interrupt_session_activity(session_key, chat_id)` auf, Plugin hatte nur `(chat_id)` → TypeError bei `/new`
+  - Signatur in `adapter.py` auf `(session_key, chat_id)` angepasst; Tests aktualisiert (2 passed)
+  - CHANGELOG [Unreleased] Fixed ergänzt
+- Next:
+  - Nach Deploy auf Homer: Session mit `/new` resetten oder neuen Chat anlegen
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - tests/plugins/custom_chat/test_interrupt.py
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python -m pytest tests/plugins/custom_chat/test_interrupt.py -q` → 2 passed
+  - BFF/Hermes smoke: `workspace:demo` antwortet; `workspace:a0f9a64f-…` hing vor Fix (typing ohne assistant_done)
+  - Deploy Homer: rsync adapter.py; `systemctl --user restart hermes-gateway.service` → active; WS :8765; `/new` auf hängender Session → assistant_done ohne TypeError
+- Changelog updated:
+  - yes (Fixed)
+- Follow-ups:
+  - none
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none
+
+## 2026-05-24 22:34 – cursor – Reasoning-Text vollständig in Reasoning-Box
+
+- Done:
+  - Bug: gestreamter Thinking-Text landete in der Antwort-Bubble, weil `splitReasoning` am ersten `\n\n` trennte und Hermes nur Abschnitts-Header in `metadata.reasoning` lieferte
+  - Adapter: `assistant_done.reasoning_text` + sauberes `final_text`; `_split_reasoning_answer` merged Header + gestreamten Gedankengang
+  - Frontend: `reasoningText` auf TranscriptLine; Fallback-Split an letzter Leerzeile
+- Next:
+  - Plugin auf Homer deployen + Frontend neu bauen, dann Smoke mit `läuft?`
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - web/frontend/src/features/chat/reasoningSplit.ts
+  - web/frontend/src/features/chat/reasoningSplit.test.ts
+  - web/frontend/src/features/chat/TurnGroup.tsx
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/chatReducer.test.ts
+  - web/frontend/src/types/events.ts
+  - docs/CHANGELOG.md
+  - docs/custom_chat.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `npx vitest run reasoningSplit chatReducer`, `pytest test_streaming.py::test_reasoning_*`
+- Changelog updated:
+  - yes (Fixed)
+- Follow-ups:
+  - none
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none
+
+## 2026-05-24 22:49 – cursor – Homer Plugin deploy (reasoning_text + aktueller Stand)
+
+- Done:
+  - rsync `packages/custom_chat_schema/` → `homer@192.168.177.149:~/packages/custom_chat_schema/`
+  - rsync `plugins/platforms/custom_chat/` → `~/.hermes/plugins/custom_chat/`
+  - `systemctl --user restart hermes-gateway.service` → `active`; WS `:8765` listening
+- Next:
+  - Frontend-Deploy separat, falls UI-Änderungen auf Homer laufen sollen
+- Changelog updated:
+  - no (deploy only)
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none

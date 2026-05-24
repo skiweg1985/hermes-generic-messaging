@@ -125,6 +125,7 @@ export interface TranscriptLine {
   turnMessageId?: string;
   streaming?: boolean;
   interrupted?: boolean;
+  reasoningText?: string;
 }
 
 export interface SessionMetaPayload {

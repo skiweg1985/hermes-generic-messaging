@@ -116,9 +116,43 @@ async def test_reasoning_prepend_on_send(adapter: CustomChatAdapter, parse_sent_
 
     events = parse_sent_events(ws)
     done = next(e for e in events if e["type"] == "assistant_done")
-    assert "💭 Reasoning:" in done["payload"]["final_text"]
-    assert "Thinking step by step." in done["payload"]["final_text"]
-    assert "Final answer" in done["payload"]["final_text"]
+    assert done["payload"]["reasoning_text"] == "Thinking step by step."
+    assert done["payload"]["final_text"] == "Final answer"
+    assert "💭 Reasoning:" not in done["payload"]["final_text"]
+
+
+@pytest.mark.asyncio
+async def test_reasoning_splits_streamed_thinking_from_final_answer(
+    adapter: CustomChatAdapter, parse_sent_events
+):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._reply_routes["stream-4b"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter._ws_by_chat["c1"] = ws
+
+    thinking = (
+        "I think the user might be asking if I'm here, possibly with \"läuft?\" "
+        "I don't need any tools for this."
+    )
+    await adapter.send(
+        "c1",
+        f"{thinking}\n\nJa, läuft – ich bin da.",
+        metadata={
+            "reply_id": "stream-4b",
+            "reasoning": "**Reasoning:**\n**Responding simply**",
+        },
+    )
+
+    events = parse_sent_events(ws)
+    done = next(e for e in events if e["type"] == "assistant_done")
+    assert "**Reasoning:**" in done["payload"]["reasoning_text"]
+    assert thinking in done["payload"]["reasoning_text"]
+    assert done["payload"]["final_text"] == "Ja, läuft – ich bin da."
 
 
 @pytest.mark.asyncio

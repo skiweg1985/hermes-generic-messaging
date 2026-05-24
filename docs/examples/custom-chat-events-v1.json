@@ -55,6 +55,19 @@
         "button_id": "once",
         "choice": "once"
       }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000005",
+      "timestamp": "2026-05-23T10:49:16Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "client.register",
+      "payload": {
+        "public_media_base_url": "http://192.0.2.10:8000",
+        "client_kind": "web_bff"
+      }
     }
   ],
   "outbound_examples": [

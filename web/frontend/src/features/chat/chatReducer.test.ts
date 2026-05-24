@@ -45,6 +45,23 @@ describe("chatReducer", () => {
     expect(session(s).streamingMessageId).toBeNull();
   });
 
+  it("stores structured reasoning on assistant_done", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", {
+        message_id: "r1",
+        reasoning_text: "Thinking step by step.",
+        final_text: "Hello",
+      }),
+    });
+    expect(session(s).lines[0].reasoningText).toBe("Thinking step by step.");
+    expect(session(s).lines[0].text).toBe("Hello");
+  });
+
   it("marks interrupted assistant replies", () => {
     let s = chatReducer(base, {
       type: "INBOUND_EVENT",

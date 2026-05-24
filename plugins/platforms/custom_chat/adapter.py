@@ -38,6 +38,10 @@ from .transport.ws_server import WebSocketHub
 logger = logging.getLogger(__name__)
 
 REASONING_PREFIX = "💭 Reasoning:"
+# When Hermes streams thinking before the final reply, the tail after the last blank
+# line is treated as the user-facing answer if it is clearly shorter than the head.
+_REASONING_ANSWER_SPLIT_MAX_TAIL_CHARS = 2000
+_REASONING_ANSWER_SPLIT_MAX_TAIL_RATIO = 0.45
 # Hermes tool-progress lines: ``{emoji} {tool_name}: "preview"`` or ``{emoji} {tool_name}...``
 _TOOL_PROGRESS_LINE_RE = re.compile(
   r"^[\s]*[^\w\s]{1,4}\s+[\w.-]+(?::\s[\"'].+[\"']|\.\.\.|\([^)]*\))?(?:\s*\(×\d+\))?$"
@@ -157,6 +161,38 @@ class CustomChatAdapter(BasePlatformAdapter):
     self._typing_closed_chats: set[str] = set()
     # message_ids of in-flight tool-progress notice bubbles (editable)
     self._tool_progress_ids: set[str] = set()
+    # Latest web BFF media base URL from client.register (overrides env when set).
+    self._registered_media_base_url: str = ""
+
+  def _effective_media_base_url(self) -> str | None:
+    registered = self._registered_media_base_url.strip().rstrip("/")
+    if registered:
+      return registered
+    configured = self.settings.media_public_base_url.strip().rstrip("/")
+    return configured or None
+
+  async def _handle_client_register(self, ws: Any, data: dict[str, Any]) -> None:
+    from custom_chat_schema.schema import ClientRegisterPayload
+
+    try:
+      payload = ClientRegisterPayload.model_validate(data.get("payload") or {})
+    except Exception as exc:
+      logger.warning("client.register rejected: %s", exc)
+      await self._emit_error(
+        chat_id=data.get("chat_id", "unknown"),
+        user_id=data.get("user_id", "unknown"),
+        message_id="",
+        code="BAD_REQUEST",
+        message="invalid client.register payload",
+        ws=ws,
+      )
+      return
+    self._registered_media_base_url = payload.public_media_base_url
+    logger.info(
+      "client.register: media base %s (kind=%s)",
+      payload.public_media_base_url,
+      payload.client_kind,
+    )
 
   def _now_iso(self) -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -194,7 +230,10 @@ class CustomChatAdapter(BasePlatformAdapter):
     if not is_local_reference(media_url):
       return media_url, meta
     path = resolve_local_path(media_url)
-    published = await publish_local_file(path, self.settings)
+    base_url = self._effective_media_base_url()
+    published = await publish_local_file(
+      path, self.settings, media_base_url=base_url
+    )
     meta.setdefault("mime_type", published.get("mime_type"))
     if published.get("size_bytes") is not None:
       meta.setdefault("size_bytes", int(published["size_bytes"]))
@@ -353,6 +392,10 @@ class CustomChatAdapter(BasePlatformAdapter):
         message="invalid JSON",
         ws=ws,
       )
+      return
+
+    if data.get("type") == "client.register":
+      await self._handle_client_register(ws, data)
       return
 
     try:
@@ -525,6 +568,29 @@ class CustomChatAdapter(BasePlatformAdapter):
     if content.startswith(previous):
       return content[len(previous) :], content
     return content, previous + content
+
+  @staticmethod
+  def _split_reasoning_answer(reasoning_meta: str, answer: str) -> tuple[str, str]:
+    """Merge metadata reasoning with streamed thinking; isolate the final reply."""
+    meta = reasoning_meta.strip()
+    body = (answer or "").strip()
+    if not meta:
+      return "", body
+    if not body:
+      return meta, ""
+    if "\n\n" not in body:
+      return meta, body
+    head, tail = body.rsplit("\n\n", 1)
+    tail = tail.strip()
+    head = head.strip()
+    if not tail:
+      return meta, body
+    if len(tail) > _REASONING_ANSWER_SPLIT_MAX_TAIL_CHARS:
+      return meta, body
+    if len(tail) > max(len(head), 1) * _REASONING_ANSWER_SPLIT_MAX_TAIL_RATIO:
+      return meta, body
+    combined = f"{meta}\n\n{head}".strip() if head else meta
+    return combined, tail
 
   @staticmethod
   def _prepend_reasoning(final: str, meta: Dict[str, Any]) -> str:
@@ -745,7 +811,18 @@ class CustomChatAdapter(BasePlatformAdapter):
         },
       )
     else:
-      final = self._prepend_reasoning(content or session.accumulated, meta)
+      answer = (content or session.accumulated or "").strip()
+      reasoning_raw = meta.get("reasoning")
+      reasoning_meta = str(reasoning_raw).strip() if reasoning_raw else ""
+      reasoning_text: Optional[str] = None
+      answer_text = answer
+      if reasoning_meta and REASONING_PREFIX not in answer:
+        reasoning_text, answer_text = self._split_reasoning_answer(
+          reasoning_meta, answer
+        )
+        final = answer_text
+      else:
+        final = self._prepend_reasoning(answer, meta)
       stripped = (final or "").strip()
       if stripped and is_local_reference(stripped):
         path = resolve_local_path(stripped)
@@ -778,6 +855,8 @@ class CustomChatAdapter(BasePlatformAdapter):
         "final_text": final,
         "turn_message_id": reply_id,
       }
+      if reasoning_text:
+        done_payload["reasoning_text"] = reasoning_text
       if session.segment_index > 0:
         done_payload["segments"] = session.segment_index + 1
       await self._emit_outbound(
@@ -1505,8 +1584,9 @@ class CustomChatAdapter(BasePlatformAdapter):
     handler = getattr(self, "_message_handler", None)
     return getattr(handler, "__self__", None)
 
-  async def interrupt_session_activity(self, chat_id: str) -> None:
+  async def interrupt_session_activity(self, session_key: str, chat_id: str) -> None:
     """Cancel any active streams for this chat and emit assistant_done(interrupted=True)."""
+    _ = session_key  # gateway passes session_key; routes are keyed by chat_id today
     affected: list[str] = []
     for reply_id, route in list(self._reply_routes.items()):
       if route.get("chat_id") != chat_id:
