@@ -653,3 +653,39 @@
   - yes (Changed unter Unreleased)
 - Follow-ups:
   - none
+
+## 2026-05-24 13:31 – cursor – session_meta Event für Hermes-Titel
+
+- Done:
+  - Schema v1: neuer Outbound-Event-Typ `session_meta` mit `SessionMetaPayload { title?, extra }`; export aus `custom_chat_schema`
+  - Plugin-Adapter: `send_session_meta(chat_id, *, title, session_id, thread_id, extra, metadata)` emittiert das Event über `_emit_outbound` mit Routing über `_route_for_send`
+  - Frontend (`events.ts`): `session_meta` in `OutboundType`; neue `SessionMetaPayload`; `ChatSession` erweitert um `title?`, `sessionId?`, `threadId?`
+  - Reducer: behandelt `session_meta`, setzt Session-Title und Session-/Thread-IDs (leerer Title überschreibt bestehenden nicht)
+  - `chatDisplayTitle` priorisiert ausschließlich `session.title` von Hermes, danach lokales Label, dann chat_id (kein Auto-Title aus erstem User-Text mehr, da Hermes den Titel liefert)
+  - Tests: `tests/plugins/custom_chat/test_session_meta.py` (Plugin-Emission inkl. extra), `chatReducer.test.ts` (Frontend-Reducer-Routing)
+  - Docs: `docs/custom_chat.md` Sektion `session_meta` mit Event-Beispiel
+- Next:
+  - Hermes-seitig: `/title`-Handler / Auto-Title-Hook ruft `adapter.send_session_meta(...)` auf (außerhalb dieses Repos)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/schema.py
+  - packages/custom_chat_schema/__init__.py
+  - plugins/platforms/custom_chat/adapter.py
+  - tests/plugins/custom_chat/test_session_meta.py
+  - web/frontend/src/types/events.ts
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/chatReducer.test.ts
+  - docs/custom_chat.md
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `python -m pytest tests/plugins/custom_chat -x -q` (62 passed → 64 mit den neuen Tests), `cd web/frontend && npx vitest run` (33 passed), `npx tsc -p . --noEmit` (clean)
+  - endpoints: keine
+  - UI path: Hermes sendet `session_meta` mit Titel → TopBar zeigt Titel statt `chat N`
+- Changelog updated:
+  - yes (Added unter Unreleased)
+- Follow-ups:
+  - Hermes-Side-Wiring (Plugin-Hook, der Hermes-Titel-Events an `send_session_meta` weiterreicht)

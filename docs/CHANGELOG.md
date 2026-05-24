@@ -2,9 +2,10 @@
 
 ## [Unreleased]
 
-### Changed
+### Added
 
-- Web UI: TopBar- und Rail-Anzeige eines Chats nutzen den ersten User-Text als Titel (truncated auf 40 Zeichen) statt generischem `chat N`; Fallback bleibt das vorhandene Label bzw. die `chat_id`
+- Outbound event `session_meta` (Schema v1) für Hermes-Session-Metadaten (Titel via `/title` / Auto-Title); Plugin-Helper `adapter.send_session_meta(chat_id, title=, session_id=, thread_id=, extra=)`
+- Web UI: TopBar und Rail zeigen den von Hermes gelieferten `session_meta.title` als Chat-Titel an (auf 40 Zeichen gekürzt), Fallback bleibt das lokale Label bzw. die `chat_id`
 
 ### Added
 

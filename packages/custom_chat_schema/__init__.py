@@ -10,6 +10,7 @@ from custom_chat_schema.schema import (
     FileUploadedPayload,
     ButtonClickPayload,
     ButtonSpec,
+    SessionMetaPayload,
     SlashConfirmPayload,
     SlashPickPayload,
     CommandCreatePayload,
@@ -20,6 +21,7 @@ from custom_chat_schema.schema import (
     build_outbound_event,
     parse_inbound_envelope,
 )
+from custom_chat_schema.mime import normalize_mime_type
 from custom_chat_schema.settings import CustomChatSettings
 
 __all__ = [
@@ -38,8 +40,10 @@ __all__ = [
     "MessageCancelPayload",
     "ButtonClickPayload",
     "ButtonSpec",
+    "SessionMetaPayload",
     "SlashConfirmPayload",
     "SlashPickPayload",
     "parse_inbound_envelope",
     "build_outbound_event",
+    "normalize_mime_type",
 ]

@@ -229,7 +229,24 @@ await adapter.send_model_picker(
 | `assistant_segment` | Segment boundary within one turn (after tool calls) |
 | `assistant_notice` | System/info/tool/reasoning bubble outside the streaming reply flow |
 | `assistant_image` | Image attachment with optional caption |
+| `session_meta` | Hermes session metadata (e.g. session title) bound to `session_id`/`thread_id` |
 | `typing` | Typing indicator (`state: "start"` / `"stop"`) |
+
+### `session_meta`
+
+Emitted by the plugin when Hermes assigns or updates the session title (manual `/title <name>` or auto-title). The envelope carries `chat_id`, `session_id` and `thread_id` so the client can route the update.
+
+```json
+{
+  "type": "session_meta",
+  "chat_id": "workspace:abc",
+  "session_id": "sess-7",
+  "thread_id": "thread-3",
+  "payload": { "title": "Refactor billing service" }
+}
+```
+
+The web client stores the title on the session and renders it in the chat header instead of the generic local label.
 
 ## Agent inner steps (tool / reasoning)
 

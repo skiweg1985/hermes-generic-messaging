@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatReducer, initialChatState } from "./chatReducer";
+import { chatDisplayTitle, chatReducer, initialChatState } from "./chatReducer";
 import type { ChatState, EventEnvelope } from "../../types/events";
 
 const base = initialChatState("c1", "one");
@@ -335,6 +335,27 @@ describe("chatReducer", () => {
     });
     expect(session(s).lines[0].kind).toBe("notice");
     expect(session(s).lines[0].noticeKind).toBe("tool");
+  });
+
+  it("stores hermes session title from session_meta event", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: {
+        ...ev("session_meta", { title: "Refactor billing service" }),
+        session_id: "sess-7",
+        thread_id: "thread-3",
+      },
+    });
+    expect(session(s).title).toBe("Refactor billing service");
+    expect(session(s).sessionId).toBe("sess-7");
+    expect(session(s).threadId).toBe("thread-3");
+    expect(chatDisplayTitle(session(s))).toBe("Refactor billing service");
+
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("session_meta", { title: "" }),
+    });
+    expect(session(s).title).toBe("Refactor billing service");
   });
 
   it("upserts tool progress notices by message_id", () => {

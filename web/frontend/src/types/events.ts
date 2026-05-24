@@ -20,6 +20,7 @@ export type OutboundType =
   | "assistant_notice"
   | "assistant_image"
   | "assistant_file"
+  | "session_meta"
   | "typing";
 
 export type NoticeKind = "info" | "tool" | "reasoning" | "warning" | "error";
@@ -126,9 +127,17 @@ export interface TranscriptLine {
   interrupted?: boolean;
 }
 
+export interface SessionMetaPayload {
+  title?: string;
+  extra?: Record<string, unknown>;
+}
+
 export interface ChatSession {
   chatId: string;
   label: string;
+  title?: string;
+  sessionId?: string;
+  threadId?: string;
   lines: TranscriptLine[];
   streamingMessageId: string | null;
   input: string;

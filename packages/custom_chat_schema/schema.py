@@ -44,6 +44,7 @@ OUTBOUND_TYPES = frozenset(
         "assistant_notice",
         "assistant_image",
         "assistant_file",
+        "session_meta",
         "typing",
     }
 )
@@ -208,6 +209,19 @@ class SlashPickPayload(BaseModel):
         if not v.startswith("/"):
             raise ValueError("command must start with /")
         return v
+
+
+class SessionMetaPayload(BaseModel):
+    """Outbound metadata for a Hermes session bound to a chat.
+
+    Emitted by the plugin when Hermes assigns or updates a session title (e.g.
+    via ``/title <name>`` or auto-title). The envelope carries ``chat_id``,
+    ``session_id`` and ``thread_id`` so the client can route the update to the
+    correct session.
+    """
+
+    title: Optional[str] = None
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
 def parse_inbound_envelope(data: dict[str, Any]) -> EventEnvelope:

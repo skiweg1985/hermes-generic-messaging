@@ -19,11 +19,8 @@ function truncate(value: string, max: number): string {
 }
 
 export function chatDisplayTitle(session: ChatSession): string {
-  const firstUserLine = session.lines.find(
-    (line) => line.kind === "user" || line.kind === "command",
-  );
-  if (firstUserLine && firstUserLine.text.trim().length > 0) {
-    return truncate(firstUserLine.text, MAX_TITLE_LENGTH);
+  if (session.title && session.title.trim().length > 0) {
+    return truncate(session.title, MAX_TITLE_LENGTH);
   }
   if (session.label && session.label.trim().length > 0) return session.label;
   const id = session.chatId;
@@ -521,6 +518,19 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           sessionId: event.session_id,
         }),
       );
+    }
+    case "session_meta": {
+      const rawTitle = p.title;
+      const nextTitle =
+        typeof rawTitle === "string" && rawTitle.trim().length > 0
+          ? rawTitle.trim()
+          : session.title;
+      return touchSession({
+        ...session,
+        title: nextTitle,
+        sessionId: event.session_id ?? session.sessionId,
+        threadId: event.thread_id ?? session.threadId,
+      });
     }
     case "typing": {
       const state = String(p.state ?? "");

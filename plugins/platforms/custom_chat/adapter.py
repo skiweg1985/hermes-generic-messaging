@@ -1027,6 +1027,44 @@ class CustomChatAdapter(BasePlatformAdapter):
 
     return SendResult(success=True, message_id=pick_id)
 
+  async def send_session_meta(
+    self,
+    chat_id: str,
+    *,
+    title: Optional[str] = None,
+    session_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Notify the client about session metadata (e.g. Hermes-generated title).
+
+    Hermes calls this when a session title is assigned or updated (manual
+    ``/title <name>`` or auto-title). The web client routes the event by
+    ``chat_id``/``session_id`` and updates the chat header accordingly.
+    """
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    payload: Dict[str, Any] = {}
+    if title is not None:
+      payload["title"] = title
+    if extra:
+      payload["extra"] = dict(extra)
+    event_id = self._new_event_id()
+    try:
+      await self._emit_outbound(
+        chat_id=route.get("chat_id", chat_id),
+        user_id=route.get("user_id", "assistant"),
+        event_type="session_meta",
+        payload=payload,
+        thread_id=thread_id or route.get("thread_id") or None,
+        session_id=session_id or route.get("session_id") or None,
+      )
+    except Exception as exc:
+      logger.warning("send_session_meta failed: %s", exc)
+      return SendResult(success=False, message_id=event_id, error=str(exc))
+    return SendResult(success=True, message_id=event_id)
+
   async def send_model_picker(
     self,
     chat_id: str,
