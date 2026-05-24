@@ -689,3 +689,31 @@
   - yes (Added unter Unreleased)
 - Follow-ups:
   - Hermes-Side-Wiring (Plugin-Hook, der Hermes-Titel-Events an `send_session_meta` weiterreicht)
+
+## 2026-05-24 13:41 – cursor – Homer deploy session_meta + Gateway-Patch
+
+- Done:
+  - rsync `packages/custom_chat_schema/` → `homer@192.168.177.149:~/packages/custom_chat_schema/` (inkl. `session_meta` in OUTBOUND_TYPES)
+  - rsync `adapter.py` → `homer@192.168.177.149:~/.hermes/plugins/custom_chat/` (`send_session_meta` verifiziert: 2 Treffer)
+  - Neues Script `scripts/apply-hermes-session-meta-patch.sh`: patcht Hermes `gateway/run.py` idempotent mit `_notify_custom_chat_session_title` / `_schedule_custom_chat_session_title_notify`
+  - Patch auf Homer angewendet (Hooks: `/title`, `/new <title>`, Auto-Title via `maybe_auto_title` title_callback)
+  - `systemctl --user restart hermes-gateway.service` → active; WS :8765 listening
+- Next:
+  - Manuell testen: `/title Mein Projekt` im Web-Chat → TopBar sollte Titel zeigen
+  - Optional: initialer Title-Sync beim WS-Connect für bereits benannte Sessions
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched (remote):
+  - ~/.hermes/plugins/custom_chat/adapter.py
+  - ~/packages/custom_chat_schema/
+  - ~/.hermes/hermes-agent/gateway/run.py (patched)
+- Test notes:
+  - remote: `grep -c send_session_meta adapter.py` → 2; `grep -c _notify_custom_chat_session_title run.py` → 2
+  - gateway: active, port 8765 LISTEN
+- Changelog updated:
+  - no (deploy only; schema/feature already in prior commit)
+- Follow-ups:
+  - Title-Sync für bestehende Sessions beim Chat-Wechsel/Reconnect
