@@ -431,7 +431,40 @@
 - Follow-ups:
   - none
 
-## 2026-05-24 10:45 – cursor – Tool/reasoning text parity (Telegram/Discord)
+## 2026-05-24 10:49 – cursor – Homer deploy tool/reasoning parity
+
+- Done:
+  - rsync `adapter.py`, `streaming.py` → `homer@192.168.177.149:~/.hermes/plugins/custom_chat/`
+  - rsync `packages/custom_chat_schema/` → `~/packages/custom_chat_schema/`
+  - rsync frontend (`chatReducer`, `TranscriptLine`, `events.ts`, `terminal.css`) → `~/hermes-generic-messaging/web/frontend/`
+  - `systemctl --user restart hermes-gateway.service` → active; WS `:8765` listening; BFF `:8000`, Vite `:5173` running
+- Next:
+  - Manual smoke: tool-heavy prompt + `display.show_reasoning: true` in web UI
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Test notes:
+  - remote grep: `assistant_segment`, `begin_segment` present; ports OK
+- Changelog updated:
+  - no (deploy only)
+- Follow-ups:
+  - none
+
+## 2026-05-24 10:57 – cursor – Tool progress fix (edit_message + config)
+
+- Done:
+  - Root cause: Hermes `send_progress_messages` skips platforms without `edit_message`
+  - Implemented `edit_message` + `_send_tool_progress`; progress `send()` → updatable `assistant_notice` (`kind: tool`)
+  - Frontend upserts tool notices by `message_id`
+  - Homer: `tool_progress_command: true`, adapter + chatReducer deployed, gateway restarted
+- Next:
+  - Retry `/verbose` or tool-heavy prompt in web UI
+- Test notes:
+  - `pytest test_streaming.py` → 9 passed; `npm test` → 30 passed
+- Changelog updated:
+  - yes (Fixed)
 
 - Done:
   - Incremental `assistant_delta` in adapter `send_draft` (fixes cumulative delta bug)
@@ -468,3 +501,19 @@
   - yes (Added under Unreleased)
 - Follow-ups:
   - none
+
+## 2026-05-24 10:57 – cursor – Tool progress fix (edit_message + config)
+
+- Done:
+  - Root cause: Hermes `send_progress_messages` skips platforms without `edit_message`
+  - Implemented `edit_message` + `_send_tool_progress`; `send()` without `reply_id` → updatable `assistant_notice` (`kind: tool`)
+  - Frontend upserts tool notices by `message_id`
+  - Homer: `tool_progress_command: true`, adapter deployed, gateway restarted
+- Next:
+  - Retry `/verbose` or tool-heavy prompt in web UI
+- Blockers:
+  - none
+- Test notes:
+  - `pytest test_streaming.py` → 9 passed; `npm test` → 30 passed
+- Changelog updated:
+  - yes (Fixed)
