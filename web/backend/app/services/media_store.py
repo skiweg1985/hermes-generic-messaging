@@ -7,6 +7,8 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from custom_chat_schema.mime import normalize_mime_type
+
 from app.core.config import Settings
 
 
@@ -17,6 +19,7 @@ class MediaStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def validate_upload(self, mime_type: str, size_bytes: int) -> None:
+        mime_type = normalize_mime_type(mime_type)
         if mime_type not in self.settings.allowed_upload_mime_types:
             raise HTTPException(
                 status_code=415,
@@ -35,6 +38,7 @@ class MediaStore:
             )
 
     def save(self, data: bytes, mime_type: str) -> dict[str, str | int]:
+        mime_type = normalize_mime_type(mime_type)
         self.validate_upload(mime_type, len(data))
         file_id = str(uuid.uuid4())
         ext = mime_type.split("/")[-1] or "bin"

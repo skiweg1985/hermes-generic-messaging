@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 
+import { normalizeMimeType } from "../lib/normalizeMimeType";
+
 export function useAudioRecorder() {
   const [recording, setRecording] = useState(false);
   const mediaRef = useRef<MediaRecorder | null>(null);
@@ -25,7 +27,7 @@ export function useAudioRecorder() {
         return;
       }
       recorder.onstop = () => {
-        const mime = recorder.mimeType || "audio/webm";
+        const mime = normalizeMimeType(recorder.mimeType || "audio/webm");
         const blob = new Blob(chunksRef.current, { type: mime });
         recorder.stream.getTracks().forEach((t) => t.stop());
         mediaRef.current = null;

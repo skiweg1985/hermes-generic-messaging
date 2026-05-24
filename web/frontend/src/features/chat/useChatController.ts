@@ -250,13 +250,59 @@ export function useChatController(): ChatController {
     [connected, state.activeChatId],
   );
 
+  const uploadAudio = useCallback(
+    async (file: File) => {
+      if (!wsRef.current || !connected) return;
+      const chatId = state.activeChatId;
+      try {
+        const result = await uploadMedia(file, file.name);
+        dispatch({
+          type: "USER_UPLOAD",
+          filename: file.name,
+          mime: result.mime_type,
+          size: result.size_bytes,
+          url: result.url,
+          chatId,
+        });
+        const delivered = wsRef.current.sendAudioUploaded(
+          {
+            message_id: newId(),
+            mime_type: result.mime_type,
+            size_bytes: result.size_bytes,
+            url: result.url,
+          },
+          chatId,
+          USER_ID,
+        );
+        if (!delivered) {
+          dispatch({
+            type: "USER_ERROR",
+            code: "WS_NOT_CONNECTED",
+            message: "audio stored but agent not notified — reconnect and resend",
+            chatId,
+          });
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "upload failed";
+        const [code, ...rest] = msg.split(": ");
+        dispatch({
+          type: "USER_ERROR",
+          code: code ?? "UPLOAD_FAILED",
+          message: rest.join(": ") || msg,
+          chatId,
+        });
+      }
+    },
+    [connected, state.activeChatId],
+  );
+
   const toggleRecord = useCallback(async () => {
     if (!connected) return;
     if (recording) {
       try {
         const blob = await stopRec();
         const name = `recording.webm`;
-        await uploadFile(new File([blob], name, { type: blob.type || "audio/webm" }));
+        await uploadAudio(new File([blob], name, { type: blob.type || "audio/webm" }));
       } catch {
         dispatch({
           type: "USER_ERROR",
@@ -275,7 +321,7 @@ export function useChatController(): ChatController {
         });
       }
     }
-  }, [connected, recording, startRec, stopRec, uploadFile]);
+  }, [connected, recording, startRec, stopRec, uploadAudio]);
 
   const reconnect = useCallback(() => {
     wsRef.current?.reconnect();

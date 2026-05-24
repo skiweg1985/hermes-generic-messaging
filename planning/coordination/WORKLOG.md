@@ -717,3 +717,41 @@
   - no (deploy only; schema/feature already in prior commit)
 - Follow-ups:
   - Title-Sync für bestehende Sessions beim Chat-Wechsel/Reconnect
+
+## 2026-05-24 14:20 – cursor – MIME-Normalisierung, STT, Mobile-Rail-Drawer
+
+- Done:
+  - `packages/custom_chat_schema/mime.py`: gemeinsame `normalize_mime_type` für BFF und Plugin
+  - BFF `MediaStore` + Plugin `validate_*`: Codec-Parameter aus MIME entfernen (`audio/webm;codecs=opus` → `audio/webm`)
+  - `transcribe_audio`: Audio laden (lokal/HTTP) und Hermes-STT (Whisper) statt Platzhaltertext
+  - Frontend: `normalizeMimeType`, Mikrofon sendet `audio.uploaded`, Mobile-Rail-Drawer (Hamburger, Backdrop, Esc)
+  - BFF lädt `web/.env` beim Start (`WEB_PUBLIC_MEDIA_BASE_URL` u. a.)
+  - Tests angepasst/erweitert (media, e2e, media_store, vitest)
+- Next:
+  - Homer: Plugin + Schema deployen, Gateway neu starten
+  - STT-End-to-End mit echter Whisper-Instanz auf Homer prüfen
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/mime.py
+  - plugins/platforms/custom_chat/media.py
+  - web/backend/app/core/config.py
+  - web/backend/app/services/media_store.py
+  - web/frontend/src/lib/normalizeMimeType.ts
+  - web/frontend/src/hooks/useAudioRecorder.ts
+  - web/frontend/src/features/chat/useChatController.ts
+  - web/frontend/src/features/shell/Rail.tsx, TopBar.tsx, shell.css, icons.tsx
+  - web/frontend/src/api/wsClient.ts
+  - tests/plugins/custom_chat/test_media.py, test_custom_chat_e2e.py
+  - tests/web/test_media_store.py
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `pytest tests/plugins/custom_chat/test_media.py tests/web/test_media_store.py -q`, `cd web/frontend && npx vitest run src/lib/normalizeMimeType.test.ts`
+- Changelog updated:
+  - yes (bereits unter Unreleased: MIME/STT/Drawer)
+- Follow-ups:
+  - Deploy auf Homer

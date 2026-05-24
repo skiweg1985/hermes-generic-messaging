@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import pytest
 
+from plugins.platforms.custom_chat import adapter as adapter_module
 from plugins.platforms.custom_chat.transport.ws_server import WebSocketHub
 from tests.plugins.custom_chat.conftest import MockWebSocket, sample_inbound
 
 
 @pytest.mark.asyncio
-async def test_e2e_text_stream_command_audio_file(adapter, parse_sent_events):
+async def test_e2e_text_stream_command_audio_file(adapter, parse_sent_events, monkeypatch):
+    monkeypatch.setattr(
+        adapter_module,
+        "transcribe_audio",
+        lambda _payload, **_kw: "e2e voice transcript",
+    )
     received = []
 
     async def handler(event):
@@ -57,7 +63,7 @@ async def test_e2e_text_stream_command_audio_file(adapter, parse_sent_events):
             event_id="e2e-3",
         ),
     )
-    assert "transcribed" in received[-1].text.lower()
+    assert received[-1].text == "e2e voice transcript"
 
     await adapter._on_ws_message(
         ws,

@@ -33,6 +33,13 @@ def test_accepts_image_and_doc(store):
     assert doc["mime_type"] == "application/pdf"
 
 
+def test_accepts_audio_webm_with_codecs(store):
+    result = store.save(b"x" * 10, "audio/webm;codecs=opus")
+    assert result["mime_type"] == "audio/webm"
+    path = store.resolve_path(str(result["file_id"]))
+    assert path.suffix == ".webm"
+
+
 def test_reject_mime(store):
     with pytest.raises(HTTPException) as exc:
         store.save(b"x", "application/x-msdownload")

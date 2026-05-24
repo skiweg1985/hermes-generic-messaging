@@ -10,6 +10,8 @@ from plugins.platforms.custom_chat.config import (
     FileUploadedPayload,
 )
 from plugins.platforms.custom_chat.events.schema import InboundEventError
+from plugins.platforms.custom_chat import adapter as adapter_module
+from plugins.platforms.custom_chat import media as media_module
 from plugins.platforms.custom_chat.media import (
     synthesize_audio_url,
     transcribe_audio,
@@ -20,7 +22,7 @@ from plugins.platforms.custom_chat.transport.ws_server import WebSocketHub
 from tests.plugins.custom_chat.conftest import MockWebSocket, sample_inbound
 
 
-def test_valid_audio_accepted():
+def test_valid_audio_accepted(monkeypatch, tmp_path):
     settings = CustomChatSettings()
     payload = AudioUploadedPayload(
         message_id="a1",
@@ -29,8 +31,27 @@ def test_valid_audio_accepted():
         url="https://example.local/a.ogg",
     )
     validate_audio_payload(payload, settings)
+    audio_path = tmp_path / "x.ogg"
+    audio_path.write_bytes(b"fake")
+    monkeypatch.setattr(media_module, "_run_hermes_stt", lambda _path: "hallo welt")
+    monkeypatch.setattr(
+        media_module,
+        "_fetch_media_path",
+        lambda _url, _mime: (audio_path, False),
+    )
     text = transcribe_audio(payload)
-    assert "transcribed" in text.lower()
+    assert text == "hallo welt"
+
+
+def test_webm_codecs_mime_accepted():
+    settings = CustomChatSettings()
+    payload = AudioUploadedPayload(
+        message_id="a1",
+        mime_type="audio/webm;codecs=opus",
+        size_bytes=1024,
+        url="https://example.local/a.webm",
+    )
+    validate_audio_payload(payload, settings)
 
 
 def test_unsupported_mime_rejected():
@@ -65,7 +86,12 @@ def test_valid_file_accepted():
 
 
 @pytest.mark.asyncio
-async def test_audio_uploaded_invokes_transcription_path(adapter):
+async def test_audio_uploaded_invokes_transcription_path(adapter, monkeypatch):
+    monkeypatch.setattr(
+        adapter_module,
+        "transcribe_audio",
+        lambda _payload, **_kw: "voice note text",
+    )
     received = []
 
     async def handler(event):
@@ -88,7 +114,7 @@ async def test_audio_uploaded_invokes_transcription_path(adapter):
         ),
     )
     assert len(received) == 1
-    assert "transcribed" in received[0].text.lower()
+    assert received[0].text == "voice note text"
 
 
 @pytest.mark.asyncio

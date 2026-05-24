@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import mimetypes
 import re
+import shutil
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Optional
 from urllib import request as urllib_request
+from urllib.error import URLError
 from urllib.parse import unquote, urlparse
+
+logger = logging.getLogger(__name__)
+
+from custom_chat_schema.mime import normalize_mime_type
 
 from .config import AudioUploadedPayload, CustomChatSettings, FileUploadedPayload
 from .events.schema import InboundEventError
@@ -26,10 +34,11 @@ def validate_file_payload(
     payload: AudioUploadedPayload | FileUploadedPayload,
     settings: CustomChatSettings,
 ) -> None:
-    if payload.mime_type not in settings.allowed_upload_mime_types:
+    mime_type = normalize_mime_type(payload.mime_type)
+    if mime_type not in settings.allowed_upload_mime_types:
         raise InboundEventError(
             "UNSUPPORTED_MEDIA_TYPE",
-            f"mime type not allowed: {payload.mime_type}",
+            f"mime type not allowed: {mime_type}",
         )
     if payload.size_bytes > settings.max_upload_bytes:
         raise InboundEventError(
@@ -43,22 +52,87 @@ def validate_audio_payload(
     settings: CustomChatSettings,
 ) -> None:
     validate_file_payload(payload, settings)
-    if not payload.mime_type.startswith("audio/"):
+    if not normalize_mime_type(payload.mime_type).startswith("audio/"):
         raise InboundEventError(
             "UNSUPPORTED_MEDIA_TYPE",
             f"mime type not allowed for audio.uploaded: {payload.mime_type}",
         )
 
 
+def _media_extension(mime_type: str) -> str:
+    subtype = normalize_mime_type(mime_type).split("/", 1)[-1]
+    return subtype if subtype and subtype != "octet-stream" else "bin"
+
+
+def _fetch_media_path(url: str, mime_type: str) -> tuple[Path, bool]:
+    """Return (path, is_temporary)."""
+    if is_local_reference(url):
+        return resolve_local_path(url), False
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in {"http", "https"}:
+        raise InboundEventError("BAD_REQUEST", f"unsupported media reference: {url}")
+    tmp_dir = Path(tempfile.mkdtemp(prefix="custom_chat_audio_"))
+    path = tmp_dir / f"audio.{_media_extension(mime_type)}"
+    req = urllib_request.Request(url.strip())
+    try:
+        with urllib_request.urlopen(req, timeout=60) as resp:
+            path.write_bytes(resp.read())
+    except (URLError, OSError, TimeoutError) as exc:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise InboundEventError(
+            "BAD_REQUEST",
+            f"could not download audio: {exc}",
+        ) from exc
+    return path, True
+
+
+def _cleanup_temp_media(path: Path, is_temporary: bool) -> None:
+    if not is_temporary:
+        return
+    try:
+        shutil.rmtree(path.parent, ignore_errors=True)
+    except OSError:
+        pass
+
+
+def _run_hermes_stt(path: Path) -> Optional[str]:
+    try:
+        from tools.transcription_tools import transcribe_audio as hermes_transcribe
+    except ImportError:
+        return None
+    try:
+        result = hermes_transcribe(str(path))
+    except Exception as exc:
+        logger.warning("Hermes STT failed for %s: %s", path, exc)
+        return None
+    if not isinstance(result, dict) or not result.get("success"):
+        return None
+    transcript = str(result.get("transcript") or "").strip()
+    return transcript or None
+
+
 def transcribe_audio(
     payload: AudioUploadedPayload | FileUploadedPayload,
     *,
     provider: Optional[str] = None,
-) -> str:
-    """Placeholder STT — returns marker text until a provider is wired."""
+) -> Optional[str]:
+    """Download audio and run Hermes STT when available; else None."""
     _ = provider
-    ref = payload.url or payload.file_ref or ""
-    return f"[transcribed audio {payload.mime_type} from {ref}]"
+    ref = (payload.url or payload.file_ref or "").strip()
+    if not ref:
+        return None
+    is_temporary = False
+    path: Optional[Path] = None
+    try:
+        path, is_temporary = _fetch_media_path(ref, payload.mime_type)
+        if not path.is_file():
+            return None
+        return _run_hermes_stt(path)
+    except InboundEventError:
+        return None
+    finally:
+        if path is not None:
+            _cleanup_temp_media(path, is_temporary)
 
 
 def is_local_reference(url: str) -> bool:

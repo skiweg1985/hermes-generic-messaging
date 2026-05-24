@@ -4,9 +4,25 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from custom_chat_schema.schema import DEFAULT_ALLOWED_UPLOAD_MIME_TYPES
 from pydantic import BaseModel, Field
+
+
+def _load_web_dotenv() -> None:
+    env_path = Path(__file__).resolve().parents[3] / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 class Settings(BaseModel):
@@ -30,6 +46,7 @@ class Settings(BaseModel):
 
 @lru_cache
 def get_settings() -> Settings:
+    _load_web_dotenv()
     origins = os.getenv("WEB_CORS_ORIGINS", "")
     allowed_uploads = os.getenv("WEB_ALLOWED_UPLOAD_MIME_TYPES", "").strip()
     parsed_allowed_uploads = [m.strip() for m in allowed_uploads.split(",") if m.strip()]

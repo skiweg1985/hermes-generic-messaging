@@ -1,5 +1,5 @@
 import type { ConnectionStatus } from "../../types/events";
-import { IconMore, IconPanel } from "./icons";
+import { IconMore, IconPanel, IconMenu } from "./icons";
 
 interface TopBarProps {
   title: string;
@@ -8,6 +8,7 @@ interface TopBarProps {
   modelLabel?: string;
   onOpenPeek: () => void;
   onReconnect: () => void;
+  onToggleRail: () => void;
 }
 
 function connectionLabel(status: ConnectionStatus): string {
@@ -28,10 +29,20 @@ export function TopBar({
   modelLabel,
   onOpenPeek,
   onReconnect,
+  onToggleRail,
 }: TopBarProps) {
   return (
     <header className="topbar" aria-label="Session header">
       <div className="topbar-left">
+        <button
+          type="button"
+          className="topbar-icon-btn topbar-rail-toggle"
+          onClick={onToggleRail}
+          aria-label="Open navigation"
+          title="Open navigation"
+        >
+          <IconMenu size={18} />
+        </button>
         <div
           className={`topbar-dot topbar-dot-${connection}${streaming ? " topbar-dot-streaming" : ""}`}
           title={connectionLabel(connection)}

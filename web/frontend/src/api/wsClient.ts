@@ -111,20 +111,34 @@ export class WsClient {
   }
 
   sendAudioUploaded(
-    payload: { message_id: string; mime_type: string; size_bytes: number; url: string },
+    payload: {
+      message_id: string;
+      mime_type: string;
+      size_bytes: number;
+      url: string;
+      filename?: string;
+    },
     chatId: string,
     userId: string,
     context: SendContext = {},
   ): boolean {
-    return this.sendFileUploaded(
-      {
-        ...payload,
-        filename: payload.url.split("/").pop() || "audio",
+    return this.send({
+      schema_version: "v1",
+      event_id: newId(),
+      timestamp: nowIso(),
+      platform: "custom_chat",
+      chat_id: chatId,
+      user_id: userId,
+      thread_id: context.threadId,
+      session_id: context.sessionId,
+      type: "audio.uploaded",
+      payload: {
+        message_id: payload.message_id,
+        mime_type: payload.mime_type,
+        size_bytes: payload.size_bytes,
+        url: payload.url,
       },
-      chatId,
-      userId,
-      context,
-    );
+    });
   }
 
   sendFileUploaded(

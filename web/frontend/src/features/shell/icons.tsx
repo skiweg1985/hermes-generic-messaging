@@ -230,6 +230,14 @@ export function IconCommand({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconMenu({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
 export function IconAgents({ size, ...rest }: IconProps) {
   return (
     <svg {...base(size)} {...rest}>
