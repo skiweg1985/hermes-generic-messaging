@@ -5,14 +5,24 @@ export type InboundType =
   | "message.create"
   | "command.create"
   | "audio.uploaded"
-  | "message.cancel";
+  | "file.uploaded"
+  | "message.cancel"
+  | "button.click";
 
 export type OutboundType =
   | "assistant_start"
   | "assistant_delta"
   | "assistant_done"
+  | "assistant_segment"
   | "assistant_audio"
-  | "assistant_error";
+  | "assistant_error"
+  | "assistant_buttons"
+  | "assistant_notice"
+  | "assistant_image"
+  | "assistant_file"
+  | "typing";
+
+export type NoticeKind = "info" | "tool" | "reasoning" | "warning" | "error";
 
 export interface EventEnvelope {
   schema_version: SchemaVersion;
@@ -46,11 +56,36 @@ export interface AudioUploadedPayload {
   file_ref?: string;
 }
 
+export interface FileUploadedPayload {
+  message_id: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  url?: string;
+  file_ref?: string;
+}
+
 export interface MessageCancelPayload {
   target_message_id: string;
 }
 
+export interface ButtonClickPayload {
+  message_id: string;
+  confirm_id?: string;
+  button_id: string;
+  choice?: string;
+  extra?: Record<string, unknown>;
+}
+
 export type ConnectionStatus = "connecting" | "connected" | "error";
+
+export type ButtonStyle = "primary" | "secondary" | "danger";
+
+export interface AssistantButton {
+  id: string;
+  label: string;
+  style: ButtonStyle;
+}
 
 export type TranscriptLineKind =
   | "empty"
@@ -59,22 +94,55 @@ export type TranscriptLineKind =
   | "upload"
   | "assistant"
   | "audio-out"
+  | "buttons"
+  | "notice"
+  | "image"
+  | "file"
   | "error";
 
 export interface TranscriptLine {
   id: string;
   kind: TranscriptLineKind;
   text: string;
+  title?: string;
   audioUrl?: string;
+  imageUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  sizeBytes?: number;
+  caption?: string;
   mimeType?: string;
+  noticeKind?: string;
+  buttons?: AssistantButton[];
+  confirmId?: string;
+  pickId?: string;
+  commandBase?: string;
+  buttonKind?: string;
+  clickedButtonId?: string;
+  threadId?: string;
+  sessionId?: string;
+  turnMessageId?: string;
   streaming?: boolean;
+  interrupted?: boolean;
+}
+
+export interface ChatSession {
+  chatId: string;
+  label: string;
+  lines: TranscriptLine[];
+  streamingMessageId: string | null;
+  input: string;
+  typing: boolean;
+  typingStartedAt?: string;
+  typingClosed?: boolean;
+  unread: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChatState {
   connection: ConnectionStatus;
-  sessionLabel: string;
-  lines: TranscriptLine[];
-  streamingMessageId: string | null;
-  input: string;
+  activeChatId: string;
+  sessionsById: Record<string, ChatSession>;
   recording: boolean;
 }

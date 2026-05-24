@@ -48,6 +48,7 @@ The lookup key is `custom_chat-platform` (from `plugin.yaml` `name:`), not `cust
 | `bearer_token` | no* | — | Bearer token for WebSocket upgrade (*or set env, see below) |
 | `rate_limit_per_minute` | no | `60` | Per-user rate limit |
 | `dedupe_ttl_seconds` | no | `300` | Duplicate `event_id` window |
+| `media_public_base_url` | no | — | Web BFF base URL used when Hermes sends local file paths (must match `WEB_PUBLIC_MEDIA_BASE_URL`) |
 
 Top-level `platforms.custom_chat.enabled` tells Hermes to include the platform. The plugin additionally requires `extra.enabled: true` (or env-based enablement below).
 
@@ -64,6 +65,7 @@ Set in `~/.hermes/.env` or the process environment. Env values **override** the 
 | `CUSTOM_CHAT_ALLOW_ALL_USERS` | Set to allow any user ID |
 | `CUSTOM_CHAT_HOME_CHANNEL` | Default `chat_id` for cron-delivered messages (`deliver=custom_chat`) |
 | `CUSTOM_CHAT_HOME_CHANNEL_NAME` | Human-readable name for the home channel |
+| `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | Web BFF base URL for publishing outbound attachments (same host as `WEB_PUBLIC_MEDIA_BASE_URL`) |
 
 Example for LAN access (VM or host `192.168.177.149`):
 
@@ -172,18 +174,98 @@ The client sends the user's choice back as a `button.click` inbound event:
 
 The adapter then calls `GatewayRunner._resolve_slash_confirm(confirm_id, choice)`, which unblocks the agent.
 
+## Slash-command option menus
+
+For commands that accept an argument chosen from a list (e.g. `/model` without a model name), Hermes calls `adapter.send_slash_options(...)`. The adapter emits an `assistant_buttons` event with `kind: "slash_pick"`:
+
+```json
+{
+  "type": "assistant_buttons",
+  "payload": {
+    "message_id": "<pick_id>",
+    "pick_id": "<pick_id>",
+    "command": "/model",
+    "title": "Select model",
+    "body": "Choose a model for this session.",
+    "kind": "slash_pick",
+    "buttons": [
+      {"id": "gpt-4", "label": "GPT-4", "style": "primary"},
+      {"id": "claude-3", "label": "Claude 3", "style": "secondary"}
+    ]
+  }
+}
+```
+
+The web client renders the buttons in a grid. When the user clicks one, the client **immediately** sends a `command.create` event with the full command (e.g. `/model gpt-4`). No `button.click` is required for `slash_pick` prompts.
+
+### Gateway integration
+
+When the gateway runner receives a slash command without required arguments (e.g. bare `/model`), it calls `send_model_picker` on adapters that implement it (Telegram, Discord, custom_chat). The picker is a two-step provider → model flow with in-place card updates.
+
+### Gateway integration
+
+The gateway already invokes `send_model_picker` when bare `/model` is received and the platform adapter exposes that method. No separate gateway patch is required once the custom_chat adapter implements it.
+
+The older `send_slash_options` helper remains available for simple flat option lists, but `/model` uses `send_model_picker` for Telegram parity.
+
+Example (pseudo-code inside the gateway runner):
+
+```python
+await adapter.send_model_picker(
+    chat_id=chat_id,
+    providers=list_picker_providers(...),
+    current_model=current_model,
+    current_provider=current_provider,
+    session_key=session_key,
+    on_model_selected=callback,
+)
+```
+
 ## Additional outbound events
 
 | Type | Purpose |
 |------|---------|
-| `assistant_buttons` | Interactive button prompt (slash confirm, approvals) |
-| `assistant_notice` | System/info bubble outside the streaming reply flow |
+| `assistant_buttons` | Interactive button prompt (slash confirm, slash pick, approvals) |
+| `assistant_segment` | Segment boundary within one turn (after tool calls) |
+| `assistant_notice` | System/info/tool/reasoning bubble outside the streaming reply flow |
 | `assistant_image` | Image attachment with optional caption |
 | `typing` | Typing indicator (`state: "start"` / `"stop"`) |
+
+## Agent inner steps (tool / reasoning)
+
+Tool output and model reasoning appear as **plain text** in the transcript — the same approach as Telegram and Discord.
+
+Enable reasoning display in Hermes:
+
+```yaml
+display:
+  show_reasoning: true
+gateway:
+  streaming: true
+```
+
+Behavior:
+
+- Streaming text (`send_draft`) emits incremental `assistant_delta` chunks.
+- An empty draft after a tool call emits `assistant_segment` and continues in a new assistant line.
+- Reasoning blocks (`💭 Reasoning:`) are prepended to `assistant_done.final_text` when Hermes passes `metadata.reasoning` or when the gateway already included them in the response text.
+- Interim tool status messages routed through `send()` with `metadata.kind: tool` appear as `assistant_notice` bubbles.
 
 ## Audio
 
 Inbound `audio.uploaded` events require allowed MIME types and size under the configured maximum. Responses may include `assistant_audio` when TTS is requested.
+
+## Outbound attachments
+
+When Hermes calls `send_file`, `send_image`, or `send` with a local path, the adapter uploads the bytes to `{media_public_base_url}/api/v1/media/upload` and emits an `assistant_file` / `assistant_image` event with the returned HTTP URL. Without `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`, local paths appear in the chat as plain filesystem links the browser cannot open.
+
+On the Hermes host (e.g. Homer VM), set the same reachable base URL as the web BFF:
+
+```bash
+CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL=http://192.0.2.10:8000
+```
+
+The BFF must listen on `0.0.0.0` (or the LAN interface) so the Hermes host can POST uploads.
 
 ## Troubleshooting
 

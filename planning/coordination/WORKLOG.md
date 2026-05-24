@@ -245,3 +245,226 @@
   - yes (Fixed / Changed / Added under Unreleased)
 - Follow-ups:
   - Frontend rendering for `assistant_buttons` + `button.click` outbound from web UI (out of scope for this work)
+
+## 2026-05-23 18:03 – cursor – Anhang-Flow: agent sees uploaded files
+
+- Done:
+  - Diagnosed root cause: BFF bound only to loopback while Hermes runs on another LAN host (`192.168.177.149`), so `media_urls` pointed to a URL the agent cannot fetch
+  - `web/.env`: `WEB_PUBLIC_MEDIA_BASE_URL` updated to the host's LAN IP (local-only, gitignored)
+  - `scripts/dev.sh`: honour `BFF_HOST` so the BFF can bind beyond `127.0.0.1`
+  - `docs/web-app.md`: documented the LAN/cross-host case alongside the existing Docker note
+  - `WsClient.send` and `sendFileUploaded` / `sendAudioUploaded` now return a boolean; `ChatPage.handleFile` raises a `WS_NOT_CONNECTED` chat error when the upload-followup WS event was dropped because the socket was not open
+  - `events/mapping.py`: `MessageEvent.text` for `file.uploaded` / `audio.uploaded` now includes the filename and media URL alongside the existing `[file:mime]` / `[audio:mime]` marker, so an agent that does not auto-fetch `media_urls` still has something to act on
+- Next:
+  - Wire real STT / file-content extraction in `plugins/platforms/custom_chat/media.py`, or have the Hermes runtime fetch `media_urls` itself
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - web/.env (local only, not tracked)
+  - scripts/dev.sh
+  - docs/web-app.md
+  - docs/CHANGELOG.md
+  - web/frontend/src/api/wsClient.ts
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - plugins/platforms/custom_chat/events/mapping.py
+- Test notes:
+  - `python -m pytest tests/plugins/custom_chat tests/web -q` → 50 passed, 1 pre-existing failure in `test_streaming.py::test_stream_lifecycle_start_delta_done` (unrelated; order of `typing` vs `assistant_done` outbound)
+  - `cd web/frontend && npm test` → 17 passed
+  - manual: `lsof -nP -iTCP:8000 -sTCP:LISTEN`, `curl /api/v1/health` → 200
+- Changelog updated:
+  - yes (Fixed under Unreleased)
+- Follow-ups:
+  - Provide a real STT provider for `transcribe_audio`
+  - Consider PDF/text extraction before `handle_message` for agents that do not load `media_urls`
+  - Investigate the pre-existing streaming-order test failure separately
+
+## 2026-05-24 09:16 – cursor-agent – slash-command-autocomplete
+
+- Done:
+  - Slash-command autocomplete in the web composer (popup above input on `/`, prefix filter, keyboard + click selection)
+  - Shared `SLASH_COMMANDS` list for inspector panel and autocomplete
+  - `/` toolbar button inserts `/` when the input is empty
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Files touched:
+  - web/frontend/src/features/chat/PromptLine.tsx
+  - web/frontend/src/features/chat/AttachControls.tsx
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - web/frontend/src/features/chat/slashCommands.ts
+  - web/frontend/src/features/chat/slashCommandSuggest.ts
+  - web/frontend/src/features/chat/slashCommandSuggest.test.ts
+  - web/frontend/src/styles/terminal.css
+  - docs/CHANGELOG.md
+- Test notes:
+  - `cd web/frontend && npm test -- --run` → 24 passed
+- Changelog updated:
+  - yes (Added under Unreleased)
+- Follow-ups:
+  - Extend `SLASH_COMMANDS` when new gateway slash commands are documented
+
+## 2026-05-24 – cursor – Outbound Hermes-Dateien in Chat
+
+- Done:
+  - Ursache: Hermes liefert lokale Pfade (`/path/...`, `file://...`); der Browser kann diese nicht als Anhang öffnen
+  - Plugin lädt lokale Pfade bei `send` / `send_file` / `send_image` auf den Web-BFF hoch und emittiert HTTP-URLs (`assistant_file` / `assistant_image`)
+  - Setting `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` / `extra.media_public_base_url` (gleicher Wert wie `WEB_PUBLIC_MEDIA_BASE_URL`)
+  - Tests: `tests/plugins/custom_chat/test_publish_local_file.py`
+- Next:
+  - none (Homer deploy done 2026-05-24)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/settings.py
+  - plugins/platforms/custom_chat/media.py
+  - plugins/platforms/custom_chat/adapter.py
+  - docs/custom_chat.md
+  - docs/CHANGELOG.md
+  - tests/plugins/custom_chat/test_publish_local_file.py
+- Test notes:
+  - `python -m pytest tests/plugins/custom_chat/test_publish_local_file.py tests/plugins/custom_chat/test_notice_image_typing.py -q` → 8 passed
+- Changelog updated:
+  - yes (Fixed under Unreleased)
+- Follow-ups:
+  - none
+- Homer deploy (2026-05-24):
+  - rsync `adapter.py`, `media.py` → `~/.hermes/plugins/custom_chat/`
+  - rsync `custom_chat_schema` → `~/packages/custom_chat_schema/` (takes precedence over venv)
+  - `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL=http://192.168.177.217:8000` in `~/.hermes/.env`
+  - `systemctl --user restart hermes-gateway.service` → active; WS :8765 listening; BFF health from Homer → 200
+
+## 2026-05-24 09:43 – cursor-agent – slash-command-menus
+
+- Done:
+  - Adapter hook `send_slash_options` emits `assistant_buttons` with `kind: slash_pick` for dynamic option menus (e.g. `/model`)
+  - Schema types `SlashPickPayload` and `SlashConfirmPayload` in `custom_chat_schema`
+  - Web UI: `slash_pick` buttons render in a grid; click auto-sends full slash command via `command.create`
+  - `slash_confirm` approvals: distinct card styling + inspector hint
+  - Docs: `docs/custom_chat.md` gateway integration note, events example, CHANGELOG, web-app.md
+- Next:
+  - Hermes gateway: call `send_slash_options` when `/model` is sent without an argument
+- Blockers:
+  - Model menu requires Hermes gateway hook (outside this repo)
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - packages/custom_chat_schema/schema.py
+  - packages/custom_chat_schema/__init__.py
+  - tests/plugins/custom_chat/test_slash_options.py
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/chatReducer.test.ts
+  - web/frontend/src/features/chat/TranscriptLine.tsx
+  - web/frontend/src/types/events.ts
+  - web/frontend/src/styles/terminal.css
+  - docs/custom_chat.md
+  - docs/web-app.md
+  - docs/examples/custom-chat-events-v1.json
+  - docs/CHANGELOG.md
+- Test notes:
+  - `python -m pytest tests/plugins/custom_chat/test_slash_options.py -q` → 3 passed
+  - `cd web/frontend && npm test -- --run` → 25 passed
+- Changelog updated:
+  - yes (Added under Unreleased)
+- Follow-ups:
+  - Gateway runner integration for bare `/model` → `send_slash_options`
+
+## 2026-05-24 – cursor-agent – homer deploy slash-command-menus
+
+- Done:
+  - rsync `adapter.py` → `homer@192.168.177.149:~/.hermes/plugins/custom_chat/`
+  - rsync `packages/custom_chat_schema/` → `homer@192.168.177.149:~/packages/custom_chat_schema/`
+  - `systemctl --user restart hermes-gateway.service` → active; WS listening on `192.168.177.149:8765`
+  - Verified remote `send_slash_options` present in adapter.py
+- Next:
+  - Hermes gateway core: call `send_slash_options` on bare `/model`
+- Blockers:
+  - none (deploy)
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Test notes:
+  - remote grep + gateway restart + port check OK
+- Changelog updated:
+  - no (deploy only)
+
+## 2026-05-24 10:13 – cursor-agent – send_model_picker parity
+
+- Done:
+  - `send_model_picker` on custom_chat adapter (provider → model drill-down, Telegram callback ids)
+  - Web UI: `model_picker` cards upsert in-place; navigation via `button.click`
+  - Tests: `test_model_picker.py`, chatReducer upsert test
+  - Deployed `adapter.py` to homer; gateway restarted
+- Next:
+  - Manual smoke: `/model` in web chat should show provider buttons
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/chatReducer.test.ts
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - web/frontend/src/features/chat/TranscriptLine.tsx
+  - tests/plugins/custom_chat/test_model_picker.py
+  - docs/custom_chat.md
+  - docs/CHANGELOG.md
+- Test notes:
+  - `pytest tests/plugins/custom_chat/test_model_picker.py -q` → 2 passed
+  - `npm test -- --run` → 26 passed
+- Changelog updated:
+  - yes (Added under Unreleased)
+- Follow-ups:
+  - none
+
+## 2026-05-24 10:45 – cursor – Tool/reasoning text parity (Telegram/Discord)
+
+- Done:
+  - Incremental `assistant_delta` in adapter `send_draft` (fixes cumulative delta bug)
+  - `assistant_segment` outbound type + segment boundaries after tool calls
+  - Reasoning prepend on `send()` via `metadata.reasoning`; tool status via `assistant_notice` (`kind: tool`)
+  - Frontend: `assistant_segment` handler, notice/tool/reasoning styling, segment labels
+  - Schema, docs, examples, tests
+- Next:
+  - Manual smoke with Hermes `display.show_reasoning: true` + tool-heavy prompt
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (local)
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/schema.py
+  - plugins/platforms/custom_chat/adapter.py
+  - plugins/platforms/custom_chat/streaming.py
+  - web/frontend/src/types/events.ts
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/TranscriptLine.tsx
+  - web/frontend/src/styles/terminal.css
+  - tests/plugins/custom_chat/test_streaming.py
+  - web/frontend/src/features/chat/chatReducer.test.ts
+  - docs/custom_chat.md
+  - docs/web-app.md
+  - docs/CHANGELOG.md
+  - docs/examples/custom-chat-events-v1.json
+  - docs/plans/universal-platform-adapter-v1.md
+- Test notes:
+  - `pytest tests/plugins/custom_chat/test_streaming.py -q` → 7 passed
+  - `npm test -- --run` → 29 passed
+- Changelog updated:
+  - yes (Added under Unreleased)
+- Follow-ups:
+  - none

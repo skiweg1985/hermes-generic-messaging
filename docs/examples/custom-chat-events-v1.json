@@ -158,6 +158,55 @@
       "payload": {
         "state": "start"
       }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000107",
+      "timestamp": "2026-05-23T10:49:19Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_buttons",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000600",
+        "pick_id": "00000000-0000-4000-8000-000000000600",
+        "command": "/model",
+        "title": "Select model",
+        "body": "Choose a model for this session.",
+        "kind": "slash_pick",
+        "buttons": [
+          {"id": "gpt-4", "label": "GPT-4", "style": "primary"},
+          {"id": "claude-3", "label": "Claude 3", "style": "secondary"}
+        ]
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000108",
+      "timestamp": "2026-05-23T10:49:20Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_segment",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000200",
+        "segment_message_id": "00000000-0000-4000-8000-000000000201",
+        "label": "🔧 read_file"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000109",
+      "timestamp": "2026-05-23T10:49:21Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_notice",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000401",
+        "kind": "tool",
+        "text": "Running read_file…"
+      }
     }
   ]
 }

@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added
+
+- Tool/reasoning text parity (Telegram/Discord style): incremental `assistant_delta`, `assistant_segment` for post-tool boundaries, reasoning prepend on `assistant_done`, tool status via `assistant_notice` (`kind: tool`)
+- Schema types `AssistantSegmentPayload`, `AssistantNoticePayload`; notice kinds `tool` / `reasoning`
+- Web chat composer: Telegram-style slash-command autocomplete (popup on `/`, filter while typing, arrow keys / Tab / Enter to pick)
+- Slash-command option menus (`slash_pick`): Hermes emits `assistant_buttons` via `send_slash_options`; web UI renders a button grid and auto-sends the full command on click (e.g. `/model gpt-4`)
+- Interactive `/model` picker (`model_picker`): `send_model_picker` on custom_chat (Telegram/Discord parity); provider → model drill-down with in-place card updates
+- Schema types `SlashPickPayload` and `SlashConfirmPayload` in `custom_chat_schema`
+
+### Fixed
+
+- Outbound Hermes attachments: local filesystem paths in `send` / `send_file` / `send_image` are uploaded to the web BFF and emitted as HTTP URLs (`CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`) instead of unusable `file://` or absolute-path links in the chat UI
+- Outbound `send()` text that embeds a local path (e.g. `🖼️ Image: /home/.../shot.png`) is parsed, the file is published, and an `assistant_image` / `assistant_file` event is emitted before `assistant_done`
+- Frontend surfaces a chat error line when `file.uploaded` cannot be sent because the WebSocket is not open (previously the upload appeared successful in the UI while the agent never learned about the attachment)
+- Inbound `file.uploaded` / `audio.uploaded` events now include the filename and media URL in `MessageEvent.text`, so the agent can recognise the attachment even when it does not fetch `media_urls` itself
+- BFF dev script accepts `BFF_HOST=0.0.0.0` so the BFF can be reached from a Hermes instance running on another host on the LAN
+
 ### Fixed
 
 - Plugin aligned with real Hermes `MessageEvent` / `SendResult` signatures: dropped unsupported `metadata=` kwarg on `MessageEvent`, dropped `already_sent=` on `SendResult` (fixes `TypeError` crash on inbound messages and outbound `send()` on the Homer VM)

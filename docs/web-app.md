@@ -25,6 +25,8 @@ Copy `web/.env.example` to `web/.env` and set `CUSTOM_CHAT_BEARER_TOKEN`.
 
 When Hermes runs in Docker and the BFF on the host, set `WEB_PUBLIC_MEDIA_BASE_URL` to a URL the adapter container can reach (e.g. `http://host.docker.internal:8000`).
 
+When Hermes runs on a different machine on the LAN, set `WEB_PUBLIC_MEDIA_BASE_URL` to the BFF host's reachable IP (e.g. `http://192.0.2.10:8000`) and start the BFF with `BFF_HOST=0.0.0.0 ./scripts/dev.sh` so it binds beyond loopback. Otherwise the agent receives a URL it cannot fetch and treats the attachment as missing.
+
 ## Run locally
 
 ```bash
@@ -52,6 +54,36 @@ Open http://127.0.0.1:5173
 - Cancel active stream: `Ctrl+C` or type `cancel`
 - Audio file attach (`:attach file`) and microphone (`:record start` / `stop`)
 - Playback of `assistant_audio` responses
+- Interactive approvals and confirmations via `assistant_buttons` -> `button.click`
+- Slash-command option menus (`slash_pick`): button grid under assistant messages; click auto-sends full command (e.g. `/model gpt-4`)
+- System/info bubbles via `assistant_notice`
+- Image cards via `assistant_image`
+- Typing indicator via `typing` (`start` / `stop`)
+- Interrupted stream display when `assistant_done.payload.interrupted` is `true`
+- Tool and reasoning text in the assistant stream (Telegram/Discord text parity); segment boundaries via `assistant_segment`; tool status via `assistant_notice` (`kind: tool`)
+- Multiple local browser chat sessions, separated by `chat_id`
+- Safe Markdown rendering for assistant text, notices, and button bodies
+
+## Multi-chat behavior
+
+The browser keeps one WebSocket connection and routes messages by `chat_id`.
+New chats use `workspace:<uuid>` IDs. Inbound events for an unknown `chat_id`
+automatically create a new tab and mark it unread.
+
+Sessions, the active chat, and the most recent transcript lines are persisted in
+`localStorage`. This is local browser convenience state only; it is not a server
+archive and it does not sync across browsers.
+
+`thread_id` and `session_id` are preserved when present on rendered interactive
+events and are sent back with `button.click`. Conversation separation is still
+based on `chat_id`.
+
+## Markdown safety
+
+Assistant text, notices, image captions, and interactive button bodies render as
+GFM Markdown with line breaks, lists, tables, code, and links. Raw HTML is not
+enabled, and rendered content is sanitized before display. Links are limited to
+safe protocols (`http`, `https`, `mailto`) and open in a new tab.
 
 ## API
 
@@ -60,7 +92,7 @@ Open http://127.0.0.1:5173
 | GET | `/api/v1/health` | Liveness |
 | POST | `/api/v1/media/upload` | Multipart audio upload |
 | GET | `/api/v1/media/{file_id}` | Serve uploaded file |
-| WS | `/ws/chat` | Event proxy to adapter |
+| WS | `/ws/chat` | Event proxy to adapter, including `button.click` |
 
 ## Tests
 

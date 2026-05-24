@@ -19,8 +19,15 @@ from .events.schema import (
     parse_inbound,
 )
 from .media import (
+    extract_local_paths,
+    guess_mime_type,
+    is_local_reference,
+    publish_local_file,
+    resolve_local_path,
+    strip_local_paths,
     synthesize_audio_url,
     transcribe_audio,
+    validate_file_payload,
     validate_audio_payload,
 )
 from .state import AdapterState
@@ -28,6 +35,8 @@ from .streaming import StreamManager
 from .transport.ws_server import WebSocketHub
 
 logger = logging.getLogger(__name__)
+
+REASONING_PREFIX = "💭 Reasoning:"
 
 try:
     from gateway.config import Platform, PlatformConfig
@@ -132,14 +141,97 @@ class CustomChatAdapter(BasePlatformAdapter):
     self._slash_confirm_state: Dict[str, str] = {}
     # approval_id -> session_key mapping for tool/skill extra approvals
     self._approval_state: Dict[str, str] = {}
+    # chat_id -> interactive /model picker state (Telegram parity)
+    self._model_picker_state: Dict[str, dict[str, Any]] = {}
+    self._MODEL_PAGE_SIZE = 8
     # Optional callback the gateway runner sets; falls back to no-op in tests.
     self._gateway_runner: Any = None
+    # The gateway's generic typing loop may tick once or more after the final
+    # reply was already emitted. custom_chat typing is explicit state, so late
+    # starts must be ignored until a new inbound turn opens the chat again.
+    self._typing_closed_chats: set[str] = set()
 
   def _now_iso(self) -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
   def _new_event_id(self) -> str:
     return str(uuid.uuid4())
+
+  def _open_typing_for_chat(self, chat_id: str) -> None:
+    self._typing_closed_chats.discard(chat_id)
+
+  def _close_typing_for_chat(self, chat_id: str) -> None:
+    self._typing_closed_chats.add(chat_id)
+
+  async def _resolve_outbound_media_url(
+    self,
+    media_url: str,
+    *,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> tuple[str, Dict[str, Any]]:
+    meta = dict(metadata or {})
+    if not is_local_reference(media_url):
+      return media_url, meta
+    path = resolve_local_path(media_url)
+    published = await publish_local_file(path, self.settings)
+    meta.setdefault("mime_type", published.get("mime_type"))
+    if published.get("size_bytes") is not None:
+      meta.setdefault("size_bytes", int(published["size_bytes"]))
+    return str(published["url"]), meta
+
+  async def _emit_embedded_attachments(
+    self,
+    *,
+    chat_id: str,
+    user_id: str,
+    content: str,
+    meta: Dict[str, Any],
+    thread_id: Optional[str],
+    session_id: Optional[str],
+  ) -> str:
+    """Publish local paths embedded in *content*; return text without those paths."""
+    paths = extract_local_paths(content)
+    if not paths:
+      return content
+    for path in paths:
+      path_ref = str(path)
+      file_meta = dict(meta)
+      try:
+        url, file_meta = await self._resolve_outbound_media_url(
+          path_ref, metadata=file_meta
+        )
+      except InboundEventError as exc:
+        logger.warning("embedded attachment %s: %s", path_ref, exc.message)
+        continue
+      kind_mime = guess_mime_type(path)
+      payload_mime = str(file_meta.get("mime_type") or kind_mime)
+      attachment_id = self._new_event_id()
+      if kind_mime.startswith("image/"):
+        payload: dict[str, Any] = {
+          "message_id": attachment_id,
+          "url": url,
+          "mime_type": payload_mime,
+        }
+        event_type = "assistant_image"
+      else:
+        payload = {
+          "message_id": attachment_id,
+          "filename": path.name,
+          "url": url,
+          "mime_type": payload_mime,
+        }
+        if file_meta.get("size_bytes") is not None:
+          payload["size_bytes"] = int(file_meta["size_bytes"])
+        event_type = "assistant_file"
+      await self._emit_outbound(
+        chat_id=chat_id,
+        user_id=user_id,
+        event_type=event_type,
+        payload=payload,
+        thread_id=thread_id,
+        session_id=session_id,
+      )
+    return strip_local_paths(content, paths)
 
   async def connect(self) -> bool:
     if not self.settings.enabled:
@@ -251,6 +343,7 @@ class CustomChatAdapter(BasePlatformAdapter):
 
     chat_id = envelope.chat_id
     user_id = envelope.user_id
+    self._open_typing_for_chat(chat_id)
     self._ws_by_chat[chat_id] = ws
     if self._hub:
       self._hub.set_client_context(ws, chat_id=chat_id, user_id=user_id)
@@ -273,6 +366,8 @@ class CustomChatAdapter(BasePlatformAdapter):
 
     if envelope.type == "message.cancel":
       cancelled = self.state.cancel_stream(payload_model.target_message_id)
+      self._close_typing_for_chat(chat_id)
+      await self.stop_typing(chat_id)
       if not cancelled:
         logger.debug("no active stream for %s", payload_model.target_message_id)
       return
@@ -292,9 +387,14 @@ class CustomChatAdapter(BasePlatformAdapter):
         message_id=getattr(payload_model, "message_id", None),
       )
 
-      if envelope.type == "audio.uploaded":
-        validate_audio_payload(payload_model, self.settings)
-        transcribed = transcribe_audio(payload_model)
+      if envelope.type in {"audio.uploaded", "file.uploaded"}:
+        validate_file_payload(payload_model, self.settings)
+        transcribed: Optional[str] = None
+        if envelope.type == "audio.uploaded":
+          validate_audio_payload(payload_model, self.settings)
+          transcribed = transcribe_audio(payload_model)
+        elif payload_model.mime_type.startswith("audio/"):
+          transcribed = transcribe_audio(payload_model)
         msg_event = inbound_to_message_event(
           envelope, payload_model, source, transcribed_text=transcribed
         )
@@ -362,11 +462,69 @@ class CustomChatAdapter(BasePlatformAdapter):
   ) -> bool:
     return self._use_streaming
 
+  @staticmethod
+  def _compute_incremental_delta(previous: str, content: str) -> tuple[str, str]:
+    if content.startswith(previous):
+      return content[len(previous) :], content
+    return content, previous + content
+
+  @staticmethod
+  def _prepend_reasoning(final: str, meta: Dict[str, Any]) -> str:
+    reasoning = meta.get("reasoning")
+    if not reasoning or not str(reasoning).strip():
+      return final
+    text = final or ""
+    if REASONING_PREFIX in text:
+      return text
+    block = f"{REASONING_PREFIX}\n{str(reasoning).strip()}\n\n"
+    return f"{block}{text}" if text else block.rstrip()
+
+  @staticmethod
+  def _segment_label(meta: Dict[str, Any]) -> Optional[str]:
+    label = meta.get("label") or meta.get("segment_label")
+    if label:
+      return str(label)
+    tool_name = meta.get("tool_name")
+    if tool_name:
+      return f"🔧 {tool_name}"
+    return None
+
+  async def _emit_segment_boundary(
+    self,
+    *,
+    session: Any,
+    reply_id: str,
+    new_line_id: str,
+    label: Optional[str],
+  ) -> None:
+    payload: dict[str, Any] = {
+      "message_id": reply_id,
+      "segment_message_id": new_line_id,
+    }
+    if label:
+      payload["label"] = label
+    await self._emit_outbound(
+      chat_id=session.chat_id,
+      user_id=session.user_id,
+      event_type="assistant_segment",
+      payload=payload,
+      thread_id=session.thread_id,
+      session_id=session.session_id,
+    )
+    await self._emit_outbound(
+      chat_id=session.chat_id,
+      user_id=session.user_id,
+      event_type="assistant_start",
+      payload={"message_id": new_line_id, "turn_message_id": reply_id},
+      thread_id=session.thread_id,
+      session_id=session.session_id,
+    )
+
   async def send_draft(
     self,
     chat_id: str,
     draft_id: int,
-    content: str,
+    content: Optional[str],
     metadata: Optional[Dict[str, Any]] = None,
   ) -> SendResult:
     _ = draft_id
@@ -388,27 +546,55 @@ class CustomChatAdapter(BasePlatformAdapter):
     if handle and handle.cancelled:
       return SendResult(success=False, message_id=reply_id)
 
+    text = "" if content is None else str(content)
+    is_segment_boundary = (
+      meta.get("new_segment")
+      or content is None
+      or (text == "" and session.started)
+    )
+
+    if is_segment_boundary:
+      if not session.started:
+        return SendResult(success=True, message_id=reply_id)
+      _, new_line_id = self.streams.begin_segment(reply_id)
+      await self._emit_segment_boundary(
+        session=session,
+        reply_id=reply_id,
+        new_line_id=new_line_id,
+        label=self._segment_label(meta),
+      )
+      return SendResult(success=True, message_id=new_line_id)
+
+    if not text:
+      return SendResult(success=True, message_id=session.active_line_id or reply_id)
+
+    line_id = session.active_line_id or reply_id
+
     if self.streams.mark_started(reply_id):
       await self._emit_outbound(
         chat_id=session.chat_id,
         user_id=session.user_id,
         event_type="assistant_start",
-        payload={"message_id": reply_id},
+        payload={"message_id": line_id, "turn_message_id": reply_id},
         thread_id=session.thread_id,
         session_id=session.session_id,
       )
 
+    delta, accumulated = self._compute_incremental_delta(session.accumulated, text)
+    session.accumulated = accumulated
+    if not delta:
+      return SendResult(success=True, message_id=line_id)
+
     seq = self.streams.next_sequence(reply_id)
-    session.accumulated = content
     await self._emit_outbound(
       chat_id=session.chat_id,
       user_id=session.user_id,
       event_type="assistant_delta",
-      payload={"message_id": reply_id, "sequence": seq, "delta": content},
+      payload={"message_id": line_id, "sequence": seq, "delta": delta},
       thread_id=session.thread_id,
       session_id=session.session_id,
     )
-    return SendResult(success=True, message_id=reply_id)
+    return SendResult(success=True, message_id=line_id)
 
   async def send(
     self,
@@ -419,6 +605,14 @@ class CustomChatAdapter(BasePlatformAdapter):
   ) -> SendResult:
     _ = reply_to
     meta = metadata or {}
+    notice_kind = meta.get("kind")
+    if notice_kind in {"tool", "reasoning"} or meta.get("is_tool_status"):
+      return await self.send_private_notice(
+        chat_id,
+        content,
+        metadata={**meta, "kind": notice_kind or "tool"},
+      )
+
     route = self._route_for_send(chat_id, meta)
     reply_id = meta.get("reply_id") or self._new_event_id()
 
@@ -432,13 +626,14 @@ class CustomChatAdapter(BasePlatformAdapter):
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),
     )
+    line_id = session.active_line_id or reply_id
 
     if not session.started:
       await self._emit_outbound(
         chat_id=session.chat_id,
         user_id=session.user_id,
         event_type="assistant_start",
-        payload={"message_id": reply_id},
+        payload={"message_id": line_id, "turn_message_id": reply_id},
       )
 
     if meta.get("audio_response"):
@@ -454,14 +649,50 @@ class CustomChatAdapter(BasePlatformAdapter):
         },
       )
     else:
-      final = content or session.accumulated
+      final = self._prepend_reasoning(content or session.accumulated, meta)
+      stripped = (final or "").strip()
+      if stripped and is_local_reference(stripped):
+        path = resolve_local_path(stripped)
+        if path.is_file():
+          self._close_typing_for_chat(session.chat_id)
+          await self.stop_typing(session.chat_id)
+          self.streams.mark_done(reply_id)
+          self.streams.remove(reply_id)
+          self.state.end_stream(reply_id)
+          self._reply_routes.pop(reply_id, None)
+          mime = guess_mime_type(path)
+          attachment_meta = {**meta, "reply_id": reply_id}
+          if mime.startswith("image/"):
+            return await self.send_image(
+              chat_id, stripped, metadata=attachment_meta
+            )
+          return await self.send_file(
+            chat_id, stripped, path.name, metadata=attachment_meta
+          )
+      final = await self._emit_embedded_attachments(
+        chat_id=session.chat_id,
+        user_id=session.user_id,
+        content=final or "",
+        meta=meta,
+        thread_id=route.get("thread_id") or None,
+        session_id=route.get("session_id") or None,
+      )
+      done_payload: dict[str, Any] = {
+        "message_id": line_id,
+        "final_text": final,
+        "turn_message_id": reply_id,
+      }
+      if session.segment_index > 0:
+        done_payload["segments"] = session.segment_index + 1
       await self._emit_outbound(
         chat_id=session.chat_id,
         user_id=session.user_id,
         event_type="assistant_done",
-        payload={"message_id": reply_id, "final_text": final},
+        payload=done_payload,
       )
 
+    self._close_typing_for_chat(session.chat_id)
+    await self.stop_typing(session.chat_id)
     self.streams.mark_done(reply_id)
     self.streams.remove(reply_id)
     self.state.end_stream(reply_id)
@@ -471,8 +702,11 @@ class CustomChatAdapter(BasePlatformAdapter):
   async def send_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
     """Emit a typing indicator. Frontend should auto-stop after a short timeout."""
     route = self._route_for_send(chat_id, metadata)
+    routed_chat_id = route.get("chat_id", chat_id)
+    if routed_chat_id in self._typing_closed_chats:
+      return
     await self._emit_outbound(
-      chat_id=route.get("chat_id", chat_id),
+      chat_id=routed_chat_id,
       user_id=route.get("user_id", "assistant"),
       event_type="typing",
       payload={"state": "start"},
@@ -482,8 +716,9 @@ class CustomChatAdapter(BasePlatformAdapter):
 
   async def stop_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
     route = self._route_for_send(chat_id, metadata)
+    routed_chat_id = route.get("chat_id", chat_id)
     await self._emit_outbound(
-      chat_id=route.get("chat_id", chat_id),
+      chat_id=routed_chat_id,
       user_id=route.get("user_id", "assistant"),
       event_type="typing",
       payload={"state": "stop"},
@@ -502,6 +737,11 @@ class CustomChatAdapter(BasePlatformAdapter):
     meta = metadata or {}
     route = self._route_for_send(chat_id, meta)
     reply_id = meta.get("reply_id") or self._new_event_id()
+    try:
+      image_url, meta = await self._resolve_outbound_media_url(image_url, metadata=meta)
+    except InboundEventError as exc:
+      logger.warning("send_image: %s", exc.message)
+      return SendResult(success=False, message_id=reply_id, error=exc.message)
     payload: dict[str, Any] = {
       "message_id": reply_id,
       "url": image_url,
@@ -515,6 +755,40 @@ class CustomChatAdapter(BasePlatformAdapter):
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),
       event_type="assistant_image",
+      payload=payload,
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+    return SendResult(success=True, message_id=reply_id)
+
+  async def send_file(
+    self,
+    chat_id: str,
+    file_url: str,
+    filename: str,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Emit an assistant_file event for generic file attachments."""
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    reply_id = meta.get("reply_id") or self._new_event_id()
+    try:
+      file_url, meta = await self._resolve_outbound_media_url(file_url, metadata=meta)
+    except InboundEventError as exc:
+      logger.warning("send_file: %s", exc.message)
+      return SendResult(success=False, message_id=reply_id, error=exc.message)
+    payload: dict[str, Any] = {
+      "message_id": reply_id,
+      "filename": filename,
+      "url": file_url,
+      "mime_type": str(meta.get("mime_type") or "application/octet-stream"),
+    }
+    if meta.get("size_bytes") is not None:
+      payload["size_bytes"] = int(meta["size_bytes"])
+    await self._emit_outbound(
+      chat_id=route.get("chat_id", chat_id),
+      user_id=route.get("user_id", "assistant"),
+      event_type="assistant_file",
       payload=payload,
       thread_id=route.get("thread_id") or None,
       session_id=route.get("session_id") or None,
@@ -591,6 +865,416 @@ class CustomChatAdapter(BasePlatformAdapter):
     self._slash_confirm_state[confirm_id] = session_key
     return SendResult(success=True, message_id=confirm_id)
 
+  async def send_slash_options(
+    self,
+    chat_id: str,
+    command: str,
+    title: str,
+    message: str,
+    options: list[dict[str, Any]],
+    pick_id: str,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Render a pick-one menu for slash-command arguments (e.g. /model).
+
+    Mirrors Telegram inline-keyboard option lists. The web client sends the
+    full slash command on button click (``command.create``); no ``button.click``
+    is required for ``slash_pick`` prompts.
+    """
+    if not command.startswith("/"):
+      return SendResult(success=False, message_id=pick_id, error="command must start with /")
+    if not options:
+      return SendResult(success=False, message_id=pick_id, error="options required")
+
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    buttons: list[dict[str, Any]] = []
+    for opt in options:
+      btn_id = str(opt.get("id") or opt.get("value") or "")
+      label = str(opt.get("label") or btn_id)
+      if not btn_id:
+        continue
+      style = opt.get("style", "secondary")
+      if style not in ("primary", "secondary", "danger"):
+        style = "secondary"
+      buttons.append({"id": btn_id, "label": label, "style": style})
+
+    if not buttons:
+      return SendResult(success=False, message_id=pick_id, error="no valid options")
+
+    payload = {
+      "message_id": pick_id,
+      "pick_id": pick_id,
+      "command": command,
+      "title": title,
+      "body": message,
+      "kind": "slash_pick",
+      "buttons": buttons,
+    }
+    try:
+      await self._emit_outbound(
+        chat_id=route.get("chat_id", chat_id),
+        user_id=route.get("user_id", "assistant"),
+        event_type="assistant_buttons",
+        payload=payload,
+        thread_id=route.get("thread_id") or None,
+        session_id=route.get("session_id") or None,
+      )
+    except Exception as exc:
+      logger.warning("send_slash_options failed: %s", exc)
+      return SendResult(success=False, message_id=pick_id, error=str(exc))
+
+    return SendResult(success=True, message_id=pick_id)
+
+  async def send_model_picker(
+    self,
+    chat_id: str,
+    providers: list,
+    current_model: str,
+    current_provider: str,
+    session_key: str,
+    on_model_selected: Any,
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Send a two-step provider → model picker (Telegram / Discord parity).
+
+    Button clicks arrive as ``button.click`` with Telegram-style callback ids
+    (``mp:``, ``mm:``, ``mb``, ``mx``, ``mg:``). The adapter updates the same
+    picker card in-place and invokes ``on_model_selected`` when a model is chosen.
+    """
+    if not providers:
+      return SendResult(success=False, error="no providers available")
+
+    meta = metadata or {}
+    route = self._route_for_send(chat_id, meta)
+    pick_id = self._new_event_id()
+    route_chat = route.get("chat_id", chat_id)
+
+    try:
+      from hermes_cli.providers import get_label  # type: ignore
+    except ImportError:
+      def get_label(slug: str) -> str:
+        return slug
+
+    provider_label = get_label(current_provider)
+    body = (
+      f"Current model: `{current_model or 'unknown'}`\n"
+      f"Provider: {provider_label}\n\n"
+      f"Select a provider:"
+    )
+    buttons = self._build_provider_picker_buttons(providers)
+
+    self._model_picker_state[str(route_chat)] = {
+      "pick_id": pick_id,
+      "providers": providers,
+      "session_key": session_key,
+      "on_model_selected": on_model_selected,
+      "current_model": current_model,
+      "current_provider": current_provider,
+      "route": route,
+    }
+
+    try:
+      await self._emit_model_picker_card(
+        route=route,
+        chat_id=route_chat,
+        pick_id=pick_id,
+        title="Model Configuration",
+        body=body,
+        buttons=buttons,
+      )
+    except Exception as exc:
+      self._model_picker_state.pop(str(route_chat), None)
+      logger.warning("send_model_picker failed: %s", exc)
+      return SendResult(success=False, message_id=pick_id, error=str(exc))
+
+    return SendResult(success=True, message_id=pick_id)
+
+  def _build_provider_picker_buttons(self, providers: list) -> list[dict[str, Any]]:
+    buttons: list[dict[str, Any]] = []
+    for provider in providers:
+      slug = str(provider.get("slug") or "")
+      if not slug:
+        continue
+      count = provider.get("total_models", len(provider.get("models", [])))
+      label = f"{provider.get('name', slug)} ({count})"
+      if provider.get("is_current"):
+        label = f"✓ {label}"
+      style = "primary" if provider.get("is_current") else "secondary"
+      buttons.append({"id": f"mp:{slug}", "label": label, "style": style})
+    buttons.append({"id": "mx", "label": "Cancel", "style": "danger"})
+    return buttons
+
+  def _build_model_picker_buttons(self, models: list, page: int) -> tuple[list[dict[str, Any]], str]:
+    page_size = self._MODEL_PAGE_SIZE
+    total = len(models)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = max(0, min(page, total_pages - 1))
+    start = page * page_size
+    end = min(start + page_size, total)
+    page_models = models[start:end]
+
+    buttons: list[dict[str, Any]] = []
+    for index, model_id in enumerate(page_models):
+      abs_idx = start + index
+      short = model_id.split("/")[-1] if "/" in model_id else model_id
+      if len(short) > 38:
+        short = short[:35] + "..."
+      buttons.append({"id": f"mm:{abs_idx}", "label": short, "style": "secondary"})
+
+    if total_pages > 1:
+      if page > 0:
+        buttons.append({"id": f"mg:{page - 1}", "label": "◀ Prev", "style": "secondary"})
+      buttons.append({"id": "mx:noop", "label": f"{page + 1}/{total_pages}", "style": "secondary"})
+      if page < total_pages - 1:
+        buttons.append({"id": f"mg:{page + 1}", "label": "Next ▶", "style": "secondary"})
+
+    buttons.append({"id": "mb", "label": "◀ Back", "style": "secondary"})
+    buttons.append({"id": "mx", "label": "Cancel", "style": "danger"})
+
+    page_info = f" ({start + 1}–{end} of {total})" if total_pages > 1 else ""
+    return buttons, page_info
+
+  async def _emit_model_picker_card(
+    self,
+    *,
+    route: dict[str, Any],
+    chat_id: str,
+    pick_id: str,
+    title: str,
+    body: str,
+    buttons: list[dict[str, Any]],
+  ) -> None:
+    await self._emit_outbound(
+      chat_id=chat_id,
+      user_id=route.get("user_id", "assistant"),
+      event_type="assistant_buttons",
+      payload={
+        "message_id": pick_id,
+        "confirm_id": pick_id,
+        "pick_id": pick_id,
+        "title": title,
+        "body": body,
+        "kind": "model_picker",
+        "buttons": buttons,
+      },
+      thread_id=route.get("thread_id") or None,
+      session_id=route.get("session_id") or None,
+    )
+
+  async def _handle_model_picker_callback(
+    self,
+    choice: str,
+    *,
+    chat_id: str,
+    user_id: str,
+    ws: Any,
+  ) -> None:
+    state = self._model_picker_state.get(chat_id)
+    if not state:
+      await self._emit_error(
+        chat_id=chat_id,
+        user_id=user_id,
+        message_id=self._new_event_id(),
+        code="BAD_REQUEST",
+        message="Picker expired — use /model again.",
+        ws=ws,
+      )
+      return
+
+    if choice in ("mx:noop",):
+      return
+
+    route = state.get("route") or {"chat_id": chat_id, "user_id": "assistant"}
+    pick_id = str(state.get("pick_id") or self._new_event_id())
+
+    try:
+      from hermes_cli.providers import get_label  # type: ignore
+    except ImportError:
+      def get_label(slug: str) -> str:
+        return slug
+
+    if choice.startswith("mp:"):
+      provider_slug = choice[3:]
+      provider = next(
+        (item for item in state.get("providers", []) if item.get("slug") == provider_slug),
+        None,
+      )
+      if not provider:
+        await self._emit_error(
+          chat_id=chat_id,
+          user_id=user_id,
+          message_id=pick_id,
+          code="BAD_REQUEST",
+          message="Provider not found.",
+          ws=ws,
+        )
+        return
+
+      models = list(provider.get("models") or [])
+      state["selected_provider"] = provider_slug
+      state["selected_provider_name"] = provider.get("name", provider_slug)
+      state["model_list"] = models
+      state["model_page"] = 0
+
+      buttons, page_info = self._build_model_picker_buttons(models, 0)
+      pname = provider.get("name", provider_slug)
+      total = provider.get("total_models", len(models))
+      shown = len(models)
+      extra = (
+        f"\n_{total - shown} more available — type `/model <name>` directly_"
+        if total > shown
+        else ""
+      )
+      body = f"Provider: **{pname}**{page_info}\n\nSelect a model:{extra}"
+      await self._emit_model_picker_card(
+        route=route,
+        chat_id=chat_id,
+        pick_id=pick_id,
+        title="Model Configuration",
+        body=body,
+        buttons=buttons,
+      )
+      return
+
+    if choice.startswith("mg:"):
+      try:
+        page = int(choice[3:])
+      except ValueError:
+        await self._emit_error(
+          chat_id=chat_id,
+          user_id=user_id,
+          message_id=pick_id,
+          code="BAD_REQUEST",
+          message="Invalid page.",
+          ws=ws,
+        )
+        return
+
+      models = list(state.get("model_list") or [])
+      state["model_page"] = page
+      buttons, page_info = self._build_model_picker_buttons(models, page)
+      pname = state.get("selected_provider_name", "")
+      provider_slug = state.get("selected_provider", "")
+      provider = next(
+        (item for item in state.get("providers", []) if item.get("slug") == provider_slug),
+        None,
+      )
+      total = provider.get("total_models", len(models)) if provider else len(models)
+      shown = len(models)
+      extra = (
+        f"\n_{total - shown} more available — type `/model <name>` directly_"
+        if total > shown
+        else ""
+      )
+      body = f"Provider: **{pname}**{page_info}\n\nSelect a model:{extra}"
+      await self._emit_model_picker_card(
+        route=route,
+        chat_id=chat_id,
+        pick_id=pick_id,
+        title="Model Configuration",
+        body=body,
+        buttons=buttons,
+      )
+      return
+
+    if choice.startswith("mm:"):
+      try:
+        idx = int(choice[3:])
+      except ValueError:
+        await self._emit_error(
+          chat_id=chat_id,
+          user_id=user_id,
+          message_id=pick_id,
+          code="BAD_REQUEST",
+          message="Invalid selection.",
+          ws=ws,
+        )
+        return
+
+      model_list = list(state.get("model_list") or [])
+      if idx < 0 or idx >= len(model_list):
+        await self._emit_error(
+          chat_id=chat_id,
+          user_id=user_id,
+          message_id=pick_id,
+          code="BAD_REQUEST",
+          message="Invalid model index.",
+          ws=ws,
+        )
+        return
+
+      model_id = model_list[idx]
+      provider_slug = str(state.get("selected_provider") or "")
+      callback = state.get("on_model_selected")
+      if not callback:
+        self._model_picker_state.pop(chat_id, None)
+        await self._emit_error(
+          chat_id=chat_id,
+          user_id=user_id,
+          message_id=pick_id,
+          code="BAD_REQUEST",
+          message="Picker expired.",
+          ws=ws,
+        )
+        return
+
+      try:
+        result = callback(chat_id, model_id, provider_slug)
+        if asyncio.iscoroutine(result):
+          result_text = await result
+        else:
+          result_text = result
+      except Exception as exc:
+        logger.exception("model picker switch failed")
+        result_text = f"Error switching model: {exc}"
+
+      self._model_picker_state.pop(chat_id, None)
+      await self._emit_model_picker_card(
+        route=route,
+        chat_id=chat_id,
+        pick_id=pick_id,
+        title="Model switched",
+        body=str(result_text or "Model updated."),
+        buttons=[],
+      )
+      return
+
+    if choice == "mb":
+      providers = list(state.get("providers") or [])
+      buttons = self._build_provider_picker_buttons(providers)
+      provider_label = get_label(str(state.get("current_provider") or ""))
+      body = (
+        f"Current model: `{state.get('current_model') or 'unknown'}`\n"
+        f"Provider: {provider_label}\n\n"
+        f"Select a provider:"
+      )
+      state.pop("selected_provider", None)
+      state.pop("selected_provider_name", None)
+      state.pop("model_list", None)
+      state.pop("model_page", None)
+      await self._emit_model_picker_card(
+        route=route,
+        chat_id=chat_id,
+        pick_id=pick_id,
+        title="Model Configuration",
+        body=body,
+        buttons=buttons,
+      )
+      return
+
+    if choice == "mx":
+      self._model_picker_state.pop(chat_id, None)
+      await self._emit_model_picker_card(
+        route=route,
+        chat_id=chat_id,
+        pick_id=pick_id,
+        title="Model Configuration",
+        body="Model selection cancelled.",
+        buttons=[],
+      )
+      return
+
   async def _handle_button_click(
     self,
     payload_model: Any,
@@ -613,6 +1297,15 @@ class CustomChatAdapter(BasePlatformAdapter):
         message_id=getattr(payload_model, "message_id", ""),
         code="BAD_REQUEST",
         message="button.click requires confirm_id and choice",
+        ws=ws,
+      )
+      return
+
+    if chat_id in self._model_picker_state or str(choice).startswith(("mp:", "mm:", "mg:")) or choice in ("mb", "mx", "mx:noop"):
+      await self._handle_model_picker_callback(
+        str(choice),
+        chat_id=chat_id,
+        user_id=user_id,
         ws=ws,
       )
       return
@@ -737,6 +1430,9 @@ def _apply_yaml_config(yaml_cfg: dict, platform_cfg: dict) -> dict | None:
     ).lower()
   if "home_channel" in platform_cfg and not os.getenv("CUSTOM_CHAT_HOME_CHANNEL"):
     os.environ["CUSTOM_CHAT_HOME_CHANNEL"] = str(platform_cfg["home_channel"])
+  media_base = platform_cfg.get("media_public_base_url")
+  if media_base and not os.getenv("CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL"):
+    os.environ["CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL"] = str(media_base).rstrip("/")
   return None
 
 
@@ -756,7 +1452,10 @@ def register(ctx: Any) -> None:
     "platform_hint": (
       "You are chatting via a custom WebSocket client (Event Schema v1). "
       "Supports streaming deltas, slash commands, interactive button "
-      "confirmations, and audio uploads."
+      "confirmations, audio uploads, tool/reasoning text in the stream, "
+      "and segment boundaries after tool calls. Use send_file/send_image "
+      "for attachments; local paths are published to the web media API when "
+      "CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL is set."
     ),
     "emoji": "💬",
   }
