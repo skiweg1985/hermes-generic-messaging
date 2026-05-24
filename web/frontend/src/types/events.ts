@@ -104,6 +104,7 @@ export type TranscriptLineKind =
 export interface TranscriptLine {
   id: string;
   kind: TranscriptLineKind;
+  role?: "user" | "assistant";
   text: string;
   title?: string;
   audioUrl?: string;

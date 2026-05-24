@@ -5,9 +5,10 @@ import { useMediaContext } from "./MediaProvider";
 
 interface ImageCardProps {
   line: TranscriptLine;
+  alignRight?: boolean;
 }
 
-export function ImageCard({ line }: ImageCardProps) {
+export function ImageCard({ line, alignRight }: ImageCardProps) {
   const media = useMediaContext();
   const url = line.imageUrl;
   const registerImage = media?.registerImage;
@@ -28,7 +29,9 @@ export function ImageCard({ line }: ImageCardProps) {
   const openLightbox = () => media?.openAt(line.id);
 
   return (
-    <figure className="media-image-card motion-rise-in-soft">
+    <figure
+      className={`media-image-card${alignRight ? " media-image-card-right" : ""} motion-rise-in-soft`}
+    >
       <button
         type="button"
         className="media-image-trigger"

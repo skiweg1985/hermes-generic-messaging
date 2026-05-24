@@ -13,6 +13,9 @@
   gap: var(--s-2);
   max-width: 100%;
 }
+.media-image-card-right {
+  margin-left: auto;
+}
 
 .media-image-trigger {
   position: relative;
@@ -245,6 +248,10 @@
 .audio-card {
   width: 100%;
   max-width: 480px;
+}
+.audio-card-right {
+  width: auto;
+  margin-left: auto;
 }
 
 .waveform {

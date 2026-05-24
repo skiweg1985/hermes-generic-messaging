@@ -960,3 +960,38 @@ Security leak check: PASS
 PII check: PASS
 Sensitive data touched: no
 Redactions performed: none
+
+## 2026-05-24 23:00 – cursor – User-Uploads rechts ausrichten
+
+- Done:
+  - `TranscriptLine.role` für User/Assistant-Media im Reducer
+  - Turn-Gruppierung: Bilder und Audio als User-Anchor
+  - `TurnGroup`: Uploads, Bilder und Sprachnachrichten rechts rendern
+  - CSS: `media-image-card-right`, `audio-card-right`
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - web/frontend/src/types/events.ts
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/turnGrouping.ts
+  - web/frontend/src/features/chat/TurnGroup.tsx
+  - web/frontend/src/features/media/ImageCard.tsx
+  - web/frontend/src/features/media/AudioCard.tsx
+  - web/frontend/src/features/media/media.css
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `cd web/frontend && npm test -- --run`
+- Changelog updated:
+  - yes (Fixed)
+- Follow-ups:
+  - none
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none

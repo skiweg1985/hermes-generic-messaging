@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Web UI: User-Uploads (Bilder, Audio, Dateien) erscheinen rechts wie Text-Nachrichten statt links im Assistant-Bereich
 - Plugin: `interrupt_session_activity(session_key, chat_id)` matches current Hermes gateway API (was single-arg; broke `/new` and session reset with `TypeError`)
 - Web UI: Unbalancierte Code-Fences (`\`\`\``) im Assistant-Stream werden vor dem Rendern entfernt, damit nachfolgender Markdown (Bold, Listen, Links) nicht mehr in einem `<pre><code>`-Block verschwindet
 - Web UI: Auto-Titel (`session_meta`) erreicht den Client auch bei Hintergrund-Generierung — der BFF nutzt eine gemeinsame Upstream-WebSocket-Verbindung; `session_meta` wird deshalb an alle Clients gebroadcastet (Routing im Frontend per `chat_id`), und Chat-Sockets werden bei Single-Client-Betrieb auf die aktive Verbindung umgebunden

@@ -253,6 +253,7 @@ function buildAttachmentLine(params: {
     return {
       id,
       kind: "image",
+      role,
       text: label,
       imageUrl: url,
       caption: label,
@@ -268,6 +269,7 @@ function buildAttachmentLine(params: {
     return {
       id,
       kind: "audio-out",
+      role,
       text: `${role}> [audio] ${label}`,
       audioUrl: url,
       fileName: filename,
@@ -281,6 +283,7 @@ function buildAttachmentLine(params: {
   return {
     id,
     kind: role === "user" ? "upload" : "file",
+    role,
     text: `${role === "user" ? "[upload]" : "assistant> [file]"} ${label}`,
     fileUrl: url,
     fileName: filename,
@@ -495,6 +498,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         {
           id: messageId,
           kind: "image",
+          role: "assistant",
           text: String(p.caption ?? ""),
           imageUrl: String(p.url ?? ""),
           caption: p.caption != null ? String(p.caption) : undefined,

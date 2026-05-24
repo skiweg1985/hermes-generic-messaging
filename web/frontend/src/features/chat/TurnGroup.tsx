@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import type { AssistantButton, TranscriptLine } from "../../types/events";
 import type { Turn } from "./turnGrouping";
+import { isUserMediaLine } from "./turnGrouping";
 import { MessageUser } from "./messages/MessageUser";
 import { MessageAssistant } from "./messages/MessageAssistant";
 import { MessageReasoning } from "./messages/MessageReasoning";
@@ -16,6 +17,31 @@ import { splitReasoning } from "./reasoningSplit";
 interface TurnGroupProps {
   turn: Turn;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
+}
+
+function renderUserLine(line: TranscriptLine): JSX.Element {
+  if (line.kind === "upload") {
+    return (
+      <div className="turn-user-row">
+        <FileCard line={line} alignRight />
+      </div>
+    );
+  }
+  if (line.kind === "image" && isUserMediaLine(line)) {
+    return (
+      <div className="turn-user-row">
+        <ImageCard line={line} alignRight />
+      </div>
+    );
+  }
+  if (line.kind === "audio-out" && isUserMediaLine(line)) {
+    return (
+      <div className="turn-user-row">
+        <AudioCard line={line} alignRight />
+      </div>
+    );
+  }
+  return <MessageUser line={line} />;
 }
 
 function renderOutput(
@@ -51,6 +77,7 @@ function renderOutput(
         }
       }
       if (line.kind === "audio-out") {
+        if (isUserMediaLine(line)) return null;
         return (
           <Fragment>
             {line.text ? (
@@ -84,6 +111,7 @@ function renderOutput(
     case "buttons":
       return <ApprovalCard line={line} onButtonClick={onButtonClick} />;
     case "image":
+      if (isUserMediaLine(line)) return null;
       return <ImageCard line={line} />;
     case "file":
       return <FileCard line={line} />;
@@ -105,15 +133,7 @@ export function TurnGroup({
 
   return (
     <div className="turn">
-      {userLine ? (
-        userLine.kind === "upload" ? (
-          <div className="turn-user-row">
-            <FileCard line={userLine} alignRight />
-          </div>
-        ) : (
-          <MessageUser line={userLine} />
-        )
-      ) : null}
+      {userLine ? renderUserLine(userLine) : null}
 
       {turn.outputs.length > 0 ? (
         <div

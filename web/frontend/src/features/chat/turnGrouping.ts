@@ -14,8 +14,19 @@ export interface Turn {
   outputs: TranscriptLine[];
 }
 
+export function isUserMediaLine(line: TranscriptLine): boolean {
+  if (line.role === "user") return true;
+  return line.kind === "audio-out" && line.text.startsWith("user>");
+}
+
 function isUserAnchor(line: TranscriptLine): boolean {
-  return line.kind === "user" || line.kind === "command" || line.kind === "upload";
+  if (line.kind === "user" || line.kind === "command" || line.kind === "upload") {
+    return true;
+  }
+  if (isUserMediaLine(line) && (line.kind === "image" || line.kind === "audio-out")) {
+    return true;
+  }
+  return false;
 }
 
 export function groupTurns(lines: TranscriptLine[]): Turn[] {
