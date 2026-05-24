@@ -8,8 +8,27 @@ import type {
 import { newId } from "../../lib/uuid";
 
 const MAX_LABEL_LENGTH = 18;
+const MAX_TITLE_LENGTH = 40;
 
 export const DEFAULT_CHAT_ID = "workspace:demo";
+
+function truncate(value: string, max: number): string {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, Math.max(1, max - 1))}…`;
+}
+
+export function chatDisplayTitle(session: ChatSession): string {
+  const firstUserLine = session.lines.find(
+    (line) => line.kind === "user" || line.kind === "command",
+  );
+  if (firstUserLine && firstUserLine.text.trim().length > 0) {
+    return truncate(firstUserLine.text, MAX_TITLE_LENGTH);
+  }
+  if (session.label && session.label.trim().length > 0) return session.label;
+  const id = session.chatId;
+  return id.includes(":") ? id.split(":").pop() ?? id : id;
+}
 
 function nowIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");

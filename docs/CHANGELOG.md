@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Web UI: TopBar- und Rail-Anzeige eines Chats nutzen den ersten User-Text als Titel (truncated auf 40 Zeichen) statt generischem `chat N`; Fallback bleibt das vorhandene Label bzw. die `chat_id`
+
+### Added
+
+- Web UI: Mobile-/Tablet-Drawer für Workspace-Navigation (Hamburger im TopBar bei ≤1080 px Viewport-Breite öffnet die Rail als Overlay; Auswahl eines Chats oder Backdrop-/Esc-Klick schließt automatisch)
+
 ### Added
 
 - Tool/reasoning text parity (Telegram/Discord style): incremental `assistant_delta`, `assistant_segment` for post-tool boundaries, reasoning prepend on `assistant_done`, tool status via `assistant_notice` (`kind: tool`)
@@ -13,6 +21,9 @@
 
 ### Fixed
 
+- Mikrofon-Aufnahme im Web-Composer: Browser-MIME mit Codec-Parametern (z. B. `audio/webm;codecs=opus`) wird vor Upload-Validierung auf den Basis-Typ normalisiert
+- Voice messages: `transcribe_audio` lädt Audio vom BFF und nutzt Hermes-STT (Whisper); Mikrofon sendet `audio.uploaded` statt `file.uploaded`
+- BFF lädt `web/.env` beim Start (u. a. `WEB_PUBLIC_MEDIA_BASE_URL`)
 - Tool progress invisible in web chat: Hermes drops tool-progress events when `edit_message` is missing; custom_chat now implements `edit_message` and routes progress `send()` calls (no `reply_id`) to updatable `assistant_notice` bubbles
 - Final assistant answers no longer misclassified as tool progress when `send()` lacks `reply_id` local filesystem paths in `send` / `send_file` / `send_image` are uploaded to the web BFF and emitted as HTTP URLs (`CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`) instead of unusable `file://` or absolute-path links in the chat UI
 - Outbound `send()` text that embeds a local path (e.g. `🖼️ Image: /home/.../shot.png`) is parsed, the file is published, and an `assistant_image` / `assistant_file` event is emitted before `assistant_done`

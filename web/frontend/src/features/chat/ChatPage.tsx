@@ -8,27 +8,43 @@ import { Composer, type ComposerHandle } from "../composer/Composer";
 import { DropOverlay } from "../composer/DropOverlay";
 import { Transcript } from "./Transcript";
 import { useChatController } from "./useChatController";
+import { chatDisplayTitle } from "./chatReducer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import "../shell/shell.css";
 import "../composer/composer.css";
 import "../media/media.css";
 
-function displayChatId(chatId: string): string {
-  return chatId.includes(":") ? chatId.split(":").pop() ?? chatId : chatId;
-}
-
 export function ChatPage() {
   const ctrl = useChatController();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const [dropOver, setDropOver] = useState(false);
   const dragCounter = useRef(0);
   const composerRef = useRef<ComposerHandle>(null);
 
-  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const openPalette = useCallback(() => {
+    setRailOpen(false);
+    setPaletteOpen(true);
+  }, []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const openPeek = useCallback(() => setPeekOpen(true), []);
   const closePeek = useCallback(() => setPeekOpen(false), []);
+  const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
+  const closeRail = useCallback(() => setRailOpen(false), []);
+
+  const handleSelectSession = useCallback(
+    (chatId: string) => {
+      ctrl.setActiveChat(chatId);
+      setRailOpen(false);
+    },
+    [ctrl],
+  );
+
+  const handleCreateChat = useCallback(() => {
+    ctrl.createChat();
+    setRailOpen(false);
+  }, [ctrl]);
 
   useKeyboardShortcuts([
     { combo: "mod+k", handler: () => setPaletteOpen((v) => !v), whenTyping: true },
@@ -59,7 +75,7 @@ export function ChatPage() {
   ]);
 
   const activeSession = ctrl.activeSession;
-  const title = activeSession.label || displayChatId(activeSession.chatId);
+  const title = chatDisplayTitle(activeSession);
 
   // ── Drag-and-drop attach on the stage ────────────────────────────────
   const onDragEnter = (e: DragEvent<HTMLDivElement>) => {
@@ -97,9 +113,11 @@ export function ChatPage() {
         workspaceName="Hermes"
         sessions={ctrl.sessions}
         activeChatId={ctrl.activeChatId}
-        onSelectSession={ctrl.setActiveChat}
-        onCreateChat={ctrl.createChat}
+        drawerOpen={railOpen}
+        onSelectSession={handleSelectSession}
+        onCreateChat={handleCreateChat}
         onOpenPalette={openPalette}
+        onCloseDrawer={closeRail}
       />
 
       <section
@@ -115,6 +133,7 @@ export function ChatPage() {
           streaming={ctrl.streaming}
           onOpenPeek={openPeek}
           onReconnect={ctrl.reconnect}
+          onToggleRail={toggleRail}
         />
 
         <ConnectionBanner
@@ -154,7 +173,7 @@ export function ChatPage() {
         onSelectChat={ctrl.setActiveChat}
         sessions={ctrl.sessions.map((s) => ({
           chatId: s.chatId,
-          label: s.label || displayChatId(s.chatId),
+          label: chatDisplayTitle(s),
         }))}
       />
 

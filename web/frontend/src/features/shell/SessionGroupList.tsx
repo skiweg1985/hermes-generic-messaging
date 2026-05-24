@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { ChatSession } from "../../types/events";
+import { chatDisplayTitle } from "../chat/chatReducer";
 import { IconChevronRight } from "./icons";
 
 interface SessionGroupListProps {
@@ -61,12 +62,6 @@ function groupSessions(sessions: ChatSession[]): Group[] {
     .filter((g) => g.items.length > 0);
 }
 
-function displayLabel(session: ChatSession): string {
-  if (session.label && session.label.trim().length > 0) return session.label;
-  const id = session.chatId;
-  return id.includes(":") ? id.split(":").pop() ?? id : id;
-}
-
 export function SessionGroupList({
   sessions,
   activeChatId,
@@ -98,7 +93,7 @@ export function SessionGroupList({
                     aria-current={active ? "true" : undefined}
                   >
                     <span className="rail-session-label truncate">
-                      {displayLabel(session)}
+                      {chatDisplayTitle(session)}
                     </span>
                     {session.typing ? (
                       <span className="rail-session-typing" aria-label="assistant typing">

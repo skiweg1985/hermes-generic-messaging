@@ -517,3 +517,139 @@
   - `pytest test_streaming.py` → 9 passed; `npm test` → 30 passed
 - Changelog updated:
   - yes (Fixed)
+
+## 2026-05-24 12:58 – cursor – MIME-Normalisierung Mikrofon-Upload
+
+- Done:
+  - `normalize_mime_type` in `packages/custom_chat_schema/mime.py` (Basis-MIME ohne `;codecs=…`)
+  - BFF `MediaStore` und Plugin `validate_file_payload` normalisieren vor Allowlist-Check
+  - Frontend: `normalizeMimeType` + `useAudioRecorder` bereinigt Blob-Typ
+  - Tests: `test_media_store`, `test_media` (plugin), Vitest für `normalizeMimeType`
+- Next:
+  - Manuell: Mikrofon im Composer testen (Chrome → `audio/webm;codecs=opus`)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (current)
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/mime.py
+  - packages/custom_chat_schema/__init__.py
+  - web/backend/app/services/media_store.py
+  - plugins/platforms/custom_chat/media.py
+  - web/frontend/src/lib/normalizeMimeType.ts
+  - web/frontend/src/lib/normalizeMimeType.test.ts
+  - web/frontend/src/hooks/useAudioRecorder.ts
+  - tests/web/test_media_store.py
+  - tests/plugins/custom_chat/test_media.py
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `pytest tests/web/test_media_store.py tests/plugins/custom_chat/test_media.py -q` → 12 passed
+  - `npm test -- --run src/lib/normalizeMimeType.test.ts` → 2 passed
+- Changelog updated:
+  - yes (Fixed under Unreleased)
+- Follow-ups:
+  - none
+
+## 2026-05-24 12:58 – cursor – MIME-Normalisierung Mikrofon-Upload
+
+- Done:
+  - `normalize_mime_type` in `packages/custom_chat_schema/mime.py` (Basis-MIME ohne `;codecs=…`)
+  - BFF `MediaStore` und Plugin `validate_file_payload` normalisieren vor Allowlist-Check
+  - Frontend: `normalizeMimeType` + `useAudioRecorder` bereinigt Blob-Typ
+  - Tests: `test_media_store`, `test_media` (plugin), Vitest für `normalizeMimeType`
+- Next:
+  - Manuell: Mikrofon im Composer testen (Chrome → `audio/webm;codecs=opus`)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (current)
+  - PR: none
+- Files touched:
+  - packages/custom_chat_schema/mime.py
+  - packages/custom_chat_schema/__init__.py
+  - web/backend/app/services/media_store.py
+  - plugins/platforms/custom_chat/media.py
+  - web/frontend/src/lib/normalizeMimeType.ts
+  - web/frontend/src/lib/normalizeMimeType.test.ts
+  - web/frontend/src/hooks/useAudioRecorder.ts
+  - tests/web/test_media_store.py
+  - tests/plugins/custom_chat/test_media.py
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `pytest tests/web/test_media_store.py tests/plugins/custom_chat/test_media.py -q` → 12 passed
+  - `npm test -- --run src/lib/normalizeMimeType.test.ts` → 2 passed
+- Changelog updated:
+  - yes (Fixed under Unreleased)
+- Follow-ups:
+  - none
+
+## 2026-05-24 13:15 – cursor – Voice STT + private URL fix
+
+- Done:
+  - Root cause: Hermes `allow_private_urls: false` blockiert Agent-Fetch von LAN-BFF-URLs; `transcribe_audio` war nur Platzhalter
+  - `transcribe_audio` lädt Audio per HTTP und nutzt Hermes `tools.transcription_tools` (Whisper)
+  - Mikrofon sendet `audio.uploaded`; BFF lädt `web/.env` automatisch
+  - Homer: `allow_private_urls: true`, `media.py` + Frontend + `config.py` deployed, Gateway restarted
+- Next:
+  - Browser hard-refresh; neue Voice-Nachricht senden — Agent sollte Transkript als Text sehen
+- Test notes:
+  - `pytest tests/plugins/custom_chat/test_media.py tests/plugins/custom_chat/test_custom_chat_e2e.py` → 8 passed
+- Changelog updated:
+  - yes (Fixed)
+
+## 2026-05-24 13:19 – cursor – Mobile Drawer für Rail
+
+- Done:
+  - Hamburger-Button im TopBar (sichtbar bei ≤1080 px) öffnet die Rail als Slide-in-Overlay
+  - Rail im Drawer-Modus rendert volle Sektionen (Workspace, New chat, Search, Sessions mit Titeln, Footer) und einen Schließen-Button
+  - Backdrop-Klick, Chat-Auswahl, "New chat" und Esc schließen den Drawer automatisch
+  - ≤720 px: Rail standardmäßig versteckt, nur über Drawer erreichbar; 720–1080 px: kollabierte Icon-Rail bleibt + Drawer-Overlay verfügbar
+  - prefers-reduced-motion respektiert (keine Slide-Animation)
+- Next:
+  - Manueller Test in Mobil-Viewport (Browser DevTools)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (current)
+  - PR: none
+- Files touched:
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - web/frontend/src/features/shell/Rail.tsx
+  - web/frontend/src/features/shell/TopBar.tsx
+  - web/frontend/src/features/shell/icons.tsx
+  - web/frontend/src/features/shell/shell.css
+  - docs/CHANGELOG.md
+- Test notes:
+  - UI path: Browser ≤1080 px → TopBar-Hamburger → Rail-Drawer öffnet, Auswahl schließt
+  - keine neuen Unit-Tests (rein UI/CSS-Verhalten)
+- Changelog updated:
+  - yes (Added unter Unreleased)
+- Follow-ups:
+  - none
+
+## 2026-05-24 13:23 – cursor – Chat-Titel aus erstem User-Text
+
+- Done:
+  - Neue Helper-Funktion `chatDisplayTitle(session)` leitet den Anzeigenamen eines Chats aus dem ersten User-Text/Command ab (auf 40 Zeichen gekürzt mit Ellipse), Fallback bleibt `session.label` bzw. die `chat_id`
+  - TopBar zeigt diesen Titel statt generischem `chat N`
+  - Rail (`SessionGroupList`) und Command-Palette nutzen denselben Helper, damit alle Anzeigen konsistent sind
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - web/frontend/src/features/shell/SessionGroupList.tsx
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `cd web/frontend && npx vitest run src/features/chat/chatReducer.test.ts` (19 passed)
+  - UI path: neuer Chat anlegen → erste Nachricht senden → Titel in TopBar und Rail wechselt von `chat N` auf den Nachrichtentext
+- Changelog updated:
+  - yes (Changed unter Unreleased)
+- Follow-ups:
+  - none
