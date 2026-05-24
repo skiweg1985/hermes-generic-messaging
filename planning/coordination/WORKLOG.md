@@ -755,3 +755,21 @@
   - yes (bereits unter Unreleased: MIME/STT/Drawer)
 - Follow-ups:
   - Deploy auf Homer
+
+## 2026-05-24 14:05 – cursor – Auto-Titel Hintergrund-Delivery
+
+- Done:
+  - Root cause: BFF nutzt eine Upstream-WS für alle Chats; `session_meta` fiel durch `broadcast(chat_id=...)` + stale `client_context` durch, wenn Auto-Titel für einen anderen Chat im Hintergrund lief
+  - Adapter: `session_meta` wird via `broadcast(all_clients=True)` gesendet; `_bind_ws_for_chat` rebindet bei Single-Client alle Chat-Routen auf die aktive WS
+  - Gateway-Patch v2 auf Homer: `_resolve_custom_chat_source_for_session_id`, robuster Adapter-Lookup, Auto-Title-Callback über session_id
+  - Deploy: `adapter.py`, `transport/ws_server.py`, Gateway-Upgrade-Script; Gateway restarted (active)
+  - Tests: `test_session_meta` erweitert (stale client_context Szenario)
+- Next:
+  - Manuell: neuer Chat → erste Nachricht → Auto-Titel erscheint in TopBar ohne Reload
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Changelog updated:
+  - yes (Fixed)

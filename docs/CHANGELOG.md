@@ -2,13 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Web UI: Auto-Titel (`session_meta`) erreicht den Client auch bei Hintergrund-Generierung — der BFF nutzt eine gemeinsame Upstream-WebSocket-Verbindung; `session_meta` wird deshalb an alle Clients gebroadcastet (Routing im Frontend per `chat_id`), und Chat-Sockets werden bei Single-Client-Betrieb auf die aktive Verbindung umgebunden
+- Hermes Gateway (Homer): Auto-Title-Callback löst Session-Titel über `session_id` → `session_store.origin` auf statt nur über das zur Laufzeit erfasste `source`-Objekt
+
 ### Added
 
 - Outbound event `session_meta` (Schema v1) für Hermes-Session-Metadaten (Titel via `/title` / Auto-Title); Plugin-Helper `adapter.send_session_meta(chat_id, title=, session_id=, thread_id=, extra=)`
 - Web UI: TopBar und Rail zeigen den von Hermes gelieferten `session_meta.title` als Chat-Titel an (auf 40 Zeichen gekürzt), Fallback bleibt das lokale Label bzw. die `chat_id`
-
-### Added
-
 - Web UI: Mobile-/Tablet-Drawer für Workspace-Navigation (Hamburger im TopBar bei ≤1080 px Viewport-Breite öffnet die Rail als Overlay; Auswahl eines Chats oder Backdrop-/Esc-Klick schließt automatisch)
 
 ### Added

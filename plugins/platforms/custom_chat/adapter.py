@@ -170,6 +170,20 @@ class CustomChatAdapter(BasePlatformAdapter):
   def _close_typing_for_chat(self, chat_id: str) -> None:
     self._typing_closed_chats.add(chat_id)
 
+  def _bind_ws_for_chat(self, ws: Any, chat_id: str, user_id: str) -> None:
+    """Track the active socket for a chat.
+
+    The web BFF multiplexes every chat over one upstream WebSocket. Rebind
+    all known chats to the current socket when only one client is connected
+    so background events (e.g. auto-title ``session_meta``) still reach the UI.
+    """
+    self._ws_by_chat[chat_id] = ws
+    if self._hub and len(self._hub.clients) <= 1:
+      for cid in list(self._ws_by_chat.keys()):
+        self._ws_by_chat[cid] = ws
+    if self._hub:
+      self._hub.set_client_context(ws, chat_id=chat_id, user_id=user_id)
+
   async def _resolve_outbound_media_url(
     self,
     media_url: str,
@@ -298,11 +312,17 @@ class CustomChatAdapter(BasePlatformAdapter):
       session_id=session_id,
     )
     if self._hub:
-      target = ws or self._ws_by_chat.get(chat_id)
-      if target is not None:
-        await self._hub.send_to(target, event)
+      if event_type == "session_meta":
+        # The web BFF uses one upstream socket for all chats; the client
+        # routes by envelope chat_id. Never filter session_meta by the
+        # per-socket client_context chat_id (stale after chat switches).
+        await self._hub.broadcast(event, all_clients=True)
       else:
-        await self._hub.broadcast(event, chat_id=chat_id)
+        target = ws or self._ws_by_chat.get(chat_id)
+        if target is not None:
+          await self._hub.send_to(target, event)
+        else:
+          await self._hub.broadcast(event, chat_id=chat_id)
     return event
 
   async def _emit_error(
@@ -351,9 +371,7 @@ class CustomChatAdapter(BasePlatformAdapter):
     chat_id = envelope.chat_id
     user_id = envelope.user_id
     self._open_typing_for_chat(chat_id)
-    self._ws_by_chat[chat_id] = ws
-    if self._hub:
-      self._hub.set_client_context(ws, chat_id=chat_id, user_id=user_id)
+    self._bind_ws_for_chat(ws, chat_id, user_id)
 
     rate_key = f"{chat_id}:{user_id}"
     if not self.state.check_rate_limit(rate_key):
