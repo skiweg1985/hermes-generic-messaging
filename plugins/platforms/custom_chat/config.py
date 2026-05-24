@@ -7,6 +7,7 @@ from custom_chat_schema import (
     PLATFORM_NAME,
     SCHEMA_VERSION,
     AudioUploadedPayload,
+    FileUploadedPayload,
     ButtonClickPayload,
     ButtonSpec,
     CommandCreatePayload,
@@ -17,7 +18,10 @@ from custom_chat_schema import (
     build_outbound_event,
     parse_inbound_envelope,
 )
-from custom_chat_schema.schema import DEFAULT_ALLOWED_AUDIO_MIME_TYPES
+from custom_chat_schema.schema import (
+    DEFAULT_ALLOWED_AUDIO_MIME_TYPES,
+    DEFAULT_ALLOWED_UPLOAD_MIME_TYPES,
+)
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -26,11 +30,13 @@ __all__ = [
     "INBOUND_TYPES",
     "OUTBOUND_TYPES",
     "DEFAULT_ALLOWED_AUDIO_MIME_TYPES",
+    "DEFAULT_ALLOWED_UPLOAD_MIME_TYPES",
     "CustomChatSettings",
     "EventEnvelope",
     "MessageCreatePayload",
     "CommandCreatePayload",
     "AudioUploadedPayload",
+    "FileUploadedPayload",
     "MessageCancelPayload",
     "ButtonClickPayload",
     "ButtonSpec",

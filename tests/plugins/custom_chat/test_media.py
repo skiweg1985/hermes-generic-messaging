@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.platforms.custom_chat.config import AudioUploadedPayload, CustomChatSettings
+from plugins.platforms.custom_chat.config import (
+    AudioUploadedPayload,
+    CustomChatSettings,
+    FileUploadedPayload,
+)
 from plugins.platforms.custom_chat.events.schema import InboundEventError
 from plugins.platforms.custom_chat.media import (
     synthesize_audio_url,
     transcribe_audio,
+    validate_file_payload,
     validate_audio_payload,
 )
 from plugins.platforms.custom_chat.transport.ws_server import WebSocketHub
@@ -45,6 +50,18 @@ def test_tts_outbound_event_shape():
     audio = synthesize_audio_url("hello")
     assert audio["mime_type"] == "audio/mpeg"
     assert audio["url"].startswith("https://")
+
+
+def test_valid_file_accepted():
+    settings = CustomChatSettings()
+    payload = FileUploadedPayload(
+        message_id="f1",
+        filename="notes.pdf",
+        mime_type="application/pdf",
+        size_bytes=100,
+        url="https://example.local/notes.pdf",
+    )
+    validate_file_payload(payload, settings)
 
 
 @pytest.mark.asyncio

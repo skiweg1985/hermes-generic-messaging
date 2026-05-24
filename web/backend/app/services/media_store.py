@@ -1,4 +1,4 @@
-"""Local media storage for audio.uploaded URLs."""
+"""Local media storage for uploaded attachments."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class MediaStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def validate_upload(self, mime_type: str, size_bytes: int) -> None:
-        if mime_type not in self.settings.allowed_audio_mime_types:
+        if mime_type not in self.settings.allowed_upload_mime_types:
             raise HTTPException(
                 status_code=415,
                 detail={
@@ -25,12 +25,12 @@ class MediaStore:
                     "message": f"mime type not allowed: {mime_type}",
                 },
             )
-        if size_bytes > self.settings.max_audio_bytes:
+        if size_bytes > self.settings.max_upload_bytes:
             raise HTTPException(
                 status_code=413,
                 detail={
                     "code": "PAYLOAD_TOO_LARGE",
-                    "message": f"audio exceeds max size {self.settings.max_audio_bytes}",
+                    "message": f"file exceeds max size {self.settings.max_upload_bytes}",
                 },
             )
 

@@ -12,7 +12,7 @@ def store(tmp_path):
     settings = Settings(
         media_upload_dir=str(tmp_path),
         public_media_base_url="http://test.local",
-        max_audio_bytes=1024,
+        max_upload_bytes=1024,
     )
     return MediaStore(settings)
 
@@ -26,9 +26,16 @@ def test_save_and_resolve(store):
     assert path.exists()
 
 
+def test_accepts_image_and_doc(store):
+    image = store.save(b"x" * 12, "image/png")
+    doc = store.save(b"x" * 22, "application/pdf")
+    assert image["mime_type"] == "image/png"
+    assert doc["mime_type"] == "application/pdf"
+
+
 def test_reject_mime(store):
     with pytest.raises(HTTPException) as exc:
-        store.save(b"x", "image/png")
+        store.save(b"x", "application/x-msdownload")
     assert exc.value.status_code == 415
 
 

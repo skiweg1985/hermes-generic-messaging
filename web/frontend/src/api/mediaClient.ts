@@ -5,7 +5,7 @@ export interface UploadResult {
   size_bytes: number;
 }
 
-export async function uploadAudio(file: Blob, filename: string): Promise<UploadResult> {
+export async function uploadMedia(file: Blob, filename: string): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file, filename);
   const res = await fetch("/api/v1/media/upload", {
@@ -21,3 +21,5 @@ export async function uploadAudio(file: Blob, filename: string): Promise<UploadR
   }
   return res.json() as Promise<UploadResult>;
 }
+
+export const uploadAudio = uploadMedia;

@@ -1,152 +1,169 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
-import { StatusBar } from "../../components/StatusBar";
-import { WsClient } from "../../api/wsClient";
-import { uploadAudio } from "../../api/mediaClient";
-import { useAudioRecorder } from "../../hooks/useAudioRecorder";
-import { AttachControls } from "./AttachControls";
-import { chatReducer, initialChatState } from "./chatReducer";
-import { PromptLine } from "./PromptLine";
+import { useCallback, useRef, useState, type DragEvent } from "react";
+import { Rail } from "../shell/Rail";
+import { TopBar } from "../shell/TopBar";
+import { CommandPalette } from "../shell/CommandPalette";
+import { SessionPeek } from "../shell/SessionPeek";
+import { ConnectionBanner } from "../shell/ConnectionBanner";
+import { Composer, type ComposerHandle } from "../composer/Composer";
+import { DropOverlay } from "../composer/DropOverlay";
 import { Transcript } from "./Transcript";
-import { newId } from "../../lib/uuid";
+import { useChatController } from "./useChatController";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import "../shell/shell.css";
+import "../composer/composer.css";
+import "../media/media.css";
 
-const CHAT_ID = "workspace:demo";
-const USER_ID = "user-demo";
-const SESSION_LABEL = `${USER_ID}@${CHAT_ID}`;
+function displayChatId(chatId: string): string {
+  return chatId.includes(":") ? chatId.split(":").pop() ?? chatId : chatId;
+}
 
 export function ChatPage() {
-  const [state, dispatch] = useReducer(
-    chatReducer,
-    initialChatState(SESSION_LABEL),
-  );
-  const wsRef = useRef<WsClient | null>(null);
-  const { recording, start: startRec, stop: stopRec } = useAudioRecorder();
+  const ctrl = useChatController();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [peekOpen, setPeekOpen] = useState(false);
+  const [dropOver, setDropOver] = useState(false);
+  const dragCounter = useRef(0);
+  const composerRef = useRef<ComposerHandle>(null);
 
-  useEffect(() => {
-    const client = new WsClient(
-      (event) => dispatch({ type: "INBOUND_EVENT", event }),
-      (connection) => dispatch({ type: "SET_CONNECTION", connection }),
-    );
-    wsRef.current = client;
-    client.connect();
-    return () => client.disconnect();
-  }, []);
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+  const openPeek = useCallback(() => setPeekOpen(true), []);
+  const closePeek = useCallback(() => setPeekOpen(false), []);
 
-  useEffect(() => {
-    dispatch({ type: "SET_RECORDING", recording });
-  }, [recording]);
-
-  const connected = state.connection === "connected";
-
-  const handleSubmit = useCallback(() => {
-    const raw = state.input.trim();
-    if (!raw || !wsRef.current || !connected) return;
-
-    if (raw === "cancel") {
-      if (state.streamingMessageId) {
-        wsRef.current.sendCancel(state.streamingMessageId, CHAT_ID, USER_ID);
-      }
-      dispatch({ type: "SET_INPUT", input: "" });
-      return;
-    }
-
-    if (raw.startsWith("/")) {
-      dispatch({ type: "USER_COMMAND", command: raw });
-      wsRef.current.sendCommand(raw, CHAT_ID, USER_ID);
-    } else {
-      dispatch({ type: "USER_TEXT", text: raw });
-      wsRef.current.sendText(raw, CHAT_ID, USER_ID);
-    }
-    dispatch({ type: "SET_INPUT", input: "" });
-  }, [state.input, state.streamingMessageId, connected]);
-
-  const handleCancel = useCallback(() => {
-    if (state.streamingMessageId && wsRef.current) {
-      wsRef.current.sendCancel(state.streamingMessageId, CHAT_ID, USER_ID);
-    }
-  }, [state.streamingMessageId]);
-
-  const handleFile = useCallback(
-    async (file: File) => {
-      if (!wsRef.current || !connected) return;
-      try {
-        const result = await uploadAudio(file, file.name);
-        dispatch({
-          type: "USER_UPLOAD",
-          filename: file.name,
-          mime: result.mime_type,
-          size: result.size_bytes,
-        });
-        wsRef.current.sendAudioUploaded(
-          {
-            message_id: newId(),
-            mime_type: result.mime_type,
-            size_bytes: result.size_bytes,
-            url: result.url,
-          },
-          CHAT_ID,
-          USER_ID,
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "upload failed";
-        const [code, ...rest] = msg.split(": ");
-        dispatch({
-          type: "USER_ERROR",
-          code: code ?? "UPLOAD_FAILED",
-          message: rest.join(": ") || msg,
-        });
-      }
+  useKeyboardShortcuts([
+    { combo: "mod+k", handler: () => setPaletteOpen((v) => !v), whenTyping: true },
+    { combo: "mod+n", handler: () => ctrl.createChat(), whenTyping: true },
+    { combo: "mod+i", handler: () => setPeekOpen((v) => !v), whenTyping: true },
+    { combo: "mod+.", handler: () => ctrl.cancel(), whenTyping: true },
+    {
+      combo: "mod+l",
+      handler: () => composerRef.current?.focus(),
+      whenTyping: true,
     },
-    [connected],
-  );
+    {
+      combo: "mod+/",
+      handler: () => {
+        if (!ctrl.activeSession.input.trim()) ctrl.setInput("/");
+        composerRef.current?.focus();
+      },
+      whenTyping: true,
+    },
+    ...Array.from({ length: 9 }, (_, i) => ({
+      combo: `mod+${i + 1}`,
+      handler: () => {
+        const target = ctrl.sessions[i];
+        if (target) ctrl.setActiveChat(target.chatId);
+      },
+      whenTyping: true,
+    })),
+  ]);
 
-  const handleToggleRecord = useCallback(async () => {
-    if (!connected) return;
-    if (recording) {
-      try {
-        const blob = await stopRec();
-        const name = `recording.webm`;
-        await handleFile(new File([blob], name, { type: blob.type || "audio/webm" }));
-      } catch {
-        dispatch({
-          type: "USER_ERROR",
-          code: "RECORD_FAILED",
-          message: "could not finalize recording",
-        });
-      }
-    } else {
-      try {
-        await startRec();
-      } catch {
-        dispatch({
-          type: "USER_ERROR",
-          code: "MIC_DENIED",
-          message: "microphone access denied",
-        });
-      }
+  const activeSession = ctrl.activeSession;
+  const title = activeSession.label || displayChatId(activeSession.chatId);
+
+  // ── Drag-and-drop attach on the stage ────────────────────────────────
+  const onDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    dragCounter.current += 1;
+    setDropOver(true);
+  };
+  const onDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDropOver(false);
     }
-  }, [connected, recording, startRec, stopRec, handleFile]);
+  };
+  const onDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer?.types.includes("Files")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  };
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    dragCounter.current = 0;
+    setDropOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) ctrl.uploadFile(file);
+  };
 
   return (
-    <div className="terminal">
-      <div className="terminal-title">{state.sessionLabel}</div>
-      <Transcript lines={state.lines} />
-      <AttachControls
-        disabled={!connected}
-        recording={recording}
-        onFile={handleFile}
-        onToggleRecord={handleToggleRecord}
+    <div className="shell-root">
+      <Rail
+        userId={ctrl.userId}
+        workspaceName="Hermes"
+        sessions={ctrl.sessions}
+        activeChatId={ctrl.activeChatId}
+        onSelectSession={ctrl.setActiveChat}
+        onCreateChat={ctrl.createChat}
+        onOpenPalette={openPalette}
       />
-      <PromptLine
-        value={state.input}
-        disabled={!connected}
-        onChange={(input) => dispatch({ type: "SET_INPUT", input })}
-        onSubmit={handleSubmit}
-        onCancel={handleCancel}
+
+      <section
+        className="stage"
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        <TopBar
+          title={title}
+          connection={ctrl.connection}
+          streaming={ctrl.streaming}
+          onOpenPeek={openPeek}
+          onReconnect={ctrl.reconnect}
+        />
+
+        <ConnectionBanner
+          status={ctrl.connection}
+          onReconnect={ctrl.reconnect}
+        />
+
+        <main className="stage-main">
+          <Transcript
+            lines={activeSession.lines}
+            typing={activeSession.typing}
+            onButtonClick={ctrl.clickButton}
+          />
+
+          <Composer
+            ref={composerRef}
+            value={activeSession.input}
+            disabled={!ctrl.connected}
+            streaming={ctrl.streaming}
+            recording={ctrl.recording}
+            onChange={ctrl.setInput}
+            onSubmit={ctrl.submit}
+            onCancel={ctrl.cancel}
+            onFile={ctrl.uploadFile}
+            onToggleRecord={ctrl.toggleRecord}
+          />
+        </main>
+
+        {dropOver ? <DropOverlay /> : null}
+      </section>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={closePalette}
+        onCreateChat={ctrl.createChat}
+        onRunCommand={ctrl.sendCommand}
+        onSelectChat={ctrl.setActiveChat}
+        sessions={ctrl.sessions.map((s) => ({
+          chatId: s.chatId,
+          label: s.label || displayChatId(s.chatId),
+        }))}
       />
-      <StatusBar
-        connection={state.connection}
-        streaming={state.streamingMessageId !== null}
-        onReconnect={() => wsRef.current?.reconnect()}
+
+      <SessionPeek
+        open={peekOpen}
+        onClose={closePeek}
+        session={activeSession}
+        connection={ctrl.connection}
+        userId={ctrl.userId}
       />
     </div>
   );

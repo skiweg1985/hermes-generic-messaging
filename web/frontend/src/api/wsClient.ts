@@ -1,8 +1,13 @@
-import type { EventEnvelope } from "../types/events";
+import type { ButtonClickPayload, EventEnvelope } from "../types/events";
 import { newId } from "../lib/uuid";
 
 export type MessageHandler = (event: EventEnvelope) => void;
 export type StatusHandler = (status: "connecting" | "connected" | "error") => void;
+
+interface SendContext {
+  threadId?: string;
+  sessionId?: string;
+}
 
 function wsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -64,12 +69,17 @@ export class WsClient {
     this.connect();
   }
 
-  private send(envelope: Partial<EventEnvelope> & { type: string; payload: Record<string, unknown> }): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+  private send(envelope: Partial<EventEnvelope> & { type: string; payload: Record<string, unknown> }): boolean {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
     this.ws.send(JSON.stringify(envelope));
+    return true;
   }
 
-  sendText(text: string, chatId: string, userId: string): void {
+  isOpen(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  sendText(text: string, chatId: string, userId: string, context: SendContext = {}): void {
     const messageId = newId();
     this.send({
       schema_version: "v1",
@@ -78,12 +88,14 @@ export class WsClient {
       platform: "custom_chat",
       chat_id: chatId,
       user_id: userId,
+      thread_id: context.threadId,
+      session_id: context.sessionId,
       type: "message.create",
       payload: { message_id: messageId, text },
     });
   }
 
-  sendCommand(command: string, chatId: string, userId: string): void {
+  sendCommand(command: string, chatId: string, userId: string, context: SendContext = {}): void {
     this.send({
       schema_version: "v1",
       event_id: newId(),
@@ -91,6 +103,8 @@ export class WsClient {
       platform: "custom_chat",
       chat_id: chatId,
       user_id: userId,
+      thread_id: context.threadId,
+      session_id: context.sessionId,
       type: "command.create",
       payload: { message_id: newId(), command },
     });
@@ -100,6 +114,65 @@ export class WsClient {
     payload: { message_id: string; mime_type: string; size_bytes: number; url: string },
     chatId: string,
     userId: string,
+    context: SendContext = {},
+  ): boolean {
+    return this.sendFileUploaded(
+      {
+        ...payload,
+        filename: payload.url.split("/").pop() || "audio",
+      },
+      chatId,
+      userId,
+      context,
+    );
+  }
+
+  sendFileUploaded(
+    payload: {
+      message_id: string;
+      filename: string;
+      mime_type: string;
+      size_bytes: number;
+      url: string;
+    },
+    chatId: string,
+    userId: string,
+    context: SendContext = {},
+  ): boolean {
+    return this.send({
+      schema_version: "v1",
+      event_id: newId(),
+      timestamp: nowIso(),
+      platform: "custom_chat",
+      chat_id: chatId,
+      user_id: userId,
+      thread_id: context.threadId,
+      session_id: context.sessionId,
+      type: "file.uploaded",
+      payload,
+    });
+  }
+
+  sendCancel(targetMessageId: string, chatId: string, userId: string, context: SendContext = {}): void {
+    this.send({
+      schema_version: "v1",
+      event_id: newId(),
+      timestamp: nowIso(),
+      platform: "custom_chat",
+      chat_id: chatId,
+      user_id: userId,
+      thread_id: context.threadId,
+      session_id: context.sessionId,
+      type: "message.cancel",
+      payload: { target_message_id: targetMessageId },
+    });
+  }
+
+  sendButtonClick(
+    payload: ButtonClickPayload,
+    chatId: string,
+    userId: string,
+    context: SendContext = {},
   ): void {
     this.send({
       schema_version: "v1",
@@ -108,21 +181,10 @@ export class WsClient {
       platform: "custom_chat",
       chat_id: chatId,
       user_id: userId,
-      type: "audio.uploaded",
-      payload,
-    });
-  }
-
-  sendCancel(targetMessageId: string, chatId: string, userId: string): void {
-    this.send({
-      schema_version: "v1",
-      event_id: newId(),
-      timestamp: nowIso(),
-      platform: "custom_chat",
-      chat_id: chatId,
-      user_id: userId,
-      type: "message.cancel",
-      payload: { target_message_id: targetMessageId },
+      thread_id: context.threadId,
+      session_id: context.sessionId,
+      type: "button.click",
+      payload: { ...payload },
     });
   }
 }

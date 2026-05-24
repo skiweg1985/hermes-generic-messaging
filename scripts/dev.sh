@@ -7,7 +7,8 @@ echo "Install Python deps..."
 pip install -e ".[dev,web]" -q
 
 echo "Start BFF on :8000 (background)..."
-(cd web/backend && uvicorn app.main:app --reload --port 8000) &
+BFF_HOST="${BFF_HOST:-127.0.0.1}"
+(cd web/backend && uvicorn app.main:app --reload --host "$BFF_HOST" --port 8000) &
 BFF_PID=$!
 
 cleanup() {

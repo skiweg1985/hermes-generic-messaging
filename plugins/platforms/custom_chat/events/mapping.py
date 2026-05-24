@@ -50,6 +50,14 @@ def _build_message_event(
         return MessageEvent(**kwargs)
 
 
+def _resolve_message_type(MessageType: Any, mime_type: str) -> Any:
+    if mime_type.startswith("image/"):
+        return getattr(MessageType, "PHOTO", getattr(MessageType, "IMAGE", MessageType.TEXT))
+    if mime_type.startswith("audio/"):
+        return getattr(MessageType, "VOICE", getattr(MessageType, "AUDIO", MessageType.TEXT))
+    return getattr(MessageType, "DOCUMENT", MessageType.TEXT)
+
+
 def inbound_to_message_event(
     envelope: EventEnvelope,
     payload_model: Any,
@@ -84,24 +92,39 @@ def inbound_to_message_event(
             message_id=payload_model.message_id,
         )
 
-    if envelope.type == "audio.uploaded":
-        text = transcribed_text or f"[audio:{payload_model.mime_type}]"
+    if envelope.type in {"audio.uploaded", "file.uploaded"}:
+        mime_type = payload_model.mime_type
+        is_audio = mime_type.startswith("audio/")
+        filename = getattr(payload_model, "filename", None)
         media_url = payload_model.url or payload_model.file_ref
+        if transcribed_text:
+            text = transcribed_text
+        else:
+            label = f"[audio:{mime_type}]" if is_audio else f"[file:{mime_type}]"
+            parts = [label]
+            if filename:
+                parts.append(filename)
+            if media_url:
+                parts.append(f"url={media_url}")
+            text = " ".join(parts)
         media_urls = [media_url] if media_url else []
-        media_types = [payload_model.mime_type] if payload_model.mime_type else []
-        audio_msg_type = getattr(MessageType, "AUDIO", MessageType.TEXT)
+        media_types = [mime_type] if mime_type else []
+        message_type = _resolve_message_type(MessageType, mime_type)
+        raw_message = {
+            "mime_type": mime_type,
+            "size_bytes": payload_model.size_bytes,
+        }
+        if getattr(payload_model, "filename", None):
+            raw_message["filename"] = payload_model.filename
         return _build_message_event(
             MessageEvent,
             text=text,
-            message_type=audio_msg_type,
+            message_type=message_type,
             source=source,
             message_id=payload_model.message_id,
             media_urls=media_urls,
             media_types=media_types,
-            raw_message={
-                "mime_type": payload_model.mime_type,
-                "size_bytes": payload_model.size_bytes,
-            },
+            raw_message=raw_message,
         )
 
     raise InboundEventError("BAD_REQUEST", f"cannot map type {envelope.type}")

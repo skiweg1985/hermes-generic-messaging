@@ -1,0 +1,261 @@
+/**
+ * Phase 5 composer styles. Replaces .terminal-composer / .terminal-prompt /
+ * .terminal-hints / .composer-tool / .slash-suggest from terminal.css.
+ */
+
+.composer-region {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--s-5) var(--s-5);
+  padding-bottom: max(var(--s-5), env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.composer-region > .composer {
+  pointer-events: auto;
+}
+
+.composer {
+  position: relative;
+  width: 100%;
+  max-width: var(--composer-max-width);
+  background: var(--surface-2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-md);
+  transition:
+    box-shadow var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard);
+  display: flex;
+  flex-direction: column;
+}
+
+.composer:focus-within {
+  background: var(--surface-3);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 0 0 5px rgba(255, 255, 255, 0.06),
+    var(--shadow-md);
+}
+
+.composer-disabled {
+  opacity: 0.6;
+}
+
+.composer-input {
+  width: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 24px;
+  padding: 14px 18px 6px;
+  resize: none;
+  outline: none;
+  border: 0;
+  min-height: 56px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.composer-input::placeholder {
+  color: var(--text-quaternary);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 6px 10px 10px;
+}
+
+.composer-actions-left,
+.composer-actions-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.composer-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  color: var(--text-tertiary);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.composer-icon:hover:not(:disabled) {
+  background: var(--accent-faint);
+  color: var(--text-primary);
+}
+.composer-icon:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.composer-icon-recording {
+  color: var(--state-danger);
+  background: var(--state-danger-bg);
+  animation: hermes-dot-pulse 1.4s var(--ease-standard) infinite;
+}
+
+.composer-hint {
+  color: var(--text-quaternary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.composer-hint kbd {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-tertiary);
+}
+
+.composer-send {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--accent-strong);
+  color: var(--text-on-solid);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.composer-send:hover:not(:disabled) {
+  background: #ffffff;
+}
+.composer-send:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.composer-send:disabled {
+  background: var(--surface-4);
+  color: var(--text-disabled);
+  cursor: default;
+}
+.composer-send-stop {
+  background: var(--surface-4);
+  color: var(--text-primary);
+}
+.composer-send-stop:hover {
+  background: var(--state-danger-bg);
+  color: var(--state-danger);
+}
+
+/* ── Slash popover ───────────────────────────────────────────────────── */
+
+.slash-popover {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% + 8px);
+  z-index: var(--z-popover);
+  padding: var(--s-1);
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-overlay);
+}
+
+.slash-popover-item {
+  display: grid;
+  grid-template-columns: 16px minmax(100px, auto) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+.slash-popover-item:hover,
+.slash-popover-item-active {
+  background: var(--accent-faint);
+  color: var(--text-primary);
+}
+.slash-popover-icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+}
+.slash-popover-cmd {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+.slash-popover-desc {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ── Drop overlay ────────────────────────────────────────────────────── */
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  place-items: center;
+  background: rgba(10, 10, 12, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  animation: hermes-fade-in var(--dur-fast) var(--ease-standard);
+}
+
+.drop-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-6) var(--s-8);
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-primary);
+}
+
+.drop-overlay-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--accent-faint);
+  color: var(--text-primary);
+}
+
+.drop-overlay-title {
+  color: var(--text-primary);
+}
+
+.drop-overlay-hint {
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 720px) {
+  .composer-region {
+    padding: 0 var(--s-4) var(--s-4);
+    padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  }
+  .composer-input {
+    padding: 12px 14px 4px;
+    font-size: 16px; /* avoid iOS auto-zoom */
+  }
+  .composer-actions {
+    padding: 4px 8px 8px;
+  }
+  .composer-hint {
+    display: none;
+  }
+}

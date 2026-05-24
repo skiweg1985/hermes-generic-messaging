@@ -66,3 +66,24 @@ async def test_send_typing_emits_typing_event(adapter, parse_sent_events):
     events = parse_sent_events(ws)
     typing_events = [e for e in events if e["type"] == "typing"]
     assert [e["payload"]["state"] for e in typing_events] == ["start", "stop"]
+
+
+@pytest.mark.asyncio
+async def test_late_typing_is_ignored_after_final_send(adapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    await adapter.send_typing("c1")
+    result = await adapter.send("c1", "done", metadata={"reply_id": "r1"})
+    await adapter.send_typing("c1")
+
+    assert result.success is True
+    events = parse_sent_events(ws)
+    assert [e["type"] for e in events] == [
+        "typing",
+        "assistant_start",
+        "assistant_done",
+        "typing",
+    ]
+    assert events[-1]["payload"]["state"] == "stop"

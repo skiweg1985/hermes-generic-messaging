@@ -1,0 +1,85 @@
+/**
+ * Reusable keyframes & motion primitives.
+ * All durations route through tokens; reduced-motion is honored.
+ */
+
+@keyframes hermes-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes hermes-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hermes-rise-in-soft {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hermes-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes hermes-caret-pulse {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.95; }
+}
+
+@keyframes hermes-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes hermes-status-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes hermes-dot-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+/* Utility motion classes (used sparingly inside components). */
+.motion-rise-in {
+  animation: hermes-rise-in var(--dur-base) var(--ease-soft-out) both;
+}
+.motion-rise-in-soft {
+  animation: hermes-rise-in-soft var(--dur-base) var(--ease-soft-out) both;
+}
+.motion-fade-in {
+  animation: hermes-fade-in var(--dur-base) var(--ease-standard) both;
+}
+.motion-scale-in {
+  animation: hermes-scale-in var(--dur-base) var(--ease-soft-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-rise-in,
+  .motion-rise-in-soft,
+  .motion-fade-in,
+  .motion-scale-in {
+    animation: none;
+  }
+}
