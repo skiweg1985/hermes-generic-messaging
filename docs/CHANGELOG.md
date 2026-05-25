@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Plugin: `message.create` mit `attachments[]` validiert jetzt jeden Anhang (MIME/Größe) und transkribiert einzelne Audio-Anhänge per Hermes-STT — Voice-/File-Uploads aus dem Web-Composer erreichen Hermes wieder als sinnvoller `MessageEvent.text` (Regression aus dem kombinierten `message.create`-Pfad)
+- Plugin: media-only `message.create` (kein Text) bekommt einen `[file:…] name url=…` / `[audio:…]`-Fallback-Text — Agents ohne `media_urls`-Kenntnis sehen die Anhänge wieder
+- BFF: `public_media_base_url` defaultet auf die primäre LAN-IPv4, wenn weder `WEB_PUBLIC_MEDIA_BASE_URL`/`WEB_PUBLIC_HOST` noch ein nicht-loopback `BFF_HOST` gesetzt sind — entfernte Hermes-Instanzen können die vom BFF angekündigte URL wieder erreichen (vorher: hartes `127.0.0.1`)
+- BFF: startup loggt die ausgehandelte `public_media_base_url`, damit Fehlkonfigurationen sichtbar sind
+
 ### Changed
 
 - `docs/interface_contract.md`: an Implementierung angeglichen (`typing` state, `interrupted`, REST `detail`-Wrapper, WS-Auth 4401, Env-Namen, `slash_pick` → `command.create`)
@@ -10,6 +17,7 @@
 
 ### Added
 
+- Plugin-Helper `validate_message_attachment` und `transcribe_attachment` (für `message.create`-Attachments)
 - Docs: `docs/interface_contract.md` — vollständiges Interface-Contract-Dokument für Frontend ↔ BFF ↔ Plugin ↔ Hermes Core (Event Schema v1, REST-API, BasePlatformAdapter-Referenz)
 
 ### Added
@@ -30,6 +38,13 @@
 
 ### Fixed
 
+- Web UI: Scroll springt beim Chat-Wechsel auf die neuesten Nachrichten; Lightbox-Registry wird pro Session geleert
+- Web UI: Pending-Uploads bleiben an der Start-Session gebunden (kein Race beim Tab-Wechsel)
+- Web UI: Mikrofon-Upload normalisiert Browser-MIME (`audio/webm;codecs=opus` → `audio/webm`)
+- Web UI: Offline-Feedback bei Attach/Record/Drop; WS-Reconnect-Timer wird bei manuellem Reconnect abgebrochen
+- Web UI: Persistierte Tool-Cards mit `running` werden beim Speichern auf `idle` gesetzt; Composer-Hinweis zeigt `⏎ send`
+- Web UI: `ImageCard`-Download-Link außerhalb des Zoom-Buttons (gültiges HTML)
+- Web UI: Medien-Downloads von Hermes — BFF-URLs werden auf same-origin (`/api/v1/media/…`) umgeschrieben und per Blob heruntergeladen
 - `message.cancel`: plugin resolves line/segment ids to the stream turn id and emits `assistant_done(interrupted)`; web UI tracks `streamTurnId` for cancel targets
 - BFF `GET /api/v1/media/{file_id}` returns guessed MIME type instead of always `application/octet-stream`
 - `send_slash_confirm` with `metadata.gateway_approval` routes button clicks to `resolve_gateway_approval`

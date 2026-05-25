@@ -1132,3 +1132,87 @@ Security leak check: PASS
 PII check: PASS
 Sensitive data touched: no
 Redactions performed: none
+
+## 2026-05-25 22:10 – cursor – Media-Round-Trip Fix (Web ↔ Hermes)
+
+- Done:
+  - Plugin `message.create`-Pfad: pro Anhang `validate_message_attachment`, Audio-Anhänge laufen über `transcribe_attachment` (Hermes-STT) — Voice-/Datei-Uploads aus dem Composer landen wieder als sinnvoller `MessageEvent.text` bei Hermes
+  - `events/mapping.py`: media-only `message.create` (kein Text) bekommt `[file:…] name url=…` / `[audio:…]`-Fallback-Text, plus existierende `media_urls`/`media_types`
+  - BFF `resolve_public_media_base_url`: defaultet auf `get_primary_ipv4()`, wenn weder `WEB_PUBLIC_MEDIA_BASE_URL`/`WEB_PUBLIC_HOST` noch ein nicht-loopback `BFF_HOST` gesetzt sind (vorher hartes `127.0.0.1` → entferntes Hermes konnte den BFF nicht erreichen, Bilder/Medien kamen nie im Frontend an)
+  - BFF startup: loggt die ausgehandelte `public_media_base_url`
+  - Neue Tests: `test_message_create_audio_attachment_transcribed`, `test_message_create_file_attachment_fallback_text`, `test_message_create_attachment_rejects_unsupported_mime`, `test_message_create_text_with_attachment_keeps_text`, `validate_message_attachment`/`transcribe_attachment` Unit-Tests, `test_resolve_public_media_*` LAN-Fallback-Tests
+- Next:
+  - Frontend könnte zusätzlich `audio.uploaded`/`file.uploaded` für reine Single-Attachment-Sends senden, um vor-Plugin-Update-Hosts zu unterstützen (optional, Plugin deckt beide Pfade ab)
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - plugins/platforms/custom_chat/config.py
+  - plugins/platforms/custom_chat/events/mapping.py
+  - plugins/platforms/custom_chat/media.py
+  - web/backend/app/core/network.py
+  - web/backend/app/main.py
+  - tests/plugins/custom_chat/test_media.py
+  - tests/web/test_network.py
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `pytest tests/plugins/custom_chat/test_media.py tests/web/test_network.py -q` → 25 passed; `npm test -- --run` → 65 passed; volle Plugin+BFF-Suite → 103 passed (1 vorbestehender Test-Isolation-Fehler `test_settings_from_extra` durch `web/.env`-Pollution, nicht aus diesem Change)
+  - endpoints: n/a
+  - UI path: Composer → Paperclip/Mic → Datei senden → Hermes empfängt `MessageEvent.text` mit STT bzw. `[file:…] url=…`; assistant_image / -file werden mit LAN-IP an Frontend ausgeliefert
+- Changelog updated:
+  - yes (Fixed/Added)
+- Follow-ups:
+  - Pre-existing Test-Isolation Issue: `web/.env` wird global geladen und überschreibt `bearer_token` in `test_settings_from_extra` — separat in conftest fixen
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none
+
+## 2026-05-25 21:23 – Auto – Frontend Edge-Case Fixes
+
+- Done:
+  - Browser-Audit Edge Cases umgesetzt (Scroll, Upload-Race, Lightbox, MIME, Offline, WS-Reconnect)
+  - `useScrollFollow` + `Transcript`: Scroll-Reset bei Session-Wechsel
+  - Pending-Attachments an `chatId` gebunden; Offline `NOT_CONNECTED`-Fehler
+  - `MediaProvider.registryKey`, `ImageCard`-HTML, Composer-Hint, `MessageReasoning` „Thought briefly“
+  - `wsClient`: Reconnect-Timer canceln, doppeltes `connect()` vermeiden
+  - `sessionPersistence`: `running` → `idle`, localStorage try/catch
+- Next:
+  - BFF neu starten und Mikrofon manuell verifizieren
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1 (working tree)
+  - PR: none
+- Files touched:
+  - web/frontend/src/hooks/useScrollFollow.ts
+  - web/frontend/src/features/chat/Transcript.tsx
+  - web/frontend/src/features/chat/ChatPage.tsx
+  - web/frontend/src/features/chat/useChatController.ts
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/chat/sessionPersistence.ts
+  - web/frontend/src/features/chat/sessionPersistence.test.ts
+  - web/frontend/src/features/composer/Composer.tsx
+  - web/frontend/src/features/media/MediaProvider.tsx
+  - web/frontend/src/features/media/ImageCard.tsx
+  - web/frontend/src/features/media/media.css
+  - web/frontend/src/features/shell/ConnectionBanner.tsx
+  - web/frontend/src/features/chat/messages/MessageReasoning.tsx
+  - web/frontend/src/api/wsClient.ts
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `cd web/frontend && npm test` (63 passed)
+- Changelog updated:
+  - yes (Fixed)
+- Follow-ups:
+  - Manuell: Chat-Wechsel, Mikrofon, Lightbox über zwei Sessions
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none
