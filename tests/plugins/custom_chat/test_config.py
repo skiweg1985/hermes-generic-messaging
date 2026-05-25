@@ -83,6 +83,32 @@ def test_file_requires_url_or_file_ref():
         )
 
 
+def test_message_create_with_attachments():
+    msg = MessageCreatePayload.model_validate(
+        {
+            "message_id": "m1",
+            "text": "see files",
+            "attachments": [
+                {
+                    "attachment_id": "a1",
+                    "mime_type": "image/png",
+                    "size_bytes": 1200,
+                    "url": "https://example.local/i.png",
+                    "filename": "i.png",
+                }
+            ],
+        }
+    )
+    assert msg.text == "see files"
+    assert len(msg.attachments) == 1
+    assert msg.attachments[0].attachment_id == "a1"
+
+
+def test_message_create_requires_text_or_attachments():
+    with pytest.raises(ValidationError):
+        MessageCreatePayload(message_id="m1", text="")
+
+
 def test_outbound_event_builder():
     ev = build_outbound_event(
         event_id="out-1",

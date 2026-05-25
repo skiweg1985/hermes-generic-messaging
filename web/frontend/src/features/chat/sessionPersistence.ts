@@ -31,7 +31,12 @@ export function loadChatState(fallback: ChatState): ChatState {
     const sessions = parsed.sessions.filter(isStoredSession).map(trimSession);
     if (sessions.length === 0) return fallback;
 
-    const sessionsById = Object.fromEntries(sessions.map((session) => [session.chatId, session]));
+    const sessionsById = Object.fromEntries(
+      sessions.map((session) => [
+        session.chatId,
+        { ...session, pendingAttachments: session.pendingAttachments ?? [] },
+      ]),
+    );
     const activeChatId =
       typeof parsed.activeChatId === "string" && sessionsById[parsed.activeChatId]
         ? parsed.activeChatId
@@ -52,6 +57,7 @@ function trimSession(session: ChatSession): ChatSession {
     ...session,
     lines: session.lines.slice(-MAX_TRANSCRIPT_LINES).map(trimLine),
     streamingMessageId: null,
+    pendingAttachments: [],
     typing: false,
     typingStartedAt: undefined,
     typingClosed: false,

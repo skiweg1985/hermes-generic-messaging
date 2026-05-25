@@ -38,9 +38,19 @@ export interface EventEnvelope {
   payload: Record<string, unknown>;
 }
 
+export interface MessageAttachment {
+  attachment_id: string;
+  mime_type: string;
+  size_bytes: number;
+  url?: string;
+  file_ref?: string;
+  filename?: string;
+}
+
 export interface MessageCreatePayload {
   message_id: string;
   text: string;
+  attachments?: MessageAttachment[];
   idempotency_key?: string;
 }
 
@@ -88,6 +98,8 @@ export interface AssistantButton {
   style: ButtonStyle;
 }
 
+export type ToolStatus = "running" | "success" | "error" | "idle";
+
 export type TranscriptLineKind =
   | "empty"
   | "user"
@@ -99,6 +111,7 @@ export type TranscriptLineKind =
   | "notice"
   | "image"
   | "file"
+  | "video"
   | "error";
 
 export interface TranscriptLine {
@@ -127,11 +140,37 @@ export interface TranscriptLine {
   streaming?: boolean;
   interrupted?: boolean;
   reasoningText?: string;
+  lastSequence?: number;
+  toolName?: string;
+  toolStatus?: ToolStatus;
+  toolArgs?: string;
+  toolResult?: string;
+  toolDurationMs?: number;
+  toolError?: string;
+  videoUrl?: string;
+  posterUrl?: string;
 }
 
 export interface SessionMetaPayload {
   title?: string;
   extra?: Record<string, unknown>;
+}
+
+export type PendingAttachmentStatus = "queued" | "uploading" | "done" | "error";
+
+export interface PendingAttachment {
+  localId: string;
+  fileName: string;
+  mimeType: string;
+  status: PendingAttachmentStatus;
+  error?: { code: string; message: string };
+  result?: {
+    url: string;
+    mime_type: string;
+    size_bytes: number;
+    filename: string;
+    attachment_id: string;
+  };
 }
 
 export interface ChatSession {
@@ -143,6 +182,7 @@ export interface ChatSession {
   lines: TranscriptLine[];
   streamingMessageId: string | null;
   input: string;
+  pendingAttachments: PendingAttachment[];
   typing: boolean;
   typingStartedAt?: string;
   typingClosed?: boolean;

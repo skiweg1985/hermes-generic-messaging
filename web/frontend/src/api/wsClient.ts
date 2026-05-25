@@ -1,4 +1,4 @@
-import type { ButtonClickPayload, EventEnvelope } from "../types/events";
+import type { ButtonClickPayload, EventEnvelope, MessageAttachment } from "../types/events";
 import { newId } from "../lib/uuid";
 
 export type MessageHandler = (event: EventEnvelope) => void;
@@ -80,8 +80,27 @@ export class WsClient {
   }
 
   sendText(text: string, chatId: string, userId: string, context: SendContext = {}): void {
-    const messageId = newId();
-    this.send({
+    this.sendMessage({ messageId: newId(), text }, chatId, userId, context);
+  }
+
+  sendMessage(
+    params: {
+      messageId: string;
+      text: string;
+      attachments?: MessageAttachment[];
+    },
+    chatId: string,
+    userId: string,
+    context: SendContext = {},
+  ): boolean {
+    const payload: Record<string, unknown> = {
+      message_id: params.messageId,
+      text: params.text,
+    };
+    if (params.attachments && params.attachments.length > 0) {
+      payload.attachments = params.attachments;
+    }
+    return this.send({
       schema_version: "v1",
       event_id: newId(),
       timestamp: nowIso(),
@@ -91,7 +110,7 @@ export class WsClient {
       thread_id: context.threadId,
       session_id: context.sessionId,
       type: "message.create",
-      payload: { message_id: messageId, text },
+      payload,
     });
   }
 

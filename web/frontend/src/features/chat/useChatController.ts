@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, type Dispatch } from "react";
 import { WsClient } from "../../api/wsClient";
 import { uploadMedia } from "../../api/mediaClient";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
-import { DEFAULT_CHAT_ID, chatReducer, initialChatState } from "./chatReducer";
+import { DEFAULT_CHAT_ID, chatReducer, initialChatState, type ChatAction } from "./chatReducer";
 import { loadChatState, persistChatState } from "./sessionPersistence";
 import { newId } from "../../lib/uuid";
-import type { AssistantButton, ChatSession, TranscriptLine } from "../../types/events";
+import type {
+  AssistantButton,
+  ChatSession,
+  MessageAttachment,
+  PendingAttachment,
+  TranscriptLine,
+} from "../../types/events";
 
 const USER_ID = "user-demo";
 const TYPING_TIMEOUT_MS = 5500;
@@ -24,6 +30,9 @@ export interface ChatController {
   setInput: (value: string) => void;
   submit: () => void;
   cancel: () => void;
+  addFiles: (files: File[]) => Promise<void>;
+  retryUpload: (localId: string) => Promise<void>;
+  removePending: (localId: string) => void;
   uploadFile: (file: File) => Promise<void>;
   toggleRecord: () => Promise<void>;
   clickButton: (line: TranscriptLine, button: AssistantButton) => void;
@@ -36,6 +45,29 @@ function createBrowserChatId(): string {
   return `workspace:${id}`;
 }
 
+async function uploadPendingFile(
+  file: File,
+  localId: string,
+  dispatch: Dispatch<ChatAction>,
+): Promise<PendingAttachment["result"]> {
+  dispatch({ type: "SET_PENDING_ATTACHMENT_STATUS", localId, status: "uploading" });
+  const result = await uploadMedia(file, file.name);
+  const uploaded: PendingAttachment["result"] = {
+    url: result.url,
+    mime_type: result.mime_type,
+    size_bytes: result.size_bytes,
+    filename: file.name,
+    attachment_id: newId(),
+  };
+  dispatch({
+    type: "SET_PENDING_ATTACHMENT_STATUS",
+    localId,
+    status: "done",
+    result: uploaded,
+  });
+  return uploaded;
+}
+
 export function useChatController(): ChatController {
   const [state, dispatch] = useReducer(
     chatReducer,
@@ -43,6 +75,7 @@ export function useChatController(): ChatController {
     loadChatState,
   );
   const wsRef = useRef<WsClient | null>(null);
+  const pendingFilesRef = useRef<Map<string, File>>(new Map());
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
@@ -118,10 +151,74 @@ export function useChatController(): ChatController {
     dispatch({ type: "SET_INPUT", input });
   }, []);
 
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      if (!connected) return;
+      for (const file of files) {
+        const localId = newId();
+        pendingFilesRef.current.set(localId, file);
+        dispatch({
+          type: "ADD_PENDING_ATTACHMENT",
+          localId,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+        });
+        try {
+          await uploadPendingFile(file, localId, dispatch);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "upload failed";
+          const [code, ...rest] = msg.split(": ");
+          dispatch({
+            type: "SET_PENDING_ATTACHMENT_STATUS",
+            localId,
+            status: "error",
+            error: {
+              code: code ?? "UPLOAD_FAILED",
+              message: rest.join(": ") || msg,
+            },
+          });
+        }
+      }
+    },
+    [connected],
+  );
+
+  const retryUpload = useCallback(
+    async (localId: string) => {
+      const file = pendingFilesRef.current.get(localId);
+      if (!file || !connected) return;
+      try {
+        await uploadPendingFile(file, localId, dispatch);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "upload failed";
+        const [code, ...rest] = msg.split(": ");
+        dispatch({
+          type: "SET_PENDING_ATTACHMENT_STATUS",
+          localId,
+          status: "error",
+          error: {
+            code: code ?? "UPLOAD_FAILED",
+            message: rest.join(": ") || msg,
+          },
+        });
+      }
+    },
+    [connected],
+  );
+
+  const removePending = useCallback((localId: string) => {
+    pendingFilesRef.current.delete(localId);
+    dispatch({ type: "REMOVE_PENDING_ATTACHMENT", localId });
+  }, []);
+
   const submit = useCallback(() => {
     const session = state.sessionsById[state.activeChatId];
     const raw = session.input.trim();
-    if (!raw || !wsRef.current || !connected) return;
+    const ready = session.pendingAttachments.filter((a) => a.status === "done" && a.result);
+    const uploading = session.pendingAttachments.some(
+      (a) => a.status === "uploading" || a.status === "queued",
+    );
+    if ((!raw && ready.length === 0) || uploading || !wsRef.current || !connected) return;
 
     if (raw === "cancel") {
       if (session.streamingMessageId) {
@@ -134,11 +231,52 @@ export function useChatController(): ChatController {
     if (raw.startsWith("/")) {
       dispatch({ type: "USER_COMMAND", command: raw });
       wsRef.current.sendCommand(raw, session.chatId, USER_ID);
-    } else {
-      dispatch({ type: "USER_TEXT", text: raw });
-      wsRef.current.sendText(raw, session.chatId, USER_ID);
+      dispatch({ type: "SET_INPUT", input: "" });
+      dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
+      pendingFilesRef.current.clear();
+      return;
     }
+
+    const turnMessageId = newId();
+    const attachments: MessageAttachment[] = ready.map((entry) => ({
+      attachment_id: entry.result!.attachment_id,
+      mime_type: entry.result!.mime_type,
+      size_bytes: entry.result!.size_bytes,
+      url: entry.result!.url,
+      filename: entry.result!.filename,
+    }));
+
+    dispatch({
+      type: "USER_MESSAGE",
+      turnMessageId,
+      text: raw,
+      attachments: ready.map((entry) => ({
+        attachmentId: entry.result!.attachment_id,
+        filename: entry.result!.filename,
+        mime: entry.result!.mime_type,
+        size: entry.result!.size_bytes,
+        url: entry.result!.url,
+      })),
+    });
+
+    const delivered = wsRef.current.sendMessage(
+      { messageId: turnMessageId, text: raw, attachments },
+      session.chatId,
+      USER_ID,
+    );
+
+    if (!delivered) {
+      dispatch({
+        type: "USER_ERROR",
+        code: "WS_NOT_CONNECTED",
+        message: "message not delivered — reconnect and resend",
+        chatId: session.chatId,
+      });
+    }
+
     dispatch({ type: "SET_INPUT", input: "" });
+    dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
+    pendingFilesRef.current.clear();
   }, [state.activeChatId, state.sessionsById, connected]);
 
   const cancel = useCallback(() => {
@@ -160,49 +298,9 @@ export function useChatController(): ChatController {
 
   const uploadFile = useCallback(
     async (file: File) => {
-      if (!wsRef.current || !connected) return;
-      const chatId = state.activeChatId;
-      try {
-        const result = await uploadMedia(file, file.name);
-        dispatch({
-          type: "USER_UPLOAD",
-          filename: file.name,
-          mime: result.mime_type,
-          size: result.size_bytes,
-          url: result.url,
-          chatId,
-        });
-        const delivered = wsRef.current.sendFileUploaded(
-          {
-            message_id: newId(),
-            filename: file.name,
-            mime_type: result.mime_type,
-            size_bytes: result.size_bytes,
-            url: result.url,
-          },
-          chatId,
-          USER_ID,
-        );
-        if (!delivered) {
-          dispatch({
-            type: "USER_ERROR",
-            code: "WS_NOT_CONNECTED",
-            message: "file stored but agent not notified — reconnect and resend",
-            chatId,
-          });
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "upload failed";
-        const [code, ...rest] = msg.split(": ");
-        dispatch({
-          type: "USER_ERROR",
-          code: code ?? "UPLOAD_FAILED",
-          message: rest.join(": ") || msg,
-          chatId,
-        });
-      }
+      await addFiles([file]);
     },
-    [connected, state.activeChatId],
+    [addFiles],
   );
 
   const clickButton = useCallback(
@@ -250,59 +348,13 @@ export function useChatController(): ChatController {
     [connected, state.activeChatId],
   );
 
-  const uploadAudio = useCallback(
-    async (file: File) => {
-      if (!wsRef.current || !connected) return;
-      const chatId = state.activeChatId;
-      try {
-        const result = await uploadMedia(file, file.name);
-        dispatch({
-          type: "USER_UPLOAD",
-          filename: file.name,
-          mime: result.mime_type,
-          size: result.size_bytes,
-          url: result.url,
-          chatId,
-        });
-        const delivered = wsRef.current.sendAudioUploaded(
-          {
-            message_id: newId(),
-            mime_type: result.mime_type,
-            size_bytes: result.size_bytes,
-            url: result.url,
-          },
-          chatId,
-          USER_ID,
-        );
-        if (!delivered) {
-          dispatch({
-            type: "USER_ERROR",
-            code: "WS_NOT_CONNECTED",
-            message: "audio stored but agent not notified — reconnect and resend",
-            chatId,
-          });
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "upload failed";
-        const [code, ...rest] = msg.split(": ");
-        dispatch({
-          type: "USER_ERROR",
-          code: code ?? "UPLOAD_FAILED",
-          message: rest.join(": ") || msg,
-          chatId,
-        });
-      }
-    },
-    [connected, state.activeChatId],
-  );
-
   const toggleRecord = useCallback(async () => {
     if (!connected) return;
     if (recording) {
       try {
         const blob = await stopRec();
-        const name = `recording.webm`;
-        await uploadAudio(new File([blob], name, { type: blob.type || "audio/webm" }));
+        const file = new File([blob], "recording.webm", { type: blob.type || "audio/webm" });
+        await addFiles([file]);
       } catch {
         dispatch({
           type: "USER_ERROR",
@@ -321,7 +373,7 @@ export function useChatController(): ChatController {
         });
       }
     }
-  }, [connected, recording, startRec, stopRec, uploadAudio]);
+  }, [connected, recording, startRec, stopRec, addFiles]);
 
   const reconnect = useCallback(() => {
     wsRef.current?.reconnect();
@@ -341,6 +393,9 @@ export function useChatController(): ChatController {
     setInput,
     submit,
     cancel,
+    addFiles,
+    retryUpload,
+    removePending,
     uploadFile,
     toggleRecord,
     clickButton,

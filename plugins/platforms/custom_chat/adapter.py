@@ -737,6 +737,18 @@ class CustomChatAdapter(BasePlatformAdapter):
       "text": content,
       "kind": "tool",
     }
+    if meta.get("tool_name"):
+      payload["tool_name"] = str(meta["tool_name"])
+    if meta.get("status"):
+      payload["status"] = str(meta["status"])
+    if meta.get("args") is not None:
+      payload["args"] = meta["args"] if isinstance(meta["args"], str) else str(meta["args"])
+    if meta.get("result") is not None:
+      payload["result"] = meta["result"] if isinstance(meta["result"], str) else str(meta["result"])
+    if meta.get("duration_ms") is not None:
+      payload["duration_ms"] = int(meta["duration_ms"])
+    if meta.get("error") is not None:
+      payload["error"] = str(meta["error"])
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),

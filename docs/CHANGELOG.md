@@ -4,6 +4,15 @@
 
 ### Added
 
+- Web UI: Normalized `ChatMessage` / `MessagePart` model with `normalizeTranscript` adapter; `TurnGroup` renders via `PartRenderer`
+- Web UI: `message.create` supports `attachments[]` (text + multiple files in one user turn); Composer draft with upload progress and inline retry
+- Web UI: `assistant_delta` honors monotonic `sequence` (duplicate ignore, out-of-order buffer); partial text preserved on `interrupted`
+- Web UI: Structured tool notices (`tool_name`, `status`, `args`, `result`, `duration_ms`, `error`) with `ActivityCard` structured-first rendering
+- Web UI: `VideoCard` for `video/*` attachments; `assistant_file` maps video MIME to `kind: video`
+- Schema: `MessageAttachment` on `MessageCreatePayload`; inbound mapping passes `media_urls` / `media_types` to Hermes
+
+### Added
+
 - Config simplification: BFF accepts `CUSTOM_CHAT_TARGET` (host, `host:port`, or `ws://` URL) instead of coordinating multiple IP/URL env vars
 - Inbound `client.register` event: web BFF announces `public_media_base_url` on upstream connect; plugin uses it for outbound media uploads (overrides `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL`)
 - BFF auto-detects public media base URL from bind host (`BFF_HOST=0.0.0.0` → LAN IP); overrides via `WEB_PUBLIC_MEDIA_BASE_URL`, `WEB_PUBLIC_HOST`, `WEB_PUBLIC_PORT`

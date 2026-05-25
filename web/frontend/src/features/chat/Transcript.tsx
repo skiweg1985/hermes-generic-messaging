@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { AssistantButton, TranscriptLine } from "../../types/events";
 import { useScrollFollow } from "../../hooks/useScrollFollow";
-import { groupTurns } from "./turnGrouping";
+import { groupTurnsFromLines } from "./model/groupMessages";
 import { TurnGroup } from "./TurnGroup";
 import { TypingIndicator } from "./messages/TypingIndicator";
 import { IconArrowUp } from "../shell/icons";
@@ -15,7 +15,8 @@ interface TranscriptProps {
 }
 
 export function Transcript({ lines, typing = false, onButtonClick }: TranscriptProps) {
-  const turns = useMemo(() => groupTurns(lines), [lines]);
+  const turns = useMemo(() => groupTurnsFromLines(lines), [lines]);
+  const turnActive = useMemo(() => lines.some((l) => l.streaming), [lines]);
   const trigger = useMemo(() => {
     const last = lines[lines.length - 1];
     return `${lines.length}:${last?.text.length ?? 0}:${typing ? 1 : 0}`;
@@ -54,6 +55,7 @@ export function Transcript({ lines, typing = false, onButtonClick }: TranscriptP
                 <TurnGroup
                   key={turn.id}
                   turn={turn}
+                  turnActive={turnActive}
                   onButtonClick={onButtonClick}
                 />
               ))}

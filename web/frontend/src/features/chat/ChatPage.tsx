@@ -102,8 +102,10 @@ export function ChatPage() {
     e.preventDefault();
     dragCounter.current = 0;
     setDropOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) ctrl.uploadFile(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      void ctrl.addFiles(Array.from(files));
+    }
   };
 
   return (
@@ -154,10 +156,13 @@ export function ChatPage() {
             disabled={!ctrl.connected}
             streaming={ctrl.streaming}
             recording={ctrl.recording}
+            pendingAttachments={activeSession.pendingAttachments}
             onChange={ctrl.setInput}
             onSubmit={ctrl.submit}
             onCancel={ctrl.cancel}
-            onFile={ctrl.uploadFile}
+            onFiles={(files) => void ctrl.addFiles(files)}
+            onRetryUpload={(id) => void ctrl.retryUpload(id)}
+            onRemovePending={ctrl.removePending}
             onToggleRecord={ctrl.toggleRecord}
           />
         </main>

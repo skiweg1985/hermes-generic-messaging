@@ -375,6 +375,109 @@ describe("chatReducer", () => {
     expect(session(s).title).toBe("Refactor billing service");
   });
 
+  it("ignores duplicate assistant_delta sequence", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 1, delta: "Hel" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 1, delta: "lo" }),
+    });
+    expect(session(s).lines[0].text).toBe("Hel");
+  });
+
+  it("applies out-of-order assistant_delta when sequence arrives in order", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 2, delta: "lo" }),
+    });
+    expect(session(s).lines[0].text).toBe("");
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 1, delta: "Hel" }),
+    });
+    expect(session(s).lines[0].text).toBe("Hello");
+  });
+
+  it("preserves partial text on interrupted assistant_done", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", delta: "partial answer" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", { message_id: "r1", final_text: "", interrupted: true }),
+    });
+    expect(session(s).lines[0].text).toBe("partial answer");
+    expect(session(s).lines[0].interrupted).toBe(true);
+  });
+
+  it("stores structured tool fields on assistant_notice", () => {
+    const s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "read_file: main.py",
+        tool_name: "read_file",
+        status: "success",
+        duration_ms: 42,
+      }),
+    });
+    expect(session(s).lines[0].toolName).toBe("read_file");
+    expect(session(s).lines[0].toolStatus).toBe("success");
+    expect(session(s).lines[0].toolDurationMs).toBe(42);
+  });
+
+  it("creates USER_MESSAGE turn with text and attachments", () => {
+    const s = chatReducer(base, {
+      type: "USER_MESSAGE",
+      turnMessageId: "turn-9",
+      text: "see this",
+      attachments: [
+        {
+          attachmentId: "att-1",
+          filename: "doc.pdf",
+          mime: "application/pdf",
+          size: 100,
+          url: "https://example.local/doc.pdf",
+        },
+      ],
+    });
+    const lines = session(s).lines;
+    expect(lines.filter((l) => l.turnMessageId === "turn-9")).toHaveLength(2);
+    expect(lines.some((l) => l.kind === "user")).toBe(true);
+    expect(lines.some((l) => l.kind === "upload")).toBe(true);
+  });
+
+  it("maps video mime to video line kind", () => {
+    const s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_file", {
+        message_id: "v1",
+        filename: "clip.webm",
+        mime_type: "video/webm",
+        size_bytes: 900,
+        url: "https://example.local/clip.webm",
+      }),
+    });
+    expect(session(s).lines[0].kind).toBe("video");
+    expect(session(s).lines[0].videoUrl).toContain("clip.webm");
+  });
+
   it("upserts tool progress notices by message_id", () => {
     let s = chatReducer(base, {
       type: "INBOUND_EVENT",

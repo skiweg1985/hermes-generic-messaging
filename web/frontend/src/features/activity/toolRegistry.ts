@@ -138,6 +138,30 @@ export interface ParsedActivity {
   state: "running" | "success" | "error" | "idle";
 }
 
+export function parseStructuredActivity(line: {
+  text: string;
+  toolName?: string;
+  toolStatus?: ParsedActivity["state"];
+  toolArgs?: string;
+  toolResult?: string;
+  toolError?: string;
+}): ParsedActivity | null {
+  if (!line.toolName && !line.toolStatus) return null;
+  const parsed = parseActivity(line.text);
+  const status = line.toolStatus ?? parsed.state;
+  return {
+    ...parsed,
+    rawName: line.toolName ?? parsed.rawName,
+    title:
+      status === "running" || status === "idle"
+        ? parsed.meta.presentLabel ?? parsed.meta.label
+        : parsed.meta.pastLabel ?? parsed.meta.label,
+    summary: parsed.summary || line.toolName || "",
+    detail: line.toolResult ?? line.toolArgs ?? parsed.detail,
+    state: status,
+  };
+}
+
 export function parseActivity(text: string): ParsedActivity {
   const raw = text ?? "";
   const lines = raw.split(/\r?\n/);

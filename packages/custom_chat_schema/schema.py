@@ -97,10 +97,32 @@ class EventEnvelope(BaseModel):
         return v
 
 
+class MessageAttachment(BaseModel):
+    attachment_id: str
+    mime_type: str
+    size_bytes: int
+    url: Optional[str] = None
+    file_ref: Optional[str] = None
+    filename: Optional[str] = None
+
+    @model_validator(mode="after")
+    def url_or_file_ref(self) -> "MessageAttachment":
+        if not self.url and not self.file_ref:
+            raise ValueError("url or file_ref required")
+        return self
+
+
 class MessageCreatePayload(BaseModel):
     message_id: str
-    text: str
+    text: str = ""
+    attachments: list[MessageAttachment] = Field(default_factory=list)
     idempotency_key: Optional[str] = None
+
+    @model_validator(mode="after")
+    def text_or_attachments(self) -> "MessageCreatePayload":
+        if not self.text.strip() and not self.attachments:
+            raise ValueError("text or attachments required")
+        return self
 
 
 class CommandCreatePayload(BaseModel):

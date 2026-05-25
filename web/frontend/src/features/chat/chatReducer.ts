@@ -3,6 +3,8 @@ import type {
   ChatSession,
   ChatState,
   EventEnvelope,
+  PendingAttachment,
+  ToolStatus,
   TranscriptLine,
 } from "../../types/events";
 import { newId } from "../../lib/uuid";
@@ -44,6 +46,7 @@ export function createChatSession(chatId: string, label = defaultLabel(chatId)):
     lines: [],
     streamingMessageId: null,
     input: "",
+    pendingAttachments: [],
     typing: false,
     typingClosed: false,
     unread: false,
@@ -71,13 +74,32 @@ export type ChatAction =
   | { type: "CREATE_CHAT"; chatId: string; label?: string }
   | { type: "SET_INPUT"; input: string }
   | { type: "SET_RECORDING"; recording: boolean }
-  | { type: "USER_TEXT"; text: string }
+  | { type: "USER_TEXT"; text: string; turnMessageId?: string }
   | { type: "USER_COMMAND"; command: string }
-  | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string }
+  | {
+      type: "USER_MESSAGE";
+      turnMessageId: string;
+      text: string;
+      attachments: Array<{
+        attachmentId: string;
+        filename: string;
+        mime: string;
+        size: number;
+        url: string;
+      }>;
+    }
+  | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string; turnMessageId?: string }
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
+  | { type: "ADD_PENDING_ATTACHMENT"; localId: string; fileName: string; mimeType: string }
+  | { type: "SET_PENDING_ATTACHMENT_STATUS"; localId: string; status: PendingAttachment["status"]; error?: { code: string; message: string }; result?: PendingAttachment["result"] }
+  | { type: "REMOVE_PENDING_ATTACHMENT"; localId: string }
+  | { type: "CLEAR_PENDING_ATTACHMENTS" }
   | { type: "BUTTON_CLICKED"; chatId: string; lineId: string; buttonId: string }
   | { type: "CLEAR_TYPING"; chatId: string }
   | { type: "INBOUND_EVENT"; event: EventEnvelope };
+
+const DELTA_BUFFER_CAP = 64;
+const streamBuffers = new Map<string, Map<number, string>>();
 
 function appendLine(session: ChatSession, line: TranscriptLine): ChatSession {
   const lines = session.lines.filter((l) => l.kind !== "empty");
@@ -165,11 +187,41 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "USER_TEXT":
       return updateActiveSession(state, (session) =>
         appendLine(openTyping(session), {
-          id: newId(),
+          id: action.turnMessageId ?? newId(),
           kind: "user",
           text: action.text,
+          turnMessageId: action.turnMessageId,
         }),
       );
+    case "USER_MESSAGE": {
+      const { turnMessageId, text, attachments } = action;
+      return updateActiveSession(state, (session) => {
+        let next = openTyping(session);
+        if (text.trim()) {
+          next = appendLine(next, {
+            id: turnMessageId,
+            kind: "user",
+            text: text.trim(),
+            turnMessageId,
+          });
+        }
+        for (const att of attachments) {
+          next = appendLine(
+            next,
+            buildAttachmentLine({
+              id: att.attachmentId,
+              role: "user",
+              filename: att.filename,
+              mime: att.mime,
+              size: att.size,
+              url: att.url,
+              turnMessageId,
+            }),
+          );
+        }
+        return { ...next, pendingAttachments: [] };
+      });
+    }
     case "USER_COMMAND":
       return updateActiveSession(state, (session) =>
         appendLine(openTyping(session), {
@@ -189,9 +241,49 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
             mime: action.mime,
             size: action.size,
             url: action.url ?? "",
+            turnMessageId: action.turnMessageId,
           }),
         ),
       );
+    case "ADD_PENDING_ATTACHMENT":
+      return updateActiveSession(state, (session) => ({
+        ...session,
+        pendingAttachments: [
+          ...session.pendingAttachments,
+          {
+            localId: action.localId,
+            fileName: action.fileName,
+            mimeType: action.mimeType,
+            status: "queued",
+          },
+        ],
+      }));
+    case "SET_PENDING_ATTACHMENT_STATUS":
+      return updateActiveSession(state, (session) => ({
+        ...session,
+        pendingAttachments: session.pendingAttachments.map((entry) =>
+          entry.localId === action.localId
+            ? {
+                ...entry,
+                status: action.status,
+                error: action.error,
+                result: action.result,
+              }
+            : entry,
+        ),
+      }));
+    case "REMOVE_PENDING_ATTACHMENT":
+      return updateActiveSession(state, (session) => ({
+        ...session,
+        pendingAttachments: session.pendingAttachments.filter(
+          (entry) => entry.localId !== action.localId,
+        ),
+      }));
+    case "CLEAR_PENDING_ATTACHMENTS":
+      return updateActiveSession(state, (session) => ({
+        ...session,
+        pendingAttachments: [],
+      }));
     case "USER_ERROR":
       return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
         appendLine(session, {
@@ -233,6 +325,80 @@ function isAudioMime(mime: string): boolean {
   return mime.startsWith("audio/");
 }
 
+function isVideoMime(mime: string): boolean {
+  return mime.startsWith("video/");
+}
+
+function parseToolStatus(value: unknown): ToolStatus | undefined {
+  const s = String(value ?? "").toLowerCase();
+  if (s === "running" || s === "success" || s === "error" || s === "idle") return s;
+  return undefined;
+}
+
+function applyDeltaToLine(
+  line: TranscriptLine,
+  delta: string,
+  sequence?: number,
+): TranscriptLine {
+  if (sequence == null || !Number.isFinite(sequence)) {
+    return { ...line, text: line.text + delta, streaming: true };
+  }
+
+  const seq = Math.floor(sequence);
+  const last = line.lastSequence ?? 0;
+
+  if (seq <= last) {
+    return line;
+  }
+
+  if (seq === last + 1) {
+    let next = { ...line, text: line.text + delta, streaming: true, lastSequence: seq };
+    const buffer = streamBuffers.get(line.id);
+    if (buffer) {
+      let cursor = seq + 1;
+      while (buffer.has(cursor)) {
+        next = { ...next, text: next.text + (buffer.get(cursor) ?? ""), lastSequence: cursor };
+        buffer.delete(cursor);
+        cursor += 1;
+      }
+      if (buffer.size === 0) streamBuffers.delete(line.id);
+    }
+    return next;
+  }
+
+  let buffer = streamBuffers.get(line.id);
+  if (!buffer) {
+    buffer = new Map();
+    streamBuffers.set(line.id, buffer);
+  }
+  if (buffer.size < DELTA_BUFFER_CAP) {
+    buffer.set(seq, delta);
+  } else {
+    return { ...line, text: line.text + delta, streaming: true, lastSequence: seq };
+  }
+  return line;
+}
+
+function flushDeltaBuffer(messageId: string, line: TranscriptLine): TranscriptLine {
+  const buffer = streamBuffers.get(messageId);
+  if (!buffer || buffer.size === 0) return line;
+  const keys = [...buffer.keys()].sort((a, b) => a - b);
+  let next = line;
+  const last = line.lastSequence ?? 0;
+  for (const seq of keys) {
+    if (seq > last) {
+      next = {
+        ...next,
+        text: next.text + (buffer.get(seq) ?? ""),
+        lastSequence: seq,
+      };
+    }
+    buffer.delete(seq);
+  }
+  streamBuffers.delete(messageId);
+  return next;
+}
+
 function fileLabel(filename: string, mime: string, size: number): string {
   return `${filename} (${mime}, ${formatSize(size)})`;
 }
@@ -246,9 +412,11 @@ function buildAttachmentLine(params: {
   url: string;
   threadId?: string;
   sessionId?: string;
+  turnMessageId?: string;
 }): TranscriptLine {
-  const { id, role, filename, mime, size, url, threadId, sessionId } = params;
+  const { id, role, filename, mime, size, url, threadId, sessionId, turnMessageId } = params;
   const label = fileLabel(filename, mime, size);
+  const base = { threadId, sessionId, turnMessageId };
   if (isImageMime(mime)) {
     return {
       id,
@@ -261,8 +429,7 @@ function buildAttachmentLine(params: {
       fileUrl: url,
       sizeBytes: size,
       mimeType: mime,
-      threadId,
-      sessionId,
+      ...base,
     };
   }
   if (isAudioMime(mime)) {
@@ -276,8 +443,21 @@ function buildAttachmentLine(params: {
       fileUrl: url,
       sizeBytes: size,
       mimeType: mime,
-      threadId,
-      sessionId,
+      ...base,
+    };
+  }
+  if (isVideoMime(mime)) {
+    return {
+      id,
+      kind: "video",
+      role,
+      text: label,
+      videoUrl: url,
+      fileUrl: url,
+      fileName: filename,
+      sizeBytes: size,
+      mimeType: mime,
+      ...base,
     };
   }
   return {
@@ -289,8 +469,7 @@ function buildAttachmentLine(params: {
     fileName: filename,
     sizeBytes: size,
     mimeType: mime,
-    threadId,
-    sessionId,
+    ...base,
   };
 }
 
@@ -345,23 +524,28 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     case "assistant_delta": {
       const messageId = String(p.message_id);
       const delta = String(p.delta ?? "");
+      const sequence = p.sequence != null ? Number(p.sequence) : undefined;
       const idx = findAssistantLineIndex(session.lines, messageId);
       if (idx < 0) {
-        return appendLine(
-          { ...withoutTyping(session), streamingMessageId: messageId },
+        const line = applyDeltaToLine(
           {
             id: messageId,
             kind: "assistant",
-            text: delta,
+            text: "",
             threadId: event.thread_id,
             sessionId: event.session_id,
             streaming: true,
           },
+          delta,
+          sequence,
+        );
+        return appendLine(
+          { ...withoutTyping(session), streamingMessageId: messageId },
+          line,
         );
       }
       const lines = [...session.lines];
-      const line = lines[idx];
-      lines[idx] = { ...line, text: line.text + delta, streaming: true };
+      lines[idx] = applyDeltaToLine(lines[idx]!, delta, sequence);
       return touchSession({ ...withoutTyping(session), lines, streamingMessageId: messageId });
     }
     case "assistant_segment": {
@@ -405,9 +589,10 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       let lines = session.lines;
       if (idx >= 0) {
         lines = [...lines];
+        let line = flushDeltaBuffer(messageId, lines[idx]!);
         lines[idx] = {
-          ...lines[idx],
-          text: finalText ?? lines[idx].text,
+          ...line,
+          text: finalText ?? line.text,
           streaming: false,
           interrupted,
           ...(reasoningText ? { reasoningText } : {}),
@@ -487,6 +672,13 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         noticeKind,
         threadId: event.thread_id,
         sessionId: event.session_id,
+        toolName: p.tool_name != null ? String(p.tool_name) : undefined,
+        toolStatus: parseToolStatus(p.status),
+        toolArgs: p.args != null ? String(p.args) : undefined,
+        toolResult: p.result != null ? String(p.result) : undefined,
+        toolDurationMs:
+          p.duration_ms != null ? Number(p.duration_ms) : undefined,
+        toolError: p.error != null ? String(p.error) : undefined,
       };
       const upsert = noticeKind === "tool" || noticeKind === "reasoning";
       return (upsert ? upsertLine : appendLine)(withoutTyping(session), line);

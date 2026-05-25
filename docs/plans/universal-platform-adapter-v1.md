@@ -27,9 +27,20 @@ Every event is a JSON object with these fields:
 {
   "message_id": "msg-uuid",
   "text": "Hello",
+  "attachments": [
+    {
+      "attachment_id": "att-uuid",
+      "mime_type": "image/png",
+      "size_bytes": 12345,
+      "url": "https://example.local/image.png",
+      "filename": "image.png"
+    }
+  ],
   "idempotency_key": "optional-client-key"
 }
 ```
+
+`text` may be empty when `attachments` is non-empty. Each attachment requires `url` or `file_ref`.
 
 ### `command.create`
 

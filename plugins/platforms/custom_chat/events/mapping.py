@@ -73,12 +73,39 @@ def inbound_to_message_event(
         )
 
     if envelope.type == "message.create":
+        attachments = getattr(payload_model, "attachments", None) or []
+        media_urls: list[str] = []
+        media_types: list[str] = []
+        raw_message: Optional[dict] = None
+        message_type = MessageType.TEXT
+        if attachments:
+            raw_message = {"attachments": []}
+            for att in attachments:
+                media_url = att.url or att.file_ref
+                if media_url:
+                    media_urls.append(str(media_url))
+                    media_types.append(str(att.mime_type))
+                if raw_message is not None:
+                    raw_message["attachments"].append(
+                        {
+                            "attachment_id": att.attachment_id,
+                            "mime_type": att.mime_type,
+                            "size_bytes": att.size_bytes,
+                            "filename": getattr(att, "filename", None),
+                            "url": media_url,
+                        }
+                    )
+            if media_types:
+                message_type = _resolve_message_type(MessageType, media_types[0])
         return _build_message_event(
             MessageEvent,
             text=payload_model.text,
-            message_type=MessageType.TEXT,
+            message_type=message_type,
             source=source,
             message_id=payload_model.message_id,
+            media_urls=media_urls or None,
+            media_types=media_types or None,
+            raw_message=raw_message,
         )
 
     if envelope.type == "command.create":

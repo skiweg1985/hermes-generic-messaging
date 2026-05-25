@@ -357,6 +357,48 @@
   color: var(--text-quaternary);
 }
 
+/* ── Video card ─────────────────────────────────────────────────────── */
+.media-video-card {
+  margin: var(--s-2) 0;
+  max-width: min(100%, 420px);
+}
+
+.media-video-card-right {
+  margin-left: auto;
+}
+
+.media-video-wrap {
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+
+.media-video-player {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  background: #000;
+}
+
+.media-video-download {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+
+.media-video-caption {
+  margin-top: var(--s-2);
+  color: var(--text-tertiary);
+}
+
 @media (max-width: 720px) {
   .audio-card {
     max-width: 100%;

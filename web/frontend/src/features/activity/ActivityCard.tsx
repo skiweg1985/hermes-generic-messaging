@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TranscriptLine } from "../../types/events";
 import { IconCheck, IconAlert, IconChevronDown } from "../shell/icons";
-import { parseActivity } from "./toolRegistry";
+import { parseActivity, parseStructuredActivity } from "./toolRegistry";
 
 interface ActivityCardProps {
   line: TranscriptLine;
@@ -34,7 +34,8 @@ function useElapsed(running: boolean): number {
 }
 
 export function ActivityCard({ line, turnActive }: ActivityCardProps) {
-  const parsed = parseActivity(line.text);
+  const parsed =
+    parseStructuredActivity(line) ?? parseActivity(line.text);
   const [open, setOpen] = useState(false);
 
   // The reducer never marks notice lines as "streaming"; the running state

@@ -16,12 +16,14 @@ import {
   getSlashSuggestionQuery,
 } from "../chat/slashCommandSuggest";
 import { SlashPopover } from "./SlashPopover";
+import type { PendingAttachment } from "../../types/events";
 import {
   IconArrowUp,
   IconStop,
   IconPaperclip,
   IconMic,
   IconSlash,
+  IconAlert,
 } from "../shell/icons";
 
 const MIN_HEIGHT = 56;
@@ -36,10 +38,13 @@ interface ComposerProps {
   disabled: boolean;
   streaming: boolean;
   recording: boolean;
+  pendingAttachments?: PendingAttachment[];
   onChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
-  onFile: (file: File) => void;
+  onFiles: (files: File[]) => void;
+  onRetryUpload?: (localId: string) => void;
+  onRemovePending?: (localId: string) => void;
   onToggleRecord: () => void;
 }
 
@@ -50,9 +55,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     streaming,
     recording,
     onChange,
+    pendingAttachments = [],
     onSubmit,
     onCancel,
-    onFile,
+    onFiles,
+    onRetryUpload,
+    onRemovePending,
     onToggleRecord,
   },
   ref,
@@ -120,10 +128,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     [suggestions, onChange, value],
   );
 
+  const hasReadyAttachment = pendingAttachments.some((a) => a.status === "done");
+  const hasUploading = pendingAttachments.some(
+    (a) => a.status === "uploading" || a.status === "queued",
+  );
+
   const submit = useCallback(() => {
-    if (!value.trim()) return;
+    if (!value.trim() && !hasReadyAttachment) return;
+    if (hasUploading) return;
     onSubmit();
-  }, [onSubmit, value]);
+  }, [onSubmit, value, hasReadyAttachment, hasUploading]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (menuOpen) {
@@ -177,13 +191,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   };
 
   const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onFile(file);
+    const list = e.target.files;
+    if (list && list.length > 0) {
+      onFiles(Array.from(list));
+    }
     e.target.value = "";
   };
 
   const hasText = value.trim().length > 0;
-  const sendDisabled = disabled || (!hasText && !streaming);
+  const canSend = hasText || hasReadyAttachment;
+  const sendDisabled = disabled || (!canSend && !streaming) || hasUploading;
 
   const sendButton = streaming ? (
     <button
@@ -212,7 +229,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const placeholder = useMemo(
     () =>
       recording
-        ? "Recording… release to send"
+        ? "Recording…"
         : streaming
           ? "Streaming response…"
           : "Message Hermes",
@@ -222,6 +239,51 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   return (
     <div className="composer-region">
       <div className={`composer${disabled ? " composer-disabled" : ""}`}>
+        {pendingAttachments.length > 0 ? (
+          <div className="composer-attachments" aria-label="Anhänge">
+            {pendingAttachments.map((entry) => (
+              <div
+                key={entry.localId}
+                className={`composer-attachment composer-attachment-${entry.status}`}
+              >
+                <span className="composer-attachment-name truncate" title={entry.fileName}>
+                  {entry.fileName}
+                </span>
+                {entry.status === "uploading" || entry.status === "queued" ? (
+                  <span className="composer-attachment-status t-meta">Wird hochgeladen…</span>
+                ) : null}
+                {entry.status === "error" ? (
+                  <>
+                    <span className="composer-attachment-status t-meta composer-attachment-error">
+                      <IconAlert size={12} />
+                      Upload fehlgeschlagen
+                    </span>
+                    {onRetryUpload ? (
+                      <button
+                        type="button"
+                        className="composer-attachment-retry t-meta"
+                        onClick={() => onRetryUpload(entry.localId)}
+                      >
+                        Erneut versuchen
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
+                {onRemovePending ? (
+                  <button
+                    type="button"
+                    className="composer-attachment-remove"
+                    aria-label={`Remove ${entry.fileName}`}
+                    onClick={() => onRemovePending(entry.localId)}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <SlashPopover
           suggestions={suggestions}
           highlightIndex={highlight}
@@ -258,6 +320,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept="image/*,audio/*,video/*,.pdf,.txt,.csv,.docx,.xlsx"
               hidden
               onChange={handleFile}
