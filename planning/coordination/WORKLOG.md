@@ -995,3 +995,33 @@ Security leak check: PASS
 PII check: PASS
 Sensitive data touched: no
 Redactions performed: none
+
+## 2026-05-25 20:12 – cursor – Chat media/message rendering
+
+- Done:
+  - `ChatMessage` / `MessagePart` model + `normalizeTranscript` / `groupMessages` / `PartRenderer`
+  - Streaming: `sequence` dedup, reorder buffer, interrupted partial preserve
+  - `message.create` + `attachments[]` (schema, mapping, wsClient, Composer draft)
+  - Structured tool notices + `ActivityCard` structured-first
+  - `VideoCard` + video MIME routing
+  - Vitest + schema tests (61 frontend, 10 python config)
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feat/adapter-contract-v1
+  - PR: none
+- Files touched:
+  - web/frontend/src/features/chat/model/*
+  - web/frontend/src/features/chat/chatReducer.ts
+  - web/frontend/src/features/composer/*
+  - packages/custom_chat_schema/schema.py
+  - plugins/platforms/custom_chat/events/mapping.py
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `cd web/frontend && npm test`, `npm run build`, `pytest tests/plugins/custom_chat/test_config.py`
+- Changelog updated:
+  - yes (Added)
+- Follow-ups:
+  - optional Playwright UI smoke for Composer attachments
