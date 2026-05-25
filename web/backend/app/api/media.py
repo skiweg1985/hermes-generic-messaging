@@ -1,3 +1,5 @@
+import mimetypes
+
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import FileResponse
 
@@ -21,4 +23,5 @@ async def get_media(file_id: str) -> FileResponse:
     settings = get_settings()
     store = MediaStore(settings)
     path = store.resolve_path(file_id)
-    return FileResponse(path, media_type="application/octet-stream")
+    mime_type, _ = mimetypes.guess_type(str(path))
+    return FileResponse(path, media_type=mime_type or "application/octet-stream")

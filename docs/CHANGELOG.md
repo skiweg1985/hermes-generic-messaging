@@ -20,6 +20,9 @@
 
 ### Fixed
 
+- `message.cancel`: plugin resolves line/segment ids to the stream turn id and emits `assistant_done(interrupted)`; web UI tracks `streamTurnId` for cancel targets
+- BFF `GET /api/v1/media/{file_id}` returns guessed MIME type instead of always `application/octet-stream`
+- `send_slash_confirm` with `metadata.gateway_approval` routes button clicks to `resolve_gateway_approval`
 - Web UI: User-Uploads (Bilder, Audio, Dateien) erscheinen rechts wie Text-Nachrichten statt links im Assistant-Bereich
 - Plugin: `interrupt_session_activity(session_key, chat_id)` matches current Hermes gateway API (was single-arg; broke `/new` and session reset with `TypeError`)
 - Web UI: Unbalancierte Code-Fences (`\`\`\``) im Assistant-Stream werden vor dem Rendern entfernt, damit nachfolgender Markdown (Bold, Listen, Links) nicht mehr in einem `<pre><code>`-Block verschwindet
@@ -41,7 +44,7 @@
 - Web chat composer: Telegram-style slash-command autocomplete (popup on `/`, filter while typing, arrow keys / Tab / Enter to pick)
 - Slash-command option menus (`slash_pick`): Hermes emits `assistant_buttons` via `send_slash_options`; web UI renders a button grid and auto-sends the full command on click (e.g. `/model gpt-4`)
 - Interactive `/model` picker (`model_picker`): `send_model_picker` on custom_chat (Telegram/Discord parity); provider → model drill-down with in-place card updates
-- Schema types `SlashPickPayload` and `SlashConfirmPayload` in `custom_chat_schema`
+- Schema types `SlashPickPayload`, `SlashConfirmPayload`, `ModelPickerPayload`; extended `AssistantNoticePayload` tool fields
 
 ### Fixed
 

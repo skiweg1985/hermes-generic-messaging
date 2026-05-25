@@ -228,6 +228,24 @@ class AssistantNoticePayload(BaseModel):
     message_id: str
     text: str
     kind: Literal["info", "tool", "reasoning", "warning", "error"] = "info"
+    tool_name: Optional[str] = None
+    status: Optional[str] = None
+    args: Optional[Any] = None
+    result: Optional[Any] = None
+    duration_ms: Optional[int] = None
+    error: Optional[str] = None
+
+
+class ModelPickerPayload(BaseModel):
+    """Outbound ``assistant_buttons`` payload for interactive /model selection."""
+
+    message_id: str
+    pick_id: str
+    title: str
+    body: str
+    kind: Literal["model_picker"] = "model_picker"
+    buttons: list[ButtonSpec]
+    page_info: Optional[str] = None
 
 
 class SlashPickPayload(BaseModel):

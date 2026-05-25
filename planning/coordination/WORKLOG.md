@@ -1025,3 +1025,37 @@ Redactions performed: none
   - yes (Added)
 - Follow-ups:
   - optional Playwright UI smoke for Composer attachments
+
+## 2026-05-25 20:32 – cursor-agent – Schnittstellen-Audit Fixes
+
+- Done:
+  - Plugin: `message.cancel` resolves line/segment/turn ids; emits `assistant_done(interrupted)` via `_cancel_reply_streams`
+  - Plugin: `send_slash_confirm` with `metadata.gateway_approval` populates `_approval_state`
+  - Frontend: `streamTurnId` + `resolveCancelTargetId` for cancel after segments
+  - Schema: `ModelPickerPayload`, extended `AssistantNoticePayload` tool fields
+  - BFF: media GET returns guessed MIME type; docs for cancel, upload limits, TTS placeholder warning
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (current)
+  - PR: none
+- Files touched:
+  - plugins/platforms/custom_chat/adapter.py
+  - plugins/platforms/custom_chat/streaming.py
+  - plugins/platforms/custom_chat/media.py
+  - packages/custom_chat_schema/schema.py
+  - web/backend/app/api/media.py
+  - web/frontend/src/features/chat/*
+  - tests/plugins/custom_chat/test_cancel.py
+  - tests/plugins/custom_chat/test_slash_confirm.py
+  - docs/custom_chat.md
+  - docs/web-app.md
+  - docs/CHANGELOG.md
+- Test notes:
+  - commands: `pytest tests/plugins/custom_chat/test_cancel.py tests/plugins/custom_chat/test_interrupt.py tests/plugins/custom_chat/test_slash_confirm.py -q`, `cd web/frontend && npm test -- --run chatReducer.test.ts`
+- Changelog updated:
+  - yes (Fixed, Added schema note)
+- Follow-ups:
+  - wire real TTS provider when `audio_response` is needed in production

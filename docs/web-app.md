@@ -18,7 +18,9 @@ Browser UI and FastAPI BFF for Event Schema v1. Hermes must run the `custom_chat
 | `WEB_CHAT_ID` | `workspace:demo` | Default `chat_id` in enriched events |
 | `WEB_USER_ID` | `user-demo` | Default `user_id` |
 | `WEB_MEDIA_UPLOAD_DIR` | `./data/uploads` | Stored audio files |
-| `WEB_MAX_AUDIO_BYTES` | `10485760` | Upload size limit |
+| `WEB_MAX_UPLOAD_BYTES` | `20971520` | Max upload size for the BFF media API |
+| `WEB_ALLOWED_UPLOAD_MIME_TYPES` | see schema | Allowed MIME types for BFF uploads |
+| `WEB_MAX_AUDIO_BYTES` | `10485760` | Legacy alias; prefer `WEB_MAX_UPLOAD_BYTES` |
 | `WEB_PUBLIC_MEDIA_BASE_URL` | auto | Base URL in `audio.uploaded` payloads and `client.register` (override for Docker/proxy) |
 | `WEB_PUBLIC_HOST` | auto | Host part when auto-detecting public media URL |
 | `WEB_PUBLIC_PORT` | `8000` | Port part when auto-detecting public media URL |
@@ -26,6 +28,11 @@ Browser UI and FastAPI BFF for Event Schema v1. Hermes must run the `custom_chat
 | `WEB_CORS_REFLECT_ORIGIN` | `false` | When `true`, allow any `http(s)` Origin (dev/LAN) |
 
 Copy `web/.env.example` to `web/.env` and set `CUSTOM_CHAT_TARGET` plus `CUSTOM_CHAT_BEARER_TOKEN`.
+
+Upload limits are enforced twice: the BFF (`WEB_MAX_UPLOAD_BYTES`,
+`WEB_ALLOWED_UPLOAD_MIME_TYPES`) and the plugin when it validates inbound
+`audio.uploaded` / `file.uploaded` (`CUSTOM_CHAT_MAX_UPLOAD_BYTES`,
+`CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES`). Keep both in sync for production.
 
 On connect, the BFF sends `client.register` with its public media base URL. The plugin uses that URL for outbound file uploads, so `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` on Hermes is optional when the web BFF is connected.
 

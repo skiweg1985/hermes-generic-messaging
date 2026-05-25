@@ -174,6 +174,19 @@ The client sends the user's choice back as a `button.click` inbound event:
 
 The adapter then calls `GatewayRunner._resolve_slash_confirm(confirm_id, choice)`, which unblocks the agent.
 
+Tool/skill approvals that must call `resolve_gateway_approval` instead use the same
+`send_slash_confirm` helper with `metadata={"gateway_approval": true}` (or
+`metadata={"approval": true}`). The adapter stores those prompts in `_approval_state`
+rather than `_slash_confirm_state`.
+
+## Stream cancellation
+
+Send `message.cancel` with `target_message_id` set to the **turn** id
+(`turn_message_id` from `assistant_start`, or the stream reply id). After tool
+segments, the web UI sends the turn id, not the segment line id. The plugin resolves
+line and segment ids to the active stream and emits `assistant_done` with
+`interrupted: true`.
+
 ## Slash-command option menus
 
 For commands that accept an argument chosen from a list (e.g. `/model` without a model name), Hermes calls `adapter.send_slash_options(...)`. The adapter emits an `assistant_buttons` event with `kind: "slash_pick"`:
