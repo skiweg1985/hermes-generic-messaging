@@ -24,13 +24,38 @@ export class WsClient {
   private onStatus: StatusHandler;
   private retries = 0;
   private maxRetries = 3;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private intentionalClose = false;
 
   constructor(onMessage: MessageHandler, onStatus: StatusHandler) {
     this.onMessage = onMessage;
     this.onStatus = onStatus;
   }
 
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private closeSocket(): void {
+    if (!this.ws) return;
+    const socket = this.ws;
+    this.ws = null;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    socket.close();
+  }
+
   connect(): void {
+    this.clearReconnectTimer();
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+    this.closeSocket();
     this.onStatus("connecting");
     this.ws = new WebSocket(wsUrl());
     this.ws.onopen = () => {
@@ -47,10 +72,19 @@ export class WsClient {
     };
     this.ws.onerror = () => this.onStatus("error");
     this.ws.onclose = () => {
+      this.ws = null;
+      if (this.intentionalClose) {
+        this.intentionalClose = false;
+        return;
+      }
       if (this.retries < this.maxRetries) {
         this.retries += 1;
         const delay = Math.min(1000 * 2 ** this.retries, 8000);
-        setTimeout(() => this.connect(), delay);
+        this.clearReconnectTimer();
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          this.connect();
+        }, delay);
       } else {
         this.onStatus("error");
       }
@@ -58,14 +92,18 @@ export class WsClient {
   }
 
   disconnect(): void {
+    this.clearReconnectTimer();
+    this.intentionalClose = true;
     this.retries = this.maxRetries;
-    this.ws?.close();
-    this.ws = null;
+    this.closeSocket();
   }
 
   reconnect(): void {
-    this.disconnect();
+    this.clearReconnectTimer();
+    this.intentionalClose = true;
+    this.closeSocket();
     this.retries = 0;
+    this.intentionalClose = false;
     this.connect();
   }
 

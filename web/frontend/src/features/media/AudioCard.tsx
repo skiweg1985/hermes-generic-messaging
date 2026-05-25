@@ -1,4 +1,5 @@
 import type { TranscriptLine } from "../../types/events";
+import { resolveMediaUrl } from "../../lib/resolveMediaUrl";
 import { WaveformPlayer } from "./WaveformPlayer";
 
 interface AudioCardProps {
@@ -11,9 +12,9 @@ export function AudioCard({ line, alignRight }: AudioCardProps) {
   return (
     <div className={`audio-card${alignRight ? " audio-card-right" : ""} motion-rise-in-soft`}>
       <WaveformPlayer
-        url={line.audioUrl}
+        url={resolveMediaUrl(line.audioUrl)}
         fileName={line.fileName ?? "audio"}
-        downloadUrl={line.fileUrl ?? line.audioUrl}
+        downloadUrl={resolveMediaUrl(line.fileUrl ?? line.audioUrl)}
         mimeType={line.mimeType}
       />
     </div>

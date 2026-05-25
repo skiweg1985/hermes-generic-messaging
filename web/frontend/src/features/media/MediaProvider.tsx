@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface MediaImage {
@@ -19,6 +19,8 @@ const MediaContext = createContext<MediaContextValue | null>(null);
 
 interface MediaProviderProps {
   children: ReactNode;
+  /** Clears the lightbox registry when the active chat changes. */
+  registryKey: string;
   onOpenLightbox: (images: MediaImage[], index: number) => void;
 }
 
@@ -26,8 +28,12 @@ interface MediaProviderProps {
  * Collects all rendered images in the current transcript so the Lightbox
  * can navigate forward/backward across them.
  */
-export function MediaProvider({ children, onOpenLightbox }: MediaProviderProps) {
+export function MediaProvider({ children, registryKey, onOpenLightbox }: MediaProviderProps) {
   const [images, setImages] = useState<MediaImage[]>([]);
+
+  useEffect(() => {
+    setImages([]);
+  }, [registryKey]);
 
   const registerImage = useCallback((image: MediaImage) => {
     setImages((prev) => {

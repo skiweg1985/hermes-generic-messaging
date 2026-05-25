@@ -9,12 +9,13 @@ import { MediaProvider, type MediaImage } from "../media/MediaProvider";
 import { Lightbox } from "../media/Lightbox";
 
 interface TranscriptProps {
+  chatId: string;
   lines: TranscriptLine[];
   typing?: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
 }
 
-export function Transcript({ lines, typing = false, onButtonClick }: TranscriptProps) {
+export function Transcript({ chatId, lines, typing = false, onButtonClick }: TranscriptProps) {
   const turns = useMemo(() => groupTurnsFromLines(lines), [lines]);
   const turnActive = useMemo(() => lines.some((l) => l.streaming), [lines]);
   const trigger = useMemo(() => {
@@ -22,7 +23,7 @@ export function Transcript({ lines, typing = false, onButtonClick }: TranscriptP
     return `${lines.length}:${last?.text.length ?? 0}:${typing ? 1 : 0}`;
   }, [lines, typing]);
 
-  const { scrollerRef, isPinned, hasNew, scrollToBottom } = useScrollFollow(trigger);
+  const { scrollerRef, isPinned, hasNew, scrollToBottom } = useScrollFollow(trigger, 120, chatId);
 
   const [lightboxImages, setLightboxImages] = useState<MediaImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -38,7 +39,7 @@ export function Transcript({ lines, typing = false, onButtonClick }: TranscriptP
   const isEmpty = turns.length === 0 && !typing;
 
   return (
-    <MediaProvider onOpenLightbox={openLightbox}>
+    <MediaProvider registryKey={chatId} onOpenLightbox={openLightbox}>
       <div className="transcript-wrap">
         <div
           ref={scrollerRef}

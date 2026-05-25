@@ -95,9 +95,16 @@ export type ChatAction =
     }
   | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string; turnMessageId?: string }
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
-  | { type: "ADD_PENDING_ATTACHMENT"; localId: string; fileName: string; mimeType: string }
-  | { type: "SET_PENDING_ATTACHMENT_STATUS"; localId: string; status: PendingAttachment["status"]; error?: { code: string; message: string }; result?: PendingAttachment["result"] }
-  | { type: "REMOVE_PENDING_ATTACHMENT"; localId: string }
+  | { type: "ADD_PENDING_ATTACHMENT"; chatId: string; localId: string; fileName: string; mimeType: string }
+  | {
+      type: "SET_PENDING_ATTACHMENT_STATUS";
+      chatId: string;
+      localId: string;
+      status: PendingAttachment["status"];
+      error?: { code: string; message: string };
+      result?: PendingAttachment["result"];
+    }
+  | { type: "REMOVE_PENDING_ATTACHMENT"; chatId: string; localId: string }
   | { type: "CLEAR_PENDING_ATTACHMENTS" }
   | { type: "BUTTON_CLICKED"; chatId: string; lineId: string; buttonId: string }
   | { type: "CLEAR_TYPING"; chatId: string }
@@ -251,7 +258,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ),
       );
     case "ADD_PENDING_ATTACHMENT":
-      return updateActiveSession(state, (session) => ({
+      return updateSession(state, action.chatId, (session) => ({
         ...session,
         pendingAttachments: [
           ...session.pendingAttachments,
@@ -264,7 +271,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ],
       }));
     case "SET_PENDING_ATTACHMENT_STATUS":
-      return updateActiveSession(state, (session) => ({
+      return updateSession(state, action.chatId, (session) => ({
         ...session,
         pendingAttachments: session.pendingAttachments.map((entry) =>
           entry.localId === action.localId
@@ -278,7 +285,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ),
       }));
     case "REMOVE_PENDING_ATTACHMENT":
-      return updateActiveSession(state, (session) => ({
+      return updateSession(state, action.chatId, (session) => ({
         ...session,
         pendingAttachments: session.pendingAttachments.filter(
           (entry) => entry.localId !== action.localId,
@@ -697,6 +704,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     }
     case "assistant_image": {
       const messageId = String(p.message_id ?? newId());
+      const imageUrl = String(p.url ?? "");
       return appendLine(
         withoutTyping(session),
         {
@@ -704,7 +712,8 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           kind: "image",
           role: "assistant",
           text: String(p.caption ?? ""),
-          imageUrl: String(p.url ?? ""),
+          imageUrl,
+          fileUrl: imageUrl,
           caption: p.caption != null ? String(p.caption) : undefined,
           mimeType: p.mime_type != null ? String(p.mime_type) : undefined,
           threadId: event.thread_id,

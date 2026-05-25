@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { downloadMedia } from "../../lib/downloadMedia";
 import type { MediaImage } from "./MediaProvider";
 import { IconClose, IconArrowUp, IconDownload } from "../shell/icons";
 
@@ -72,11 +73,13 @@ export function Lightbox({ open, images, index, onClose, onIndexChange }: Lightb
           {current.downloadUrl ? (
             <a
               href={current.downloadUrl}
-              target="_blank"
-              rel="noreferrer"
               className="lightbox-icon-btn"
               aria-label="Download image"
               title="Download"
+              onClick={(e) => {
+                e.preventDefault();
+                void downloadMedia(current.downloadUrl!, current.alt ?? "image");
+              }}
             >
               <IconDownload size={16} />
             </a>

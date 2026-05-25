@@ -22,6 +22,35 @@ describe("sessionPersistence", () => {
     expect(loaded.sessionsById.c2.lines[0].text).toBe("hello");
   });
 
+  it("clears running tool status on persist", () => {
+    const localStorage = memoryStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    let state = initialChatState("c1", "one");
+    state = {
+      ...state,
+      sessionsById: {
+        c1: {
+          ...state.sessionsById.c1,
+          lines: [
+            {
+              id: "tool-1",
+              kind: "notice",
+              text: "Computing",
+              toolName: "terminal",
+              toolStatus: "running",
+            },
+          ],
+        },
+      },
+    };
+
+    persistChatState(state);
+    const loaded = loadChatState(initialChatState("fallback", "fallback"));
+
+    expect(loaded.sessionsById.c1.lines[0].toolStatus).toBe("idle");
+  });
+
   it("trims transcript history on persist", () => {
     const localStorage = memoryStorage();
     vi.stubGlobal("window", { localStorage });

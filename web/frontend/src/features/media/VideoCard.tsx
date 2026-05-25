@@ -1,4 +1,6 @@
 import type { TranscriptLine } from "../../types/events";
+import { downloadMedia } from "../../lib/downloadMedia";
+import { resolveMediaUrl } from "../../lib/resolveMediaUrl";
 import { IconDownload } from "../shell/icons";
 
 interface VideoCardProps {
@@ -7,7 +9,7 @@ interface VideoCardProps {
 }
 
 export function VideoCard({ line, alignRight }: VideoCardProps) {
-  const url = line.videoUrl ?? line.fileUrl;
+  const url = resolveMediaUrl(line.videoUrl ?? line.fileUrl);
   if (!url) return null;
 
   const name = line.fileName ?? "video";
@@ -27,11 +29,13 @@ export function VideoCard({ line, alignRight }: VideoCardProps) {
         />
         <a
           href={url}
-          target="_blank"
-          rel="noreferrer"
           className="media-video-download"
           aria-label={`Download ${name}`}
           title="Download"
+          onClick={(e) => {
+            e.preventDefault();
+            void downloadMedia(url, name);
+          }}
         >
           <IconDownload size={14} />
         </a>

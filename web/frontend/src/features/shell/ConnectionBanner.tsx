@@ -2,11 +2,23 @@ import type { ConnectionStatus } from "../../types/events";
 
 interface ConnectionBannerProps {
   status: ConnectionStatus;
+  reconnecting?: boolean;
   onReconnect: () => void;
 }
 
-export function ConnectionBanner({ status, onReconnect }: ConnectionBannerProps) {
+export function ConnectionBanner({
+  status,
+  reconnecting = false,
+  onReconnect,
+}: ConnectionBannerProps) {
   if (status === "connected") return null;
+
+  const statusText =
+    status === "connecting"
+      ? reconnecting
+        ? "Reconnecting…"
+        : "Connecting…"
+      : "Connection lost — trying to reconnect";
 
   return (
     <div
@@ -15,11 +27,7 @@ export function ConnectionBanner({ status, onReconnect }: ConnectionBannerProps)
       aria-live="polite"
     >
       <span className="connection-banner-dot" />
-      <span className="t-meta connection-banner-text">
-        {status === "connecting"
-          ? "Connecting…"
-          : "Connection lost — trying to reconnect"}
-      </span>
+      <span className="t-meta connection-banner-text">{statusText}</span>
       {status === "error" ? (
         <button
           type="button"

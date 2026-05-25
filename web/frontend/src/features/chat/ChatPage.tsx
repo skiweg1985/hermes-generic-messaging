@@ -140,11 +140,13 @@ export function ChatPage() {
 
         <ConnectionBanner
           status={ctrl.connection}
+          reconnecting={ctrl.reconnecting}
           onReconnect={ctrl.reconnect}
         />
 
         <main className="stage-main">
           <Transcript
+            chatId={ctrl.activeChatId}
             lines={activeSession.lines}
             typing={activeSession.typing}
             onButtonClick={ctrl.clickButton}

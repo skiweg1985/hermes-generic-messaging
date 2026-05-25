@@ -16,6 +16,7 @@ interface UseScrollFollowResult {
 export function useScrollFollow(
   trigger: unknown,
   threshold = 120,
+  sessionKey?: string,
 ): UseScrollFollowResult {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [isPinned, setIsPinned] = useState(true);
@@ -55,6 +56,15 @@ export function useScrollFollow(
       cancelAnimationFrame(frame);
     };
   }, [threshold]);
+
+  // Jump to latest when switching chat sessions.
+  useEffect(() => {
+    if (sessionKey === undefined) return;
+    pinnedRef.current = true;
+    setIsPinned(true);
+    setHasNew(false);
+    requestAnimationFrame(() => scrollToBottom(false));
+  }, [sessionKey, scrollToBottom]);
 
   // React to new content.
   useEffect(() => {

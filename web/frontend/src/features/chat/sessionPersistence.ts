@@ -17,7 +17,11 @@ export function persistChatState(state: ChatState): void {
     activeChatId: state.activeChatId,
     sessions,
   };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* QuotaExceededError — drop persist silently */
+  }
 }
 
 export function loadChatState(fallback: ChatState): ChatState {
@@ -66,7 +70,11 @@ function trimSession(session: ChatSession): ChatSession {
 }
 
 function trimLine(line: TranscriptLine): TranscriptLine {
-  return { ...line, streaming: false };
+  const next = { ...line, streaming: false };
+  if (next.toolStatus === "running") {
+    return { ...next, toolStatus: "idle" };
+  }
+  return next;
 }
 
 function isStoredSession(value: unknown): value is ChatSession {

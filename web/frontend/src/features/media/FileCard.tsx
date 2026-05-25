@@ -1,4 +1,6 @@
 import type { TranscriptLine } from "../../types/events";
+import { downloadMedia } from "../../lib/downloadMedia";
+import { resolveMediaUrl } from "../../lib/resolveMediaUrl";
 import {
   IconFile,
   IconImage,
@@ -44,6 +46,7 @@ export function FileCard({ line, alignRight }: FileCardProps) {
   const size = formatSize(line.sizeBytes);
   const ext = label(line.mimeType);
   const name = line.fileName ?? "file";
+  const downloadUrl = resolveMediaUrl(line.fileUrl);
 
   const content = (
     <div className={`file-card file-card-${k}`}>
@@ -57,15 +60,17 @@ export function FileCard({ line, alignRight }: FileCardProps) {
           {size ? ` · ${size}` : ""}
         </div>
       </div>
-      {line.fileUrl ? (
+      {downloadUrl ? (
         <a
-          href={line.fileUrl}
-          target="_blank"
-          rel="noreferrer"
+          href={downloadUrl}
           className="file-card-action"
           aria-label={`Download ${name}`}
           title="Download"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void downloadMedia(downloadUrl, name);
+          }}
         >
           <IconDownload size={14} />
         </a>

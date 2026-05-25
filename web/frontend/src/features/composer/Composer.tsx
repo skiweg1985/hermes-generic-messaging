@@ -366,7 +366,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 "Generating…"
               ) : (
                 <>
-                  <kbd>⌘⏎</kbd> send · <kbd>⇧⏎</kbd> newline
+                  <kbd>⏎</kbd> send · <kbd>⇧⏎</kbd> newline
                 </>
               )}
             </span>

@@ -81,7 +81,9 @@ export function MessageReasoning({ text, active, line }: MessageReasoningProps) 
     : (finishedElapsedMsRef.current ?? Date.now() - startedAtRef.current);
   const headerLabel = active
     ? `Thinking · ${formatDurationMs(elapsedMs)}`
-    : `Thought for ${formatDurationMs(elapsedMs)}`;
+    : elapsedMs < 100
+      ? "Thought briefly"
+      : `Thought for ${formatDurationMs(elapsedMs)}`;
 
   return (
     <section

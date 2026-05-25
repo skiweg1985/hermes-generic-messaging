@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { downloadMedia } from "../../lib/downloadMedia";
 import { IconAudio, IconDownload } from "../shell/icons";
 import { useWaveform, WaveformCanvas } from "./waveform";
 
@@ -147,10 +148,12 @@ export function WaveformPlayer({
           <a
             href={downloadUrl}
             className="waveform-download"
-            target="_blank"
-            rel="noreferrer"
             aria-label="Download audio"
             title="Download"
+            onClick={(e) => {
+              e.preventDefault();
+              void downloadMedia(downloadUrl, fileName);
+            }}
           >
             <IconDownload size={14} />
           </a>
