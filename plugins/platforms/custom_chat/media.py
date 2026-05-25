@@ -20,7 +20,12 @@ logger = logging.getLogger(__name__)
 
 from custom_chat_schema.mime import normalize_mime_type
 
-from .config import AudioUploadedPayload, CustomChatSettings, FileUploadedPayload
+from .config import (
+    AudioUploadedPayload,
+    CustomChatSettings,
+    FileUploadedPayload,
+    MessageAttachment,
+)
 from .events.schema import InboundEventError
 
 _PATH_TOKEN_RE = re.compile(
@@ -57,6 +62,42 @@ def validate_audio_payload(
             "UNSUPPORTED_MEDIA_TYPE",
             f"mime type not allowed for audio.uploaded: {payload.mime_type}",
         )
+
+
+def validate_message_attachment(
+    attachment: MessageAttachment,
+    settings: CustomChatSettings,
+) -> None:
+    """Enforce MIME / size limits on a `message.create` attachment."""
+    mime_type = normalize_mime_type(attachment.mime_type)
+    if mime_type not in settings.allowed_upload_mime_types:
+        raise InboundEventError(
+            "UNSUPPORTED_MEDIA_TYPE",
+            f"mime type not allowed: {mime_type}",
+        )
+    if attachment.size_bytes > settings.max_upload_bytes:
+        raise InboundEventError(
+            "PAYLOAD_TOO_LARGE",
+            f"file exceeds max size {settings.max_upload_bytes}",
+        )
+
+
+def transcribe_attachment(
+    attachment: MessageAttachment,
+    *,
+    provider: Optional[str] = None,
+) -> Optional[str]:
+    """Run STT against a `message.create` audio attachment via the audio.uploaded path."""
+    if not normalize_mime_type(attachment.mime_type).startswith("audio/"):
+        return None
+    surrogate = AudioUploadedPayload(
+        message_id=attachment.attachment_id,
+        mime_type=attachment.mime_type,
+        size_bytes=attachment.size_bytes,
+        url=attachment.url,
+        file_ref=attachment.file_ref,
+    )
+    return transcribe_audio(surrogate, provider=provider)
 
 
 def _media_extension(mime_type: str) -> str:

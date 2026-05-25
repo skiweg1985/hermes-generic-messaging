@@ -29,9 +29,11 @@ from .media import (
     resolve_local_path,
     strip_local_paths,
     synthesize_audio_url,
+    transcribe_attachment,
     transcribe_audio,
-    validate_file_payload,
     validate_audio_payload,
+    validate_file_payload,
+    validate_message_attachment,
 )
 from .state import AdapterState
 from .streaming import StreamManager
@@ -473,6 +475,18 @@ class CustomChatAdapter(BasePlatformAdapter):
           transcribed = transcribe_audio(payload_model)
         elif payload_model.mime_type.startswith("audio/"):
           transcribed = transcribe_audio(payload_model)
+        msg_event = inbound_to_message_event(
+          envelope, payload_model, source, transcribed_text=transcribed
+        )
+      elif envelope.type == "message.create" and getattr(
+        payload_model, "attachments", None
+      ):
+        attachments = payload_model.attachments
+        for att in attachments:
+          validate_message_attachment(att, self.settings)
+        transcribed = None
+        if not payload_model.text.strip() and len(attachments) == 1:
+          transcribed = transcribe_attachment(attachments[0])
         msg_event = inbound_to_message_event(
           envelope, payload_model, source, transcribed_text=transcribed
         )

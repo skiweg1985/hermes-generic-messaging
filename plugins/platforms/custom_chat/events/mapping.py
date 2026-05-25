@@ -50,6 +50,27 @@ def _build_message_event(
         return MessageEvent(**kwargs)
 
 
+def _attachments_text_fallback(attachments: list[Any]) -> str:
+    """Produce a Hermes-readable text for media-only `message.create` events.
+
+    Mirrors the legacy `audio.uploaded` / `file.uploaded` text shape so agents
+    that don't read `media_urls` still see the attachment in `MessageEvent.text`.
+    """
+    parts: list[str] = []
+    for att in attachments:
+        mime = str(att.mime_type)
+        url = att.url or att.file_ref
+        label = f"[audio:{mime}]" if mime.startswith("audio/") else f"[file:{mime}]"
+        line = [label]
+        filename = getattr(att, "filename", None)
+        if filename:
+            line.append(str(filename))
+        if url:
+            line.append(f"url={url}")
+        parts.append(" ".join(line))
+    return "\n".join(parts)
+
+
 def _resolve_message_type(MessageType: Any, mime_type: str) -> Any:
     if mime_type.startswith("image/"):
         return getattr(MessageType, "PHOTO", getattr(MessageType, "IMAGE", MessageType.TEXT))
@@ -97,9 +118,12 @@ def inbound_to_message_event(
                     )
             if media_types:
                 message_type = _resolve_message_type(MessageType, media_types[0])
+        text = payload_model.text or ""
+        if not text.strip() and attachments:
+            text = transcribed_text or _attachments_text_fallback(attachments)
         return _build_message_event(
             MessageEvent,
-            text=payload_model.text,
+            text=text,
             message_type=message_type,
             source=source,
             message_id=payload_model.message_id,

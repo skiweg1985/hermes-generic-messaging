@@ -8,15 +8,18 @@ from plugins.platforms.custom_chat.config import (
     AudioUploadedPayload,
     CustomChatSettings,
     FileUploadedPayload,
+    MessageAttachment,
 )
 from plugins.platforms.custom_chat.events.schema import InboundEventError
 from plugins.platforms.custom_chat import adapter as adapter_module
 from plugins.platforms.custom_chat import media as media_module
 from plugins.platforms.custom_chat.media import (
     synthesize_audio_url,
+    transcribe_attachment,
     transcribe_audio,
-    validate_file_payload,
     validate_audio_payload,
+    validate_file_payload,
+    validate_message_attachment,
 )
 from plugins.platforms.custom_chat.transport.ws_server import WebSocketHub
 from tests.plugins.custom_chat.conftest import MockWebSocket, sample_inbound
@@ -83,6 +86,210 @@ def test_valid_file_accepted():
         url="https://example.local/notes.pdf",
     )
     validate_file_payload(payload, settings)
+
+
+def test_validate_message_attachment_accepts_supported_mime():
+    settings = CustomChatSettings()
+    att = MessageAttachment(
+        attachment_id="att-1",
+        mime_type="image/png",
+        size_bytes=2048,
+        url="https://example.local/cat.png",
+        filename="cat.png",
+    )
+    validate_message_attachment(att, settings)
+
+
+def test_validate_message_attachment_rejects_unsupported_mime():
+    settings = CustomChatSettings()
+    att = MessageAttachment(
+        attachment_id="att-2",
+        mime_type="application/x-unknown",
+        size_bytes=2048,
+        url="https://example.local/x.bin",
+    )
+    with pytest.raises(InboundEventError) as exc:
+        validate_message_attachment(att, settings)
+    assert exc.value.code == "UNSUPPORTED_MEDIA_TYPE"
+
+
+def test_transcribe_attachment_runs_stt_for_audio(monkeypatch, tmp_path):
+    audio_path = tmp_path / "voice.ogg"
+    audio_path.write_bytes(b"fake")
+    monkeypatch.setattr(media_module, "_run_hermes_stt", lambda _path: "spoken text")
+    monkeypatch.setattr(
+        media_module,
+        "_fetch_media_path",
+        lambda _url, _mime: (audio_path, False),
+    )
+    att = MessageAttachment(
+        attachment_id="att-a",
+        mime_type="audio/ogg",
+        size_bytes=1234,
+        url="https://example.local/voice.ogg",
+    )
+    assert transcribe_attachment(att) == "spoken text"
+
+
+def test_transcribe_attachment_skips_non_audio():
+    att = MessageAttachment(
+        attachment_id="att-i",
+        mime_type="image/png",
+        size_bytes=1234,
+        url="https://example.local/x.png",
+    )
+    assert transcribe_attachment(att) is None
+
+
+@pytest.mark.asyncio
+async def test_message_create_audio_attachment_transcribed(adapter, monkeypatch):
+    monkeypatch.setattr(
+        media_module, "transcribe_audio", lambda _payload, **_kw: "hello world"
+    )
+    received = []
+
+    async def handler(event):
+        received.append(event)
+
+    adapter._message_handler = handler
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+
+    await adapter._on_ws_message(
+        ws,
+        sample_inbound(
+            "message.create",
+            {
+                "message_id": "m1",
+                "text": "",
+                "attachments": [
+                    {
+                        "attachment_id": "att-1",
+                        "mime_type": "audio/webm",
+                        "size_bytes": 1024,
+                        "url": "https://example.local/v.webm",
+                        "filename": "recording.webm",
+                    }
+                ],
+            },
+        ),
+    )
+
+    assert len(received) == 1
+    assert received[0].text == "hello world"
+    assert received[0].media_urls == ["https://example.local/v.webm"]
+
+
+@pytest.mark.asyncio
+async def test_message_create_file_attachment_fallback_text(adapter):
+    received = []
+
+    async def handler(event):
+        received.append(event)
+
+    adapter._message_handler = handler
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+
+    await adapter._on_ws_message(
+        ws,
+        sample_inbound(
+            "message.create",
+            {
+                "message_id": "m2",
+                "text": "",
+                "attachments": [
+                    {
+                        "attachment_id": "att-2",
+                        "mime_type": "application/pdf",
+                        "size_bytes": 4096,
+                        "url": "https://example.local/doc.pdf",
+                        "filename": "doc.pdf",
+                    }
+                ],
+            },
+        ),
+    )
+
+    assert len(received) == 1
+    text = received[0].text
+    assert "[file:application/pdf]" in text
+    assert "doc.pdf" in text
+    assert "https://example.local/doc.pdf" in text
+    assert received[0].media_urls == ["https://example.local/doc.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_message_create_attachment_rejects_unsupported_mime(
+    adapter, parse_sent_events
+):
+    received = []
+
+    async def handler(event):
+        received.append(event)
+
+    adapter._message_handler = handler
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+
+    await adapter._on_ws_message(
+        ws,
+        sample_inbound(
+            "message.create",
+            {
+                "message_id": "m3",
+                "text": "look",
+                "attachments": [
+                    {
+                        "attachment_id": "att-bad",
+                        "mime_type": "application/x-unknown",
+                        "size_bytes": 100,
+                        "url": "https://example.local/x.bin",
+                    }
+                ],
+            },
+        ),
+    )
+
+    assert received == []
+    events = parse_sent_events(ws)
+    errors = [e for e in events if e["type"] == "assistant_error"]
+    assert errors and errors[0]["payload"]["code"] == "UNSUPPORTED_MEDIA_TYPE"
+
+
+@pytest.mark.asyncio
+async def test_message_create_text_with_attachment_keeps_text(adapter):
+    received = []
+
+    async def handler(event):
+        received.append(event)
+
+    adapter._message_handler = handler
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+
+    await adapter._on_ws_message(
+        ws,
+        sample_inbound(
+            "message.create",
+            {
+                "message_id": "m4",
+                "text": "describe this image",
+                "attachments": [
+                    {
+                        "attachment_id": "att-img",
+                        "mime_type": "image/png",
+                        "size_bytes": 512,
+                        "url": "https://example.local/x.png",
+                    }
+                ],
+            },
+        ),
+    )
+
+    assert len(received) == 1
+    assert received[0].text == "describe this image"
+    assert received[0].media_urls == ["https://example.local/x.png"]
 
 
 @pytest.mark.asyncio
