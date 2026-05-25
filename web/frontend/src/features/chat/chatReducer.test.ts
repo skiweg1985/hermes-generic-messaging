@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { chatDisplayTitle, chatReducer, initialChatState } from "./chatReducer";
+import {
+  chatDisplayTitle,
+  chatReducer,
+  initialChatState,
+  resolveCancelTargetId,
+} from "./chatReducer";
 import type { ChatState, EventEnvelope } from "../../types/events";
 
 const base = initialChatState("c1", "one");
@@ -303,6 +308,31 @@ describe("chatReducer", () => {
       event: ev("assistant_delta", { message_id: "r1", sequence: 2, delta: "lo" }),
     });
     expect(session(s).lines[0].text).toBe("Hello");
+  });
+
+  it("keeps streamTurnId for cancel after assistant_segment", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "turn-1", turn_message_id: "turn-1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_segment", {
+        message_id: "turn-1",
+        segment_message_id: "turn-1-s1",
+      }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", {
+        message_id: "turn-1-s1",
+        turn_message_id: "turn-1",
+      }),
+    });
+    const active = session(s);
+    expect(active.streamingMessageId).toBe("turn-1-s1");
+    expect(active.streamTurnId).toBe("turn-1");
+    expect(resolveCancelTargetId(active)).toBe("turn-1");
   });
 
   it("splits assistant turn on assistant_segment", () => {

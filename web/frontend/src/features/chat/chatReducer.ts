@@ -20,6 +20,10 @@ function truncate(value: string, max: number): string {
   return `${trimmed.slice(0, Math.max(1, max - 1))}…`;
 }
 
+export function resolveCancelTargetId(session: ChatSession): string | null {
+  return session.streamTurnId ?? session.streamingMessageId;
+}
+
 export function chatDisplayTitle(session: ChatSession): string {
   if (session.title && session.title.trim().length > 0) {
     return truncate(session.title, MAX_TITLE_LENGTH);
@@ -45,6 +49,7 @@ export function createChatSession(chatId: string, label = defaultLabel(chatId)):
     label,
     lines: [],
     streamingMessageId: null,
+    streamTurnId: null,
     input: "",
     pendingAttachments: [],
     typing: false,
@@ -503,6 +508,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const messageId = String(p.message_id ?? newId());
       const turnMessageId =
         p.turn_message_id != null ? String(p.turn_message_id) : undefined;
+      const streamTurnId = turnMessageId ?? messageId;
       const existing = session.lines.find((line) => line.id === messageId);
       const line: TranscriptLine = {
         id: messageId,
@@ -515,8 +521,12 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         streaming: true,
       };
       return {
-        ...upsertLine({ ...withoutTyping(session), streamingMessageId: messageId }, line),
+        ...upsertLine(
+          { ...withoutTyping(session), streamingMessageId: messageId, streamTurnId },
+          line,
+        ),
         streamingMessageId: messageId,
+        streamTurnId,
         typing: false,
         typingStartedAt: undefined,
       };
@@ -573,6 +583,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           },
         ],
         streamingMessageId: segmentMessageId,
+        streamTurnId: session.streamTurnId ?? turnMessageId,
       });
       return nextSession;
     }
@@ -613,6 +624,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         ...withoutTyping(session),
         lines,
         streamingMessageId: null,
+        streamTurnId: null,
         typingClosed: true,
       });
     }
@@ -621,7 +633,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const url = String(p.url ?? p.file_ref ?? "");
       const mime = String(p.mime_type ?? "audio/mpeg");
       return appendLine(
-        { ...withoutTyping(session), streamingMessageId: null },
+        { ...withoutTyping(session), streamingMessageId: null, streamTurnId: null },
         buildAttachmentLine({
           id: messageId,
           role: "assistant",
@@ -755,6 +767,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           sessionId: event.session_id,
         }),
         streamingMessageId: null,
+        streamTurnId: null,
         typing: false,
         typingStartedAt: undefined,
         typingClosed: true,

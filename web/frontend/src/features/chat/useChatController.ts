@@ -2,7 +2,13 @@ import { useCallback, useEffect, useReducer, useRef, type Dispatch } from "react
 import { WsClient } from "../../api/wsClient";
 import { uploadMedia } from "../../api/mediaClient";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
-import { DEFAULT_CHAT_ID, chatReducer, initialChatState, type ChatAction } from "./chatReducer";
+import {
+  DEFAULT_CHAT_ID,
+  chatReducer,
+  initialChatState,
+  resolveCancelTargetId,
+  type ChatAction,
+} from "./chatReducer";
 import { loadChatState, persistChatState } from "./sessionPersistence";
 import { newId } from "../../lib/uuid";
 import type {
@@ -221,8 +227,9 @@ export function useChatController(): ChatController {
     if ((!raw && ready.length === 0) || uploading || !wsRef.current || !connected) return;
 
     if (raw === "cancel") {
-      if (session.streamingMessageId) {
-        wsRef.current.sendCancel(session.streamingMessageId, session.chatId, USER_ID);
+      const cancelTarget = resolveCancelTargetId(session);
+      if (cancelTarget) {
+        wsRef.current.sendCancel(cancelTarget, session.chatId, USER_ID);
       }
       dispatch({ type: "SET_INPUT", input: "" });
       return;
@@ -281,8 +288,9 @@ export function useChatController(): ChatController {
 
   const cancel = useCallback(() => {
     const session = state.sessionsById[state.activeChatId];
-    if (session.streamingMessageId && wsRef.current) {
-      wsRef.current.sendCancel(session.streamingMessageId, session.chatId, USER_ID);
+    const cancelTarget = resolveCancelTargetId(session);
+    if (cancelTarget && wsRef.current) {
+      wsRef.current.sendCancel(cancelTarget, session.chatId, USER_ID);
     }
   }, [state.activeChatId, state.sessionsById]);
 

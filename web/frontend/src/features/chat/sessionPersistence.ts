@@ -57,6 +57,7 @@ function trimSession(session: ChatSession): ChatSession {
     ...session,
     lines: session.lines.slice(-MAX_TRANSCRIPT_LINES).map(trimLine),
     streamingMessageId: null,
+    streamTurnId: null,
     pendingAttachments: [],
     typing: false,
     typingStartedAt: undefined,

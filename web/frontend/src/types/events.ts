@@ -181,6 +181,8 @@ export interface ChatSession {
   threadId?: string;
   lines: TranscriptLine[];
   streamingMessageId: string | null;
+  /** Internal turn/reply id for message.cancel (may differ from streamingMessageId after segments). */
+  streamTurnId: string | null;
   input: string;
   pendingAttachments: PendingAttachment[];
   typing: boolean;
