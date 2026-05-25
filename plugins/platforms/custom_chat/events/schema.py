@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from plugins.platforms.custom_chat.config import (
+from ..config import (
     AudioUploadedPayload,
+    ButtonClickPayload,
     CommandCreatePayload,
     EventEnvelope,
+    FileUploadedPayload,
     MessageCancelPayload,
     MessageCreatePayload,
     parse_inbound_envelope,
@@ -35,8 +37,12 @@ def parse_inbound(data: dict[str, Any]) -> tuple[EventEnvelope, Any]:
             payload_model = CommandCreatePayload.model_validate(envelope.payload)
         elif envelope.type == "audio.uploaded":
             payload_model = AudioUploadedPayload.model_validate(envelope.payload)
+        elif envelope.type == "file.uploaded":
+            payload_model = FileUploadedPayload.model_validate(envelope.payload)
         elif envelope.type == "message.cancel":
             payload_model = MessageCancelPayload.model_validate(envelope.payload)
+        elif envelope.type == "button.click":
+            payload_model = ButtonClickPayload.model_validate(envelope.payload)
         else:
             raise InboundEventError("BAD_REQUEST", f"unsupported inbound type: {envelope.type}")
     except InboundEventError:

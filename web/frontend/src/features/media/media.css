@@ -1,0 +1,421 @@
+/**
+ * Phase 6 — Media (Lightbox, ImageCard, FileCard, AudioCard, Waveform).
+ * Replaces the .media-image / .media-file / .media-audio rules in
+ * transcript.css (those are kept for backwards compat until Phase 8 cleanup).
+ */
+
+/* ── Image card ──────────────────────────────────────────────────────── */
+
+.media-image-card {
+  margin: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 100%;
+}
+.media-image-card-right {
+  margin-left: auto;
+}
+
+.media-image-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.media-image-trigger {
+  position: relative;
+  display: block;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-sm);
+  cursor: zoom-in;
+  transition: transform var(--dur-base) var(--ease-standard);
+  padding: 0;
+}
+.media-image-trigger:hover {
+  transform: translateY(-1px);
+}
+
+.media-image-img {
+  display: block;
+  max-width: 100%;
+  max-height: 560px;
+  width: auto;
+  height: auto;
+}
+
+.media-image-download {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  border-radius: var(--r-sm);
+  background: rgba(10, 10, 12, 0.55);
+  color: var(--text-primary);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard);
+}
+.media-image-frame:hover .media-image-download,
+.media-image-download:focus-visible {
+  opacity: 1;
+}
+.media-image-download:hover {
+  background: rgba(10, 10, 12, 0.78);
+}
+
+.media-image-caption {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+/* ── Lightbox ────────────────────────────────────────────────────────── */
+
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: var(--s-12) var(--s-8) var(--s-12);
+}
+
+.lightbox-toolbar {
+  position: absolute;
+  top: var(--s-4);
+  left: var(--s-5);
+  right: var(--s-5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.lightbox-toolbar > * {
+  pointer-events: auto;
+}
+
+.lightbox-toolbar-actions {
+  display: inline-flex;
+  gap: var(--s-2);
+}
+
+.lightbox-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.lightbox-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.lightbox-counter {
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  transition: background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-50%) scale(1.04);
+}
+.lightbox-nav-prev { left: var(--s-5); }
+.lightbox-nav-next { right: var(--s-5); }
+
+.lightbox-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.lightbox-image {
+  max-width: 92vw;
+  max-height: 78vh;
+  border-radius: var(--r-md);
+  object-fit: contain;
+  box-shadow: 0 30px 80px -10px rgba(0, 0, 0, 0.7);
+  background: var(--surface-sunken);
+}
+
+.lightbox-caption {
+  color: rgba(255, 255, 255, 0.78);
+  max-width: 720px;
+  text-align: center;
+  padding: 0 var(--s-4);
+}
+
+/* ── File card ───────────────────────────────────────────────────────── */
+
+.file-card-wrap {
+  display: flex;
+  width: 100%;
+}
+.file-card-wrap-right {
+  justify-content: flex-end;
+}
+
+.file-card {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-3);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  width: min(380px, 100%);
+  transition: background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.file-card:hover {
+  background: var(--surface-3);
+}
+
+.file-card-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+.file-card-image .file-card-icon {
+  background: var(--state-info-bg);
+  color: var(--state-info);
+}
+.file-card-audio .file-card-icon {
+  background: var(--state-warning-bg);
+  color: var(--state-warning);
+}
+
+.file-card-body {
+  min-width: 0;
+}
+.file-card-name {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.file-card-meta {
+  color: var(--text-tertiary);
+}
+
+.file-card-action {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  color: var(--text-tertiary);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.file-card-action:hover {
+  background: var(--accent-faint);
+  color: var(--text-primary);
+}
+
+/* ── Audio card + waveform player ────────────────────────────────────── */
+
+.audio-card {
+  width: 100%;
+  max-width: 480px;
+}
+.audio-card-right {
+  width: auto;
+  margin-left: auto;
+}
+
+.waveform {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-3) var(--s-3);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.waveform-play {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: var(--text-on-solid);
+  display: grid;
+  place-items: center;
+  transition: background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.waveform-play:hover {
+  background: #ffffff;
+}
+.waveform-play:active {
+  transform: scale(0.96);
+}
+
+.waveform-track {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.waveform-canvas {
+  display: block;
+  width: 100%;
+  height: 36px;
+  touch-action: none;
+}
+
+.waveform-meta {
+  grid-column: 3;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.waveform-time {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.waveform-speed {
+  padding: 0 var(--s-2);
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--accent-faint);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  transition: background var(--dur-fast);
+}
+.waveform-speed:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.waveform-download {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  color: var(--text-tertiary);
+}
+.waveform-download:hover {
+  background: var(--accent-faint);
+  color: var(--text-primary);
+}
+
+.waveform-name {
+  grid-column: 2 / span 2;
+  grid-row: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-tertiary);
+  min-width: 0;
+}
+.waveform-name svg {
+  color: var(--text-quaternary);
+}
+
+/* ── Video card ─────────────────────────────────────────────────────── */
+.media-video-card {
+  margin: var(--s-2) 0;
+  max-width: min(100%, 420px);
+}
+
+.media-video-card-right {
+  margin-left: auto;
+}
+
+.media-video-wrap {
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+
+.media-video-player {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  background: #000;
+}
+
+.media-video-download {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+
+.media-video-caption {
+  margin-top: var(--s-2);
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 720px) {
+  .audio-card {
+    max-width: 100%;
+  }
+  .file-card {
+    width: 100%;
+  }
+  .lightbox-nav { display: none; }
+  .lightbox-stage {
+    padding: 0 var(--s-3);
+  }
+}

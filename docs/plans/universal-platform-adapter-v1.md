@@ -27,9 +27,20 @@ Every event is a JSON object with these fields:
 {
   "message_id": "msg-uuid",
   "text": "Hello",
+  "attachments": [
+    {
+      "attachment_id": "att-uuid",
+      "mime_type": "image/png",
+      "size_bytes": 12345,
+      "url": "https://example.local/image.png",
+      "filename": "image.png"
+    }
+  ],
   "idempotency_key": "optional-client-key"
 }
 ```
+
+`text` may be empty when `attachments` is non-empty. Each attachment requires `url` or `file_ref`.
 
 ### `command.create`
 
@@ -79,14 +90,46 @@ Either `url` or `file_ref` is required.
 }
 ```
 
+`delta` is an **incremental** text chunk (not cumulative). Clients append each delta to the current assistant line.
+
+### `assistant_segment`
+
+Boundary within a single assistant turn (for example after a tool call):
+
+```json
+{
+  "message_id": "turn-msg-uuid",
+  "segment_message_id": "turn-msg-uuid-s1",
+  "label": "🔧 read_file"
+}
+```
+
+Clients finalize the current streaming line and continue in a new assistant line identified by `segment_message_id`.
+
 ### `assistant_done`
 
 ```json
 {
   "message_id": "reply-msg-uuid",
-  "final_text": "complete answer"
+  "final_text": "complete answer",
+  "turn_message_id": "turn-msg-uuid",
+  "segments": 2
 }
 ```
+
+`segments` is optional telemetry for multi-segment turns.
+
+### `assistant_notice`
+
+```json
+{
+  "message_id": "notice-msg-uuid",
+  "kind": "info",
+  "text": "Provider switched to gpt-5"
+}
+```
+
+`kind` may be `info`, `tool`, `reasoning`, `warning`, or `error`.
 
 ### `assistant_audio`
 

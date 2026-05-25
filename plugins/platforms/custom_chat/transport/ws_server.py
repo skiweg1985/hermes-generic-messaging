@@ -68,12 +68,19 @@ class WebSocketHub:
         self._clients.clear()
         self._client_context.clear()
 
-    async def broadcast(self, event: dict[str, Any], *, chat_id: Optional[str] = None) -> None:
+    async def broadcast(
+        self,
+        event: dict[str, Any],
+        *,
+        chat_id: Optional[str] = None,
+        all_clients: bool = False,
+    ) -> None:
         data = json.dumps(event)
         for ws in list(self._clients):
-            ctx = self._client_context.get(ws, {})
-            if chat_id and ctx.get("chat_id") != chat_id:
-                continue
+            if not all_clients:
+                ctx = self._client_context.get(ws, {})
+                if chat_id and ctx.get("chat_id") != chat_id:
+                    continue
             try:
                 await ws.send(data)
             except Exception:

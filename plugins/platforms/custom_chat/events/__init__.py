@@ -1,5 +1,5 @@
-from plugins.platforms.custom_chat.events.mapping import inbound_to_message_event
-from plugins.platforms.custom_chat.events.schema import (
+from .mapping import inbound_to_message_event
+from .schema import (
     InboundEventError,
     parse_inbound,
     text_to_command_event,

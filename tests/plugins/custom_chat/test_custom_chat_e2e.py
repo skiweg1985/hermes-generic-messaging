@@ -1,15 +1,21 @@
-"""PR7: end-to-end scenarios across text, stream, command, audio."""
+"""PR7: end-to-end scenarios across text, stream, command, and attachments."""
 
 from __future__ import annotations
 
 import pytest
 
+from plugins.platforms.custom_chat import adapter as adapter_module
 from plugins.platforms.custom_chat.transport.ws_server import WebSocketHub
 from tests.plugins.custom_chat.conftest import MockWebSocket, sample_inbound
 
 
 @pytest.mark.asyncio
-async def test_e2e_text_stream_command_audio(adapter, parse_sent_events):
+async def test_e2e_text_stream_command_audio_file(adapter, parse_sent_events, monkeypatch):
+    monkeypatch.setattr(
+        adapter_module,
+        "transcribe_audio",
+        lambda _payload, **_kw: "e2e voice transcript",
+    )
     received = []
 
     async def handler(event):
@@ -57,7 +63,23 @@ async def test_e2e_text_stream_command_audio(adapter, parse_sent_events):
             event_id="e2e-3",
         ),
     )
-    assert "transcribed" in received[-1].text.lower()
+    assert received[-1].text == "e2e voice transcript"
+
+    await adapter._on_ws_message(
+        ws,
+        sample_inbound(
+            "file.uploaded",
+            {
+                "message_id": "e2e-file",
+                "filename": "report.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 200,
+                "url": "https://example.local/report.pdf",
+            },
+            event_id="e2e-4",
+        ),
+    )
+    assert "[file:application/pdf]" in received[-1].text
 
     events = parse_sent_events(ws)
     outbound_types = {e["type"] for e in events}

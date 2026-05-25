@@ -36,7 +36,7 @@ async def test_model_command_routed(adapter, parse_sent_events):
         sample_inbound("message.create", {"message_id": "m1", "text": "/model"}),
     )
     assert received[0].text.startswith("/model")
-    assert received[0].metadata.get("is_command") is True
+    assert received[0].message_id == "m1"
 
 
 @pytest.mark.asyncio

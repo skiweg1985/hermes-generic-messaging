@@ -40,6 +40,34 @@
         "size_bytes": 4096,
         "url": "https://example.local/voice.ogg"
       }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000004",
+      "timestamp": "2026-05-23T10:49:15Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "button.click",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000300",
+        "confirm_id": "00000000-0000-4000-8000-000000000300",
+        "button_id": "once",
+        "choice": "once"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000005",
+      "timestamp": "2026-05-23T10:49:16Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "client.register",
+      "payload": {
+        "public_media_base_url": "http://192.0.2.10:8000",
+        "client_kind": "web_bff"
+      }
     }
   ],
   "outbound_examples": [
@@ -80,6 +108,117 @@
       "payload": {
         "message_id": "00000000-0000-4000-8000-000000000200",
         "final_text": "Hello back"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000103",
+      "timestamp": "2026-05-23T10:49:15Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_buttons",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000300",
+        "confirm_id": "00000000-0000-4000-8000-000000000300",
+        "title": "Reload MCP",
+        "body": "This will invalidate the provider prompt cache.",
+        "kind": "slash_confirm",
+        "buttons": [
+          {"id": "once", "label": "Approve Once", "style": "primary"},
+          {"id": "always", "label": "Always Approve", "style": "primary"},
+          {"id": "cancel", "label": "Cancel", "style": "danger"}
+        ]
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000104",
+      "timestamp": "2026-05-23T10:49:16Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_notice",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000400",
+        "kind": "info",
+        "text": "Provider switched to gpt-5"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000105",
+      "timestamp": "2026-05-23T10:49:17Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_image",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000500",
+        "url": "https://example.local/cat.png",
+        "caption": "a cat",
+        "mime_type": "image/png"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000106",
+      "timestamp": "2026-05-23T10:49:18Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "typing",
+      "payload": {
+        "state": "start"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000107",
+      "timestamp": "2026-05-23T10:49:19Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_buttons",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000600",
+        "pick_id": "00000000-0000-4000-8000-000000000600",
+        "command": "/model",
+        "title": "Select model",
+        "body": "Choose a model for this session.",
+        "kind": "slash_pick",
+        "buttons": [
+          {"id": "gpt-4", "label": "GPT-4", "style": "primary"},
+          {"id": "claude-3", "label": "Claude 3", "style": "secondary"}
+        ]
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000108",
+      "timestamp": "2026-05-23T10:49:20Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_segment",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000200",
+        "segment_message_id": "00000000-0000-4000-8000-000000000201",
+        "label": "🔧 read_file"
+      }
+    },
+    {
+      "schema_version": "v1",
+      "event_id": "00000000-0000-4000-8000-000000000109",
+      "timestamp": "2026-05-23T10:49:21Z",
+      "platform": "custom_chat",
+      "chat_id": "workspace:conversation",
+      "user_id": "user-demo",
+      "type": "assistant_notice",
+      "payload": {
+        "message_id": "00000000-0000-4000-8000-000000000401",
+        "kind": "tool",
+        "text": "Running read_file…"
       }
     }
   ]

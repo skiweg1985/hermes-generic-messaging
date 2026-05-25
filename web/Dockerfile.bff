@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY packages packages
+COPY plugins plugins
+COPY web/backend web/backend
+RUN pip install --no-cache-dir -e ".[web]"
+WORKDIR /app/web/backend
+ENV WEB_MEDIA_UPLOAD_DIR=/app/data/uploads
+RUN mkdir -p /app/data/uploads
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -44,6 +44,9 @@ async def test_inbound_text_mapped_and_handle_message_called(adapter: CustomChat
     assert len(received) == 1
     assert received[0].text == "Hello Hermes"
     assert received[0].message_id == "in-1"
+    assert received[0].source.platform.value == "custom_chat"
+    assert received[0].source.chat_id == "workspace:conv1"
+    assert received[0].source.user_id == "user-1"
 
 
 @pytest.mark.asyncio

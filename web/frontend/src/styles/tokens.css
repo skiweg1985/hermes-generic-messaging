@@ -1,0 +1,147 @@
+/**
+ * Hermes design tokens — dark-only, pure-neutral accent.
+ *
+ * Principles:
+ *   - Surfaces carry hierarchy via background + soft shadow, not via borders.
+ *   - Text is opacity-graded off-white, not role-coloured.
+ *   - Chromatic colour is reserved for semantic state (success/warning/danger/info),
+ *     scoped to card interiors. Never on body text or chrome.
+ *   - The "accent" is an off-white at varying opacities; no brand hue.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Canvas & surfaces ─────────────────────────────────────────────── */
+  --surface-canvas:   #0a0a0c;            /* page background */
+  --surface-sunken:   #07070a;            /* inset wells, transcript well */
+  --surface-1:        #101013;            /* rail, peeks */
+  --surface-2:        #16161b;            /* composer, cards */
+  --surface-3:        #1c1c23;            /* hover, raised cards */
+  --surface-4:        #24242c;            /* active, popovers */
+  --surface-overlay:  rgba(10, 10, 12, 0.72);   /* glassy chrome overlay */
+  --surface-scrim:    rgba(0, 0, 0, 0.56);      /* modal backdrops */
+
+  /* ── Lines (almost-invisible separators, never structural) ────────── */
+  --line-hairline:    rgba(255, 255, 255, 0.05);
+  --line-soft:        rgba(255, 255, 255, 0.08);
+  --line-strong:      rgba(255, 255, 255, 0.12);
+
+  /* ── Text (opacity-graded, neutral) ────────────────────────────────── */
+  --text-primary:     rgba(255, 255, 255, 0.96);
+  --text-secondary:   rgba(255, 255, 255, 0.72);
+  --text-tertiary:    rgba(255, 255, 255, 0.52);
+  --text-quaternary:  rgba(255, 255, 255, 0.36);
+  --text-disabled:    rgba(255, 255, 255, 0.22);
+  --text-on-solid:    #0a0a0c;            /* text sitting on a near-white solid */
+
+  /* ── Neutral accent (pure off-white at varied opacity) ─────────────── */
+  --accent-strong:    rgba(255, 255, 255, 0.96);   /* primary action solid */
+  --accent:           rgba(255, 255, 255, 0.84);
+  --accent-soft:      rgba(255, 255, 255, 0.14);   /* selection bg, ghost btn */
+  --accent-faint:     rgba(255, 255, 255, 0.06);
+  --accent-glow:      rgba(255, 255, 255, 0.18);   /* focus halo */
+
+  /* ── Semantic state (used inside cards only) ───────────────────────── */
+  --state-success:        #6ee7a8;
+  --state-success-bg:     rgba(110, 231, 168, 0.10);
+  --state-success-border: rgba(110, 231, 168, 0.24);
+
+  --state-warning:        #f5c97a;
+  --state-warning-bg:     rgba(245, 201, 122, 0.10);
+  --state-warning-border: rgba(245, 201, 122, 0.24);
+
+  --state-danger:         #ef8a8a;
+  --state-danger-bg:      rgba(239, 138, 138, 0.10);
+  --state-danger-border:  rgba(239, 138, 138, 0.28);
+
+  --state-info:           #9ec5ff;
+  --state-info-bg:        rgba(158, 197, 255, 0.10);
+  --state-info-border:    rgba(158, 197, 255, 0.24);
+
+  /* ── Radii ─────────────────────────────────────────────────────────── */
+  --r-xs:   4px;
+  --r-sm:   6px;
+  --r-md:   10px;
+  --r-lg:   14px;
+  --r-xl:   20px;
+  --r-2xl:  28px;
+  --r-pill: 999px;
+
+  /* ── Spacing scale ─────────────────────────────────────────────────── */
+  --s-1:   4px;
+  --s-2:   8px;
+  --s-3:   12px;
+  --s-4:   16px;
+  --s-5:   20px;
+  --s-6:   24px;
+  --s-7:   28px;
+  --s-8:   32px;
+  --s-10:  40px;
+  --s-12:  56px;
+  --s-16:  80px;
+  --s-20:  112px;
+
+  /* ── Shadows (layered, soft, never dramatic) ───────────────────────── */
+  --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 8px -2px rgba(0, 0, 0, 0.40);
+  --shadow-md:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 8px 24px -10px rgba(0, 0, 0, 0.55);
+  --shadow-lg:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 50px -16px rgba(0, 0, 0, 0.70);
+  --shadow-overlay:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 30px 80px -20px rgba(0, 0, 0, 0.80);
+  --shadow-focus:
+    0 0 0 1px var(--accent-strong),
+    0 0 0 5px var(--accent-glow);
+
+  /* ── Z-index scale ─────────────────────────────────────────────────── */
+  --z-base:     0;
+  --z-sticky:   10;
+  --z-rail:     20;
+  --z-popover:  40;
+  --z-overlay:  60;
+  --z-modal:    80;
+  --z-toast:    100;
+
+  /* ── Layout ────────────────────────────────────────────────────────── */
+  --rail-width:           268px;
+  --rail-width-collapsed: 56px;
+  --topbar-height:        48px;
+  --composer-max-width:   760px;
+  --content-max-width:    760px;
+
+  /* ── Motion (durations & easings; reduced-motion overrides below) ──── */
+  --dur-instant: 0ms;
+  --dur-fast:    120ms;
+  --dur-base:    180ms;
+  --dur-slow:    260ms;
+  --dur-slower:  380ms;
+
+  --ease-standard:    cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized:  cubic-bezier(0.3, 0, 0, 1);
+  --ease-soft-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft-in:     cubic-bezier(0.4, 0, 0.7, 0.2);
+
+  /* ── Typography (resolved type ramp lives in typography.css) ───────── */
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+}
+
+/* ── Reduced motion overrides ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast:   0ms;
+    --dur-base:   0ms;
+    --dur-slow:   0ms;
+    --dur-slower: 0ms;
+  }
+}

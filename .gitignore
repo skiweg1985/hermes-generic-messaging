@@ -12,6 +12,10 @@ dist/
 build/
 .coverage
 htmlcov/
+data/uploads/
+web/backend/data/
+web/frontend/node_modules/
+web/frontend/dist/
 .DS_Store
 .idea/
 .vscode/

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from plugins.platforms.custom_chat.config import EventEnvelope
-from plugins.platforms.custom_chat.events.schema import InboundEventError
+from ..config import EventEnvelope
+from .schema import InboundEventError
 
 
 def _hermes_types():
@@ -16,9 +16,73 @@ def _hermes_types():
     return MessageEvent, MessageType
 
 
+def _build_message_event(
+    MessageEvent: Any,
+    *,
+    text: str,
+    message_type: Any,
+    source: Any,
+    message_id: str,
+    raw_message: Optional[dict] = None,
+    media_urls: Optional[list[str]] = None,
+    media_types: Optional[list[str]] = None,
+) -> Any:
+    """Construct a MessageEvent, tolerating older Hermes signatures."""
+    kwargs: dict[str, Any] = {
+        "text": text,
+        "message_type": message_type,
+        "source": source,
+        "message_id": message_id,
+    }
+    if raw_message is not None:
+        kwargs["raw_message"] = raw_message
+    if media_urls is not None:
+        kwargs["media_urls"] = media_urls
+    if media_types is not None:
+        kwargs["media_types"] = media_types
+    try:
+        return MessageEvent(**kwargs)
+    except TypeError:
+        # Fallback for test stubs / older signatures that lack the extra
+        # fields. Drop optional keys and retry.
+        for opt_key in ("raw_message", "media_urls", "media_types"):
+            kwargs.pop(opt_key, None)
+        return MessageEvent(**kwargs)
+
+
+def _attachments_text_fallback(attachments: list[Any]) -> str:
+    """Produce a Hermes-readable text for media-only `message.create` events.
+
+    Mirrors the legacy `audio.uploaded` / `file.uploaded` text shape so agents
+    that don't read `media_urls` still see the attachment in `MessageEvent.text`.
+    """
+    parts: list[str] = []
+    for att in attachments:
+        mime = str(att.mime_type)
+        url = att.url or att.file_ref
+        label = f"[audio:{mime}]" if mime.startswith("audio/") else f"[file:{mime}]"
+        line = [label]
+        filename = getattr(att, "filename", None)
+        if filename:
+            line.append(str(filename))
+        if url:
+            line.append(f"url={url}")
+        parts.append(" ".join(line))
+    return "\n".join(parts)
+
+
+def _resolve_message_type(MessageType: Any, mime_type: str) -> Any:
+    if mime_type.startswith("image/"):
+        return getattr(MessageType, "PHOTO", getattr(MessageType, "IMAGE", MessageType.TEXT))
+    if mime_type.startswith("audio/"):
+        return getattr(MessageType, "VOICE", getattr(MessageType, "AUDIO", MessageType.TEXT))
+    return getattr(MessageType, "DOCUMENT", MessageType.TEXT)
+
+
 def inbound_to_message_event(
     envelope: EventEnvelope,
     payload_model: Any,
+    source: Any,
     *,
     transcribed_text: Optional[str] = None,
 ) -> Any:
@@ -29,51 +93,89 @@ def inbound_to_message_event(
             "hermes-agent not installed; MessageEvent unavailable",
         )
 
-    chat_type = "dm"
-    source = {
-        "chat_id": envelope.chat_id,
-        "chat_name": envelope.chat_id,
-        "chat_type": chat_type,
-        "user_id": envelope.user_id,
-        "user_name": envelope.user_id,
-        "thread_id": envelope.thread_id,
-        "platform": envelope.platform,
-        "session_id": envelope.session_id,
-    }
-
     if envelope.type == "message.create":
-        text = payload_model.text
-        if text.startswith("/"):
-            text = text
-        return MessageEvent(
+        attachments = getattr(payload_model, "attachments", None) or []
+        media_urls: list[str] = []
+        media_types: list[str] = []
+        raw_message: Optional[dict] = None
+        message_type = MessageType.TEXT
+        if attachments:
+            raw_message = {"attachments": []}
+            for att in attachments:
+                media_url = att.url or att.file_ref
+                if media_url:
+                    media_urls.append(str(media_url))
+                    media_types.append(str(att.mime_type))
+                if raw_message is not None:
+                    raw_message["attachments"].append(
+                        {
+                            "attachment_id": att.attachment_id,
+                            "mime_type": att.mime_type,
+                            "size_bytes": att.size_bytes,
+                            "filename": getattr(att, "filename", None),
+                            "url": media_url,
+                        }
+                    )
+            if media_types:
+                message_type = _resolve_message_type(MessageType, media_types[0])
+        text = payload_model.text or ""
+        if not text.strip() and attachments:
+            text = transcribed_text or _attachments_text_fallback(attachments)
+        return _build_message_event(
+            MessageEvent,
             text=text,
-            message_type=MessageType.TEXT,
+            message_type=message_type,
             source=source,
             message_id=payload_model.message_id,
+            media_urls=media_urls or None,
+            media_types=media_types or None,
+            raw_message=raw_message,
         )
 
     if envelope.type == "command.create":
-        return MessageEvent(
+        # Pass slash text through verbatim — the gateway runner detects the
+        # leading slash itself, just like the Telegram adapter.
+        return _build_message_event(
+            MessageEvent,
             text=payload_model.command,
             message_type=MessageType.TEXT,
             source=source,
             message_id=payload_model.message_id,
-            metadata={"is_command": True},
         )
 
-    if envelope.type == "audio.uploaded":
-        text = transcribed_text or f"[audio:{payload_model.mime_type}]"
+    if envelope.type in {"audio.uploaded", "file.uploaded"}:
+        mime_type = payload_model.mime_type
+        is_audio = mime_type.startswith("audio/")
+        filename = getattr(payload_model, "filename", None)
         media_url = payload_model.url or payload_model.file_ref
-        return MessageEvent(
+        if transcribed_text:
+            text = transcribed_text
+        else:
+            label = f"[audio:{mime_type}]" if is_audio else f"[file:{mime_type}]"
+            parts = [label]
+            if filename:
+                parts.append(filename)
+            if media_url:
+                parts.append(f"url={media_url}")
+            text = " ".join(parts)
+        media_urls = [media_url] if media_url else []
+        media_types = [mime_type] if mime_type else []
+        message_type = _resolve_message_type(MessageType, mime_type)
+        raw_message = {
+            "mime_type": mime_type,
+            "size_bytes": payload_model.size_bytes,
+        }
+        if getattr(payload_model, "filename", None):
+            raw_message["filename"] = payload_model.filename
+        return _build_message_event(
+            MessageEvent,
             text=text,
-            message_type=MessageType.AUDIO if hasattr(MessageType, "AUDIO") else MessageType.TEXT,
+            message_type=message_type,
             source=source,
             message_id=payload_model.message_id,
-            metadata={
-                "mime_type": payload_model.mime_type,
-                "size_bytes": payload_model.size_bytes,
-                "media_url": media_url,
-            },
+            media_urls=media_urls,
+            media_types=media_types,
+            raw_message=raw_message,
         )
 
     raise InboundEventError("BAD_REQUEST", f"cannot map type {envelope.type}")

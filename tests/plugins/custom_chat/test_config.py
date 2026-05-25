@@ -8,6 +8,7 @@ from plugins.platforms.custom_chat.config import (
     CommandCreatePayload,
     CustomChatSettings,
     EventEnvelope,
+    FileUploadedPayload,
     MessageCreatePayload,
     build_outbound_event,
     parse_inbound_envelope,
@@ -17,7 +18,7 @@ from plugins.platforms.custom_chat.config import (
 def test_settings_defaults_disabled():
     s = CustomChatSettings()
     assert s.enabled is False
-    assert s.ws_host == "127.0.0.1"
+    assert s.ws_host == "0.0.0.0"
     assert s.ws_port == 8765
 
 
@@ -70,6 +71,42 @@ def test_command_must_start_with_slash():
 def test_audio_requires_url_or_file_ref():
     with pytest.raises(ValidationError):
         AudioUploadedPayload(message_id="m1", mime_type="audio/ogg", size_bytes=100)
+
+
+def test_file_requires_url_or_file_ref():
+    with pytest.raises(ValidationError):
+        FileUploadedPayload(
+            message_id="m1",
+            filename="report.pdf",
+            mime_type="application/pdf",
+            size_bytes=100,
+        )
+
+
+def test_message_create_with_attachments():
+    msg = MessageCreatePayload.model_validate(
+        {
+            "message_id": "m1",
+            "text": "see files",
+            "attachments": [
+                {
+                    "attachment_id": "a1",
+                    "mime_type": "image/png",
+                    "size_bytes": 1200,
+                    "url": "https://example.local/i.png",
+                    "filename": "i.png",
+                }
+            ],
+        }
+    )
+    assert msg.text == "see files"
+    assert len(msg.attachments) == 1
+    assert msg.attachments[0].attachment_id == "a1"
+
+
+def test_message_create_requires_text_or_attachments():
+    with pytest.raises(ValidationError):
+        MessageCreatePayload(message_id="m1", text="")
 
 
 def test_outbound_event_builder():

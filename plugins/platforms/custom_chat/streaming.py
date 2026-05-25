@@ -17,6 +17,12 @@ class StreamSession:
     started: bool = False
     done: bool = False
     accumulated: str = ""
+    segment_index: int = 0
+    active_line_id: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.active_line_id:
+            self.active_line_id = self.message_id
 
 
 class StreamManager:
@@ -58,5 +64,28 @@ class StreamManager:
         if message_id in self._sessions:
             self._sessions[message_id].done = True
 
+    def get(self, message_id: str) -> Optional[StreamSession]:
+        return self._sessions.get(message_id)
+
+    def resolve_reply_id(self, target: str) -> Optional[str]:
+        """Map a line, segment, or turn id to the active stream reply id."""
+        if target in self._sessions:
+            return target
+        for reply_id, session in self._sessions.items():
+            if session.active_line_id == target:
+                return reply_id
+            if target.startswith(f"{reply_id}-s"):
+                return reply_id
+        return None
+
     def remove(self, message_id: str) -> Optional[StreamSession]:
         return self._sessions.pop(message_id, None)
+
+    def begin_segment(self, message_id: str) -> tuple[str, str]:
+        """Advance to the next transcript segment; returns (turn_id, new_line_id)."""
+        session = self._sessions[message_id]
+        session.segment_index += 1
+        new_line_id = f"{message_id}-s{session.segment_index}"
+        session.active_line_id = new_line_id
+        session.accumulated = ""
+        return message_id, new_line_id
