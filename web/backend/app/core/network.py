@@ -45,7 +45,18 @@ def resolve_public_media_base_url(
     public_port: int | None = None,
     bff_host: str | None = None,
 ) -> str:
-    """Resolve the HTTP base URL published in media events and client.register."""
+    """Resolve the HTTP base URL published in media events and ``client.register``.
+
+    Resolution order (first match wins):
+
+    1. ``explicit`` (``WEB_PUBLIC_MEDIA_BASE_URL``) — full URL, used as-is.
+    2. ``public_host`` (``WEB_PUBLIC_HOST``) — combined with port.
+    3. ``bff_host`` (``BFF_HOST``) if it is a real host (not blank, not loopback,
+       not ``0.0.0.0``) — combined with port.
+    4. Auto-detected primary LAN IPv4 — so a Hermes instance on another LAN host
+       can actually reach the announced URL without manual config.
+    5. Fallback ``127.0.0.1`` when no LAN IPv4 is available.
+    """
     if explicit and explicit.strip():
         return explicit.strip().rstrip("/")
 
@@ -54,9 +65,9 @@ def resolve_public_media_base_url(
     )
     host = (public_host or os.getenv("WEB_PUBLIC_HOST", "")).strip()
     if not host:
-        bind_host = (bff_host or os.getenv("BFF_HOST", "127.0.0.1")).strip()
-        if bind_host == "0.0.0.0":
-            host = get_primary_ipv4() or "127.0.0.1"
+        bind_host = (bff_host or os.getenv("BFF_HOST", "")).strip()
+        if bind_host and bind_host not in {"0.0.0.0", "127.0.0.1", "localhost", "::"}:
+            host = bind_host
         else:
-            host = bind_host or "127.0.0.1"
+            host = get_primary_ipv4() or "127.0.0.1"
     return f"http://{host}:{port}".rstrip("/")
