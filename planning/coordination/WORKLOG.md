@@ -1059,3 +1059,76 @@ Redactions performed: none
   - yes (Fixed, Added schema note)
 - Follow-ups:
   - wire real TTS provider when `audio_response` is needed in production
+
+## 2026-05-25 20:45 – cursor – Interface Contract Dokument
+
+- Done:
+  - `docs/interface_contract.md` erstellt: vollständiges Contract-Dokument für alle drei Schichten
+    - Abschnitt 1: Frontend ↔ BFF (WS /ws/chat, REST /api/v1/…, Env-Variablen)
+    - Abschnitt 2: BFF ↔ Plugin (Event Schema v1, alle Inbound-/Outbound-Events mit TypeScript-Typen, Streaming-Sequenzen, Auth, Deduplizierung)
+    - Abschnitt 3: Plugin ↔ Hermes Core (BasePlatformAdapter-Methoden, SendResult, MessageEvent, SessionSource, register(ctx))
+    - Abschnitt 4: MIME-Allowlists
+    - Abschnitt 5: Invarianten & Regeln
+  - Hermes-Dokumentation (NousResearch/hermes-agent) als Referenz für BasePlatformAdapter und ctx.register_platform() herangezogen
+  - CHANGELOG [Unreleased] → Added ergänzt
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (aktueller Working-Tree)
+  - PR: none
+- Files touched:
+  - docs/interface_contract.md (neu)
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: n/a (Dokumentation)
+  - endpoints: n/a
+  - UI path: n/a
+- Changelog updated:
+  - yes (Added)
+- Follow-ups:
+  - Contract-Dokument bei größeren Schema-Änderungen mitpflegen
+  - Versionierungsstrategie für Schema-Upgrades (v2) definieren
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none
+
+## 2026-05-25 22:30 – cursor – Contract-Code Abgleich
+
+- Done:
+  - `docs/interface_contract.md` an Code angeglichen: `typing` state, `interrupted`, REST `detail`, WS 4401, Env-Namen, `slash_pick` → `command.create`, `register`/`check_fn`, `raw_message`, MessageType PHOTO/IMAGE
+  - Plugin-Defaults: `ws_host` `0.0.0.0`, `dedupe_ttl_seconds` 60 in `packages/custom_chat_schema/settings.py`
+  - `send_image`: `mime_type` immer gesetzt (Metadata, URL-Guessing, Fallback `image/png`)
+  - Tests: `test_config.py`, `test_notice_image_typing.py` (neuer Guessing-Test)
+  - `docs/custom_chat.md` Defaults aktualisiert
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (aktueller Working-Tree)
+  - PR: none
+- Files touched:
+  - docs/interface_contract.md
+  - docs/custom_chat.md
+  - docs/CHANGELOG.md
+  - packages/custom_chat_schema/settings.py
+  - plugins/platforms/custom_chat/adapter.py
+  - tests/plugins/custom_chat/test_config.py
+  - tests/plugins/custom_chat/test_notice_image_typing.py
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `pytest tests/plugins/custom_chat/test_config.py tests/plugins/custom_chat/test_notice_image_typing.py tests/web/test_enrich.py -q` (19 passed)
+- Changelog updated:
+  - yes (Changed)
+- Follow-ups:
+  - none
+
+Security leak check: PASS
+PII check: PASS
+Sensitive data touched: no
+Redactions performed: none

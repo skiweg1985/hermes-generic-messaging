@@ -18,7 +18,7 @@ from plugins.platforms.custom_chat.config import (
 def test_settings_defaults_disabled():
     s = CustomChatSettings()
     assert s.enabled is False
-    assert s.ws_host == "127.0.0.1"
+    assert s.ws_host == "0.0.0.0"
     assert s.ws_port == 8765
 
 

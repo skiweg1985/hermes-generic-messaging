@@ -8,7 +8,9 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 from .config import (
     CustomChatSettings,
@@ -944,8 +946,10 @@ class CustomChatAdapter(BasePlatformAdapter):
     if caption:
       payload["caption"] = caption
     mime_type = meta.get("mime_type")
-    if mime_type:
-      payload["mime_type"] = mime_type
+    if not mime_type:
+      guessed = guess_mime_type(Path(urlparse(image_url).path))
+      mime_type = guessed if str(guessed).startswith("image/") else "image/png"
+    payload["mime_type"] = str(mime_type)
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),

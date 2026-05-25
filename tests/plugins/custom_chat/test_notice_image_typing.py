@@ -55,6 +55,23 @@ async def test_send_image_emits_image_event(adapter, parse_sent_events):
 
 
 @pytest.mark.asyncio
+async def test_send_image_guesses_mime_without_metadata(adapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    result = await adapter.send_image(
+        "c1",
+        "https://example.local/cat.png",
+        metadata={"reply_id": "img-2"},
+    )
+
+    assert result.success is True
+    ev = parse_sent_events(ws)[0]
+    assert ev["payload"]["mime_type"] == "image/png"
+
+
+@pytest.mark.asyncio
 async def test_send_typing_emits_typing_event(adapter, parse_sent_events):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

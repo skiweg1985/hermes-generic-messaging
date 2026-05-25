@@ -43,11 +43,11 @@ The lookup key is `custom_chat-platform` (from `plugin.yaml` `name:`), not `cust
 | Key | Required | Default | Purpose |
 |-----|----------|---------|---------|
 | `enabled` | yes (for WS server) | `false` | Plugin starts the WebSocket listener only when `extra.enabled` is true |
-| `ws_host` | no | `127.0.0.1` | Bind address |
+| `ws_host` | no | `0.0.0.0` | Bind address |
 | `ws_port` | no | `8765` | Bind port |
 | `bearer_token` | no* | — | Bearer token for WebSocket upgrade (*or set env, see below) |
 | `rate_limit_per_minute` | no | `60` | Per-user rate limit |
-| `dedupe_ttl_seconds` | no | `300` | Duplicate `event_id` window |
+| `dedupe_ttl_seconds` | no | `60` | Duplicate `event_id` window |
 | `media_public_base_url` | no | — | Web BFF base URL for outbound local file uploads (fallback when no `client.register` from BFF) |
 
 Top-level `platforms.custom_chat.enabled` tells Hermes to include the platform. The plugin additionally requires `extra.enabled: true` (or env-based enablement below).

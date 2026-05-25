@@ -12,12 +12,12 @@ from custom_chat_schema.schema import DEFAULT_ALLOWED_UPLOAD_MIME_TYPES
 
 class CustomChatSettings(BaseModel):
     enabled: bool = False
-    ws_host: str = "127.0.0.1"
+    ws_host: str = "0.0.0.0"
     ws_port: int = 8765
     bearer_token: str = ""
     media_public_base_url: str = ""
     max_upload_bytes: int = 20 * 1024 * 1024
-    dedupe_ttl_seconds: int = 300
+    dedupe_ttl_seconds: int = 60
     rate_limit_per_minute: int = 60
     local_command_bypass: bool = False
     allowed_upload_mime_types: list[str] = Field(
@@ -53,7 +53,7 @@ class CustomChatSettings(BaseModel):
         )
         return cls(
             enabled=bool(extra.get("enabled", False)),
-            ws_host=os.getenv("CUSTOM_CHAT_WS_HOST", extra.get("ws_host", "127.0.0.1")),
+            ws_host=os.getenv("CUSTOM_CHAT_WS_HOST", extra.get("ws_host", "0.0.0.0")),
             ws_port=int(os.getenv("CUSTOM_CHAT_WS_PORT", extra.get("ws_port", 8765))),
             bearer_token=os.getenv(
                 "CUSTOM_CHAT_BEARER_TOKEN", extra.get("bearer_token", "")
@@ -66,7 +66,7 @@ class CustomChatSettings(BaseModel):
             dedupe_ttl_seconds=int(
                 os.getenv(
                     "CUSTOM_CHAT_DEDUPE_TTL_SECONDS",
-                    extra.get("dedupe_ttl_seconds", 300),
+                    extra.get("dedupe_ttl_seconds", 60),
                 )
             ),
             rate_limit_per_minute=int(

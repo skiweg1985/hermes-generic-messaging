@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/interface_contract.md`: an Implementierung angeglichen (`typing` state, `interrupted`, REST `detail`-Wrapper, WS-Auth 4401, Env-Namen, `slash_pick` → `command.create`)
+- Plugin-Defaults: `CUSTOM_CHAT_WS_HOST` `0.0.0.0`, `CUSTOM_CHAT_DEDUPE_TTL_SECONDS` 60
+- `send_image`: setzt `mime_type` immer (Metadata, URL-Guessing oder `image/png`)
+
+### Added
+
+- Docs: `docs/interface_contract.md` — vollständiges Interface-Contract-Dokument für Frontend ↔ BFF ↔ Plugin ↔ Hermes Core (Event Schema v1, REST-API, BasePlatformAdapter-Referenz)
+
 ### Added
 
 - Web UI: Normalized `ChatMessage` / `MessagePart` model with `normalizeTranscript` adapter; `TurnGroup` renders via `PartRenderer`
