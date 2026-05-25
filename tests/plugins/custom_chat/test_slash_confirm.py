@@ -36,6 +36,26 @@ async def test_send_slash_confirm_emits_buttons(adapter, parse_sent_events):
 
 
 @pytest.mark.asyncio
+async def test_send_slash_confirm_gateway_approval_uses_approval_state(adapter):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    result = await adapter.send_slash_confirm(
+        chat_id="c1",
+        title="Approve tool",
+        message="Run dangerous action?",
+        session_key="sess-approval",
+        confirm_id="ap-1",
+        metadata={"gateway_approval": True},
+    )
+
+    assert result.success is True
+    assert adapter._approval_state["ap-1"] == "sess-approval"
+    assert "ap-1" not in adapter._slash_confirm_state
+
+
+@pytest.mark.asyncio
 async def test_button_click_resolves_slash_confirm(adapter):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

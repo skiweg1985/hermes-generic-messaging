@@ -433,11 +433,19 @@ class CustomChatAdapter(BasePlatformAdapter):
       return
 
     if envelope.type == "message.cancel":
-      cancelled = self.state.cancel_stream(payload_model.target_message_id)
+      reply_id = self._resolve_cancel_reply_id(payload_model.target_message_id)
       self._close_typing_for_chat(chat_id)
       await self.stop_typing(chat_id)
-      if not cancelled:
-        logger.debug("no active stream for %s", payload_model.target_message_id)
+      if reply_id is None:
+        logger.debug(
+          "no active stream for %s", payload_model.target_message_id
+        )
+        return
+      await self._cancel_reply_streams(
+        [reply_id],
+        chat_id=chat_id,
+        ws=ws,
+      )
       return
 
     if envelope.type == "button.click":
@@ -1072,7 +1080,10 @@ class CustomChatAdapter(BasePlatformAdapter):
       logger.warning("send_slash_confirm failed: %s", exc)
       return SendResult(success=False, message_id=confirm_id, error=str(exc))
 
-    self._slash_confirm_state[confirm_id] = session_key
+    if meta.get("gateway_approval") or meta.get("approval"):
+      self._approval_state[confirm_id] = session_key
+    else:
+      self._slash_confirm_state[confirm_id] = session_key
     return SendResult(success=True, message_id=confirm_id)
 
   async def send_slash_options(
@@ -1596,6 +1607,57 @@ class CustomChatAdapter(BasePlatformAdapter):
     handler = getattr(self, "_message_handler", None)
     return getattr(handler, "__self__", None)
 
+  def _resolve_cancel_reply_id(self, target_message_id: str) -> Optional[str]:
+    """Resolve client line/segment ids to the internal stream reply id."""
+    target = str(target_message_id).strip()
+    if not target:
+      return None
+    if self.state.get_stream(target) is not None:
+      return target
+    resolved = self.streams.resolve_reply_id(target)
+    if resolved:
+      return resolved
+    for reply_id, route in self._reply_routes.items():
+      if route.get("inbound_message_id") == target:
+        return reply_id
+    return None
+
+  async def _cancel_reply_streams(
+    self,
+    reply_ids: list[str],
+    *,
+    chat_id: str,
+    ws: Any = None,
+  ) -> None:
+    """Cancel streams and notify the client with assistant_done(interrupted=True)."""
+    for reply_id in reply_ids:
+      self.state.cancel_stream(reply_id)
+
+    for reply_id in reply_ids:
+      route = self._reply_routes.get(reply_id, {})
+      session = self.streams.get(reply_id)
+      line_id = session.active_line_id if session else reply_id
+      try:
+        await self._emit_outbound(
+          chat_id=route.get("chat_id", chat_id),
+          user_id=route.get("user_id", "assistant"),
+          event_type="assistant_done",
+          payload={
+            "message_id": line_id,
+            "final_text": "",
+            "turn_message_id": reply_id,
+            "interrupted": True,
+          },
+          thread_id=route.get("thread_id") or None,
+          session_id=route.get("session_id") or None,
+          ws=ws,
+        )
+      except Exception:
+        logger.exception("cancel emit failed for %s", reply_id)
+      self.streams.remove(reply_id)
+      self.state.end_stream(reply_id)
+      self._reply_routes.pop(reply_id, None)
+
   async def interrupt_session_activity(self, session_key: str, chat_id: str) -> None:
     """Cancel any active streams for this chat and emit assistant_done(interrupted=True)."""
     _ = session_key  # gateway passes session_key; routes are keyed by chat_id today
@@ -1603,25 +1665,10 @@ class CustomChatAdapter(BasePlatformAdapter):
     for reply_id, route in list(self._reply_routes.items()):
       if route.get("chat_id") != chat_id:
         continue
-      self.state.cancel_stream(reply_id)
       affected.append(reply_id)
 
-    for reply_id in affected:
-      route = self._reply_routes.get(reply_id, {})
-      try:
-        await self._emit_outbound(
-          chat_id=route.get("chat_id", chat_id),
-          user_id=route.get("user_id", "assistant"),
-          event_type="assistant_done",
-          payload={"message_id": reply_id, "final_text": "", "interrupted": True},
-          thread_id=route.get("thread_id") or None,
-          session_id=route.get("session_id") or None,
-        )
-      except Exception:
-        logger.exception("interrupt emit failed for %s", reply_id)
-      self.streams.remove(reply_id)
-      self.state.end_stream(reply_id)
-      self._reply_routes.pop(reply_id, None)
+    if affected:
+      await self._cancel_reply_streams(affected, chat_id=chat_id)
 
   async def get_chat_info(self, chat_id: str) -> dict:
     return {"name": chat_id, "type": "dm"}

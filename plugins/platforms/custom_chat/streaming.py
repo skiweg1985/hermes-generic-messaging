@@ -64,6 +64,20 @@ class StreamManager:
         if message_id in self._sessions:
             self._sessions[message_id].done = True
 
+    def get(self, message_id: str) -> Optional[StreamSession]:
+        return self._sessions.get(message_id)
+
+    def resolve_reply_id(self, target: str) -> Optional[str]:
+        """Map a line, segment, or turn id to the active stream reply id."""
+        if target in self._sessions:
+            return target
+        for reply_id, session in self._sessions.items():
+            if session.active_line_id == target:
+                return reply_id
+            if target.startswith(f"{reply_id}-s"):
+                return reply_id
+        return None
+
     def remove(self, message_id: str) -> Optional[StreamSession]:
         return self._sessions.pop(message_id, None)
 

@@ -265,8 +265,11 @@ async def publish_local_file(
 
 
 def synthesize_audio_url(text: str, *, mime_type: str = "audio/mpeg") -> dict[str, str]:
-    """Placeholder TTS — returns a synthetic file reference."""
-    _ = text
+    """Placeholder TTS — returns a synthetic file reference until a provider is wired."""
+    logger.warning(
+        "custom_chat TTS is not configured; returning placeholder audio URL "
+        "(set up a real TTS provider before enabling audio_response in production)"
+    )
     return {
         "mime_type": mime_type,
         "url": f"https://example.local/tts/{hash(text) % 10**8}.{mime_type.split('/')[-1]}",
