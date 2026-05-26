@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 import os
 import re
+import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlparse
 
 from .config import (
     CustomChatSettings,
@@ -167,6 +172,8 @@ class CustomChatAdapter(BasePlatformAdapter):
     self._tool_progress_ids: set[str] = set()
     # Latest web BFF media base URL from client.register (overrides env when set).
     self._registered_media_base_url: str = ""
+    # Temp dirs for inbound attachments materialized from the BFF media API.
+    self._temp_media_dirs: set[Path] = set()
 
   def _effective_media_base_url(self) -> str | None:
     registered = self._registered_media_base_url.strip().rstrip("/")
@@ -316,7 +323,99 @@ class CustomChatAdapter(BasePlatformAdapter):
     if self._hub:
       await self._hub.stop()
       self._hub = None
+    for tmp_dir in list(self._temp_media_dirs):
+      shutil.rmtree(tmp_dir, ignore_errors=True)
+      self._temp_media_dirs.discard(tmp_dir)
     self._mark_disconnected()
+
+  @staticmethod
+  def _attachment_ref(attachment: Any) -> str:
+    return str(getattr(attachment, "file_ref", None) or getattr(attachment, "url", "") or "").strip()
+
+  def _attachment_download_url(self, ref: str) -> str:
+    stripped = ref.strip()
+    if not stripped:
+      raise InboundEventError("BAD_REQUEST", "attachment reference is empty")
+    if stripped.startswith("/api/v1/media/"):
+      base_url = self._effective_media_base_url()
+      if base_url:
+        return urljoin(f"{base_url.rstrip('/')}/", stripped.lstrip("/"))
+      return stripped
+    parsed = urlparse(stripped)
+    if parsed.scheme in {"http", "https"}:
+      if parsed.path.startswith("/api/v1/media/"):
+        base_url = self._effective_media_base_url()
+        if base_url:
+          return urljoin(
+            f"{base_url.rstrip('/')}/",
+            f"{parsed.path.lstrip('/')}{f'?{parsed.query}' if parsed.query else ''}",
+          )
+      return stripped
+    raise InboundEventError(
+      "BAD_REQUEST",
+      f"unsupported attachment reference: {stripped}",
+    )
+
+  @staticmethod
+  def _attachment_download_name(attachment: Any, ref: str) -> str:
+    filename = Path(str(getattr(attachment, "filename", "") or "")).name
+    if filename:
+      return filename
+    parsed = urlparse(ref)
+    from_ref = Path(parsed.path).name
+    if from_ref:
+      return from_ref
+    mime_type = str(getattr(attachment, "mime_type", "") or "").split(";", 1)[0]
+    suffix = mimetypes.guess_extension(mime_type) or ""
+    attachment_id = str(getattr(attachment, "attachment_id", "attachment") or "attachment")
+    return f"{attachment_id}{suffix}"
+
+  def _materialize_message_attachment(self, attachment: Any) -> None:
+    ref = self._attachment_ref(attachment)
+    if not ref:
+      return
+    if is_local_reference(ref):
+      local_path = str(resolve_local_path(ref))
+      attachment.file_ref = local_path
+      attachment.url = local_path
+      return
+
+    download_url = self._attachment_download_url(ref)
+    tmp_dir = Path(tempfile.mkdtemp(prefix="custom_chat_inbound_"))
+    target = tmp_dir / self._attachment_download_name(attachment, download_url)
+    req = urllib_request.Request(download_url)
+    try:
+      with urllib_request.urlopen(req, timeout=30) as resp:
+        target.write_bytes(resp.read())
+    except (HTTPError, URLError, OSError, TimeoutError) as exc:
+      shutil.rmtree(tmp_dir, ignore_errors=True)
+      raise InboundEventError(
+        "BAD_REQUEST",
+        f"could not download attachment: {exc}",
+      ) from exc
+
+    self._temp_media_dirs.add(tmp_dir)
+    local_path = str(target)
+    attachment.file_ref = local_path
+    attachment.url = local_path
+
+  def _normalize_message_create_attachments(self, attachments: list[Any]) -> None:
+    for attachment in attachments:
+      validate_message_attachment(attachment, self.settings)
+      mime_type = str(getattr(attachment, "mime_type", "") or "")
+      if not mime_type.startswith("image/"):
+        continue
+      ref = self._attachment_ref(attachment)
+      if not ref:
+        continue
+      try:
+        self._materialize_message_attachment(attachment)
+      except InboundEventError as exc:
+        logger.warning(
+          "message.create attachment %s not materialized: %s",
+          getattr(attachment, "attachment_id", "<unknown>"),
+          exc.message,
+        )
 
   def _authenticate_ws(self, ws: Any) -> bool:
     if not self.settings.bearer_token:
@@ -482,8 +581,7 @@ class CustomChatAdapter(BasePlatformAdapter):
         payload_model, "attachments", None
       ):
         attachments = payload_model.attachments
-        for att in attachments:
-          validate_message_attachment(att, self.settings)
+        self._normalize_message_create_attachments(attachments)
         transcribed = None
         if not payload_model.text.strip() and len(attachments) == 1:
           transcribed = transcribe_attachment(attachments[0])
