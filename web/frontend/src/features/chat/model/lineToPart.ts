@@ -1,5 +1,4 @@
 import type { TranscriptLine, ToolStatus } from "../../../types/events";
-import { splitReasoning } from "../reasoningSplit";
 import { parseActivity } from "../../activity/toolRegistry";
 import type { MessagePart } from "./messageTypes";
 
@@ -27,11 +26,8 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
       return [{ type: "text", text: line.text, command: true }];
     case "assistant": {
       const parts: MessagePart[] = [];
-      const reasoningText =
-        line.reasoningText?.trim() || splitReasoning(line.text).reasoning;
-      const answerText = line.reasoningText
-        ? line.text
-        : splitReasoning(line.text).answer || line.text;
+      const reasoningText = line.reasoningText?.trim();
+      const answerText = line.text;
       if (reasoningText) {
         parts.push({
           type: "reasoning",

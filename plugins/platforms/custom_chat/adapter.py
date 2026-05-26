@@ -950,13 +950,16 @@ class CustomChatAdapter(BasePlatformAdapter):
       reasoning_meta = str(reasoning_raw).strip() if reasoning_raw else ""
       reasoning_text: Optional[str] = None
       answer_text = answer
-      if reasoning_meta and REASONING_PREFIX not in answer:
+      if reasoning_meta:
+        split_source = answer
+        if REASONING_PREFIX in split_source:
+          split_source = split_source.split(REASONING_PREFIX, 1)[1].strip()
         reasoning_text, answer_text = self._split_reasoning_answer(
-          reasoning_meta, answer
+          reasoning_meta, split_source
         )
-        final = answer_text
+        final = answer_text or answer
       else:
-        final = self._prepend_reasoning(answer, meta)
+        final = answer
       stripped = (final or "").strip()
       if stripped and is_local_reference(stripped):
         path = resolve_local_path(stripped)
