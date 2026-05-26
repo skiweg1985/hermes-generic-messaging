@@ -8,6 +8,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import websockets
 from fastapi import WebSocket, WebSocketDisconnect
@@ -23,6 +24,48 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _normalize_media_ref(ref: Any, settings: Settings) -> Any:
+    if not isinstance(ref, str):
+        return ref
+    stripped = ref.strip()
+    if not stripped:
+        return ref
+    parsed = urlparse(stripped)
+    if parsed.scheme in {"http", "https", "file"}:
+        return stripped
+    if stripped.startswith("/api/v1/media/"):
+        return urljoin(f"{settings.public_media_base_url.rstrip('/')}/", stripped.lstrip("/"))
+    return ref
+
+
+def _normalize_message_payload(
+    payload: dict[str, Any],
+    settings: Settings,
+) -> dict[str, Any]:
+    attachments = payload.get("attachments")
+    if not isinstance(attachments, list):
+        return payload
+
+    normalized_payload = dict(payload)
+    normalized_attachments: list[Any] = []
+    for entry in attachments:
+        if not isinstance(entry, dict):
+            normalized_attachments.append(entry)
+            continue
+        attachment = dict(entry)
+        normalized_url = _normalize_media_ref(attachment.get("url"), settings)
+        normalized_file_ref = _normalize_media_ref(attachment.get("file_ref"), settings)
+        if normalized_url is not None:
+            attachment["url"] = normalized_url
+        if normalized_file_ref is not None:
+            attachment["file_ref"] = normalized_file_ref
+        elif isinstance(normalized_url, str) and normalized_url:
+            attachment["file_ref"] = normalized_url
+        normalized_attachments.append(attachment)
+    normalized_payload["attachments"] = normalized_attachments
+    return normalized_payload
+
+
 def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     out = dict(data)
     if out.get("type") not in INBOUND_TYPES:
@@ -35,6 +78,8 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     out.setdefault("user_id", settings.web_user_id)
     out.setdefault("timestamp", _now_iso())
     out.setdefault("event_id", str(uuid.uuid4()))
+    if out.get("type") == "message.create" and isinstance(out.get("payload"), dict):
+        out["payload"] = _normalize_message_payload(out["payload"], settings)
     return out
 
 

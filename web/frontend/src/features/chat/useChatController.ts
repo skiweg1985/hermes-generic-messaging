@@ -99,9 +99,14 @@ export function useChatController(): ChatController {
     initialChatState(DEFAULT_CHAT_ID, "demo"),
     loadChatState,
   );
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const wsRef = useRef<WsClient | null>(null);
   const hasConnectedOnceRef = useRef(false);
   const pendingFilesRef = useRef<Map<string, File>>(new Map());
+  const uploadPromisesRef = useRef<
+    Map<string, Promise<PendingAttachment["result"]>>
+  >(new Map());
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
@@ -183,6 +188,33 @@ export function useChatController(): ChatController {
     dispatch({ type: "SET_INPUT", input });
   }, []);
 
+  const startPendingUpload = useCallback(
+    (file: File, localId: string, chatId: string) => {
+      const task = uploadPendingFile(file, localId, chatId, dispatch)
+        .catch((err) => {
+          const msg = err instanceof Error ? err.message : "upload failed";
+          const [code, ...rest] = msg.split(": ");
+          dispatch({
+            type: "SET_PENDING_ATTACHMENT_STATUS",
+            chatId,
+            localId,
+            status: "error",
+            error: {
+              code: code ?? "UPLOAD_FAILED",
+              message: rest.join(": ") || msg,
+            },
+          });
+          throw err;
+        })
+        .finally(() => {
+          uploadPromisesRef.current.delete(localId);
+        });
+      uploadPromisesRef.current.set(localId, task);
+      return task;
+    },
+    [],
+  );
+
   const addFiles = useCallback(
     async (files: File[]) => {
       const chatId = state.activeChatId;
@@ -202,24 +234,11 @@ export function useChatController(): ChatController {
           mimeType: file.type || "application/octet-stream",
         });
         try {
-          await uploadPendingFile(file, localId, uploadChatId, dispatch);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "upload failed";
-          const [code, ...rest] = msg.split(": ");
-          dispatch({
-            type: "SET_PENDING_ATTACHMENT_STATUS",
-            chatId: uploadChatId,
-            localId,
-            status: "error",
-            error: {
-              code: code ?? "UPLOAD_FAILED",
-              message: rest.join(": ") || msg,
-            },
-          });
-        }
+          await startPendingUpload(file, localId, uploadChatId);
+        } catch {}
       }
     },
-    [connected, state.activeChatId],
+    [connected, startPendingUpload, state.activeChatId],
   );
 
   const retryUpload = useCallback(
@@ -238,23 +257,10 @@ export function useChatController(): ChatController {
         }
       }
       try {
-        await uploadPendingFile(file, localId, targetChatId, dispatch);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "upload failed";
-        const [code, ...rest] = msg.split(": ");
-        dispatch({
-          type: "SET_PENDING_ATTACHMENT_STATUS",
-          chatId: targetChatId,
-          localId,
-          status: "error",
-          error: {
-            code: code ?? "UPLOAD_FAILED",
-            message: rest.join(": ") || msg,
-          },
-        });
-      }
+        await startPendingUpload(file, localId, targetChatId);
+      } catch {}
     },
-    [connected, state.activeChatId, state.sessionsById],
+    [connected, startPendingUpload, state.activeChatId, state.sessionsById],
   );
 
   const removePending = useCallback(
@@ -270,73 +276,110 @@ export function useChatController(): ChatController {
   );
 
   const submit = useCallback(() => {
-    const session = state.sessionsById[state.activeChatId];
-    const raw = session.input.trim();
-    const ready = session.pendingAttachments.filter((a) => a.status === "done" && a.result);
-    const uploading = session.pendingAttachments.some(
-      (a) => a.status === "uploading" || a.status === "queued",
-    );
-    if ((!raw && ready.length === 0) || uploading || !wsRef.current || !connected) return;
+    void (async () => {
+      if (!wsRef.current || stateRef.current.connection !== "connected") return;
 
-    if (raw === "cancel") {
-      const cancelTarget = resolveCancelTargetId(session);
-      if (cancelTarget) {
-        wsRef.current.sendCancel(cancelTarget, session.chatId, USER_ID);
+      const activeChatId = stateRef.current.activeChatId;
+      let session = stateRef.current.sessionsById[activeChatId];
+      if (!session) return;
+
+      const pendingUploads = session.pendingAttachments
+        .filter((a) => a.status === "uploading" || a.status === "queued")
+        .map((a) => uploadPromisesRef.current.get(a.localId))
+        .filter(
+          (
+            task,
+          ): task is Promise<PendingAttachment["result"]> => task !== undefined,
+        );
+      if (pendingUploads.length > 0) {
+        await Promise.allSettled(pendingUploads);
+        if (!wsRef.current || stateRef.current.connection !== "connected") return;
+        session = stateRef.current.sessionsById[activeChatId];
+        if (!session) return;
       }
-      dispatch({ type: "SET_INPUT", input: "" });
-      return;
-    }
 
-    if (raw.startsWith("/")) {
-      dispatch({ type: "USER_COMMAND", command: raw });
-      wsRef.current.sendCommand(raw, session.chatId, USER_ID);
+      const raw = session.input.trim();
+      const ready = session.pendingAttachments.filter((a) => a.status === "done" && a.result);
+      const hasPendingAttachmentErrors = session.pendingAttachments.some(
+        (a) => a.status === "error",
+      );
+      const hasIncompleteAttachments = session.pendingAttachments.some(
+        (a) => a.status === "uploading" || a.status === "queued",
+      );
+      if (hasPendingAttachmentErrors) {
+        dispatch({
+          type: "USER_ERROR",
+          code: "UPLOAD_FAILED",
+          message: "retry or remove failed attachments before sending",
+          chatId: session.chatId,
+        });
+        return;
+      }
+      if ((!raw && ready.length === 0) || hasIncompleteAttachments) {
+        return;
+      }
+
+      if (raw === "cancel") {
+        const cancelTarget = resolveCancelTargetId(session);
+        if (cancelTarget) {
+          wsRef.current.sendCancel(cancelTarget, session.chatId, USER_ID);
+        }
+        dispatch({ type: "SET_INPUT", input: "" });
+        return;
+      }
+
+      if (raw.startsWith("/")) {
+        dispatch({ type: "USER_COMMAND", command: raw });
+        wsRef.current.sendCommand(raw, session.chatId, USER_ID);
+        dispatch({ type: "SET_INPUT", input: "" });
+        dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
+        pendingFilesRef.current.clear();
+        return;
+      }
+
+      const turnMessageId = newId();
+      const attachments: MessageAttachment[] = ready.map((entry) => ({
+        attachment_id: entry.result!.attachment_id,
+        mime_type: entry.result!.mime_type,
+        size_bytes: entry.result!.size_bytes,
+        url: entry.result!.url,
+        file_ref: entry.result!.url,
+        filename: entry.result!.filename,
+      }));
+
+      dispatch({
+        type: "USER_MESSAGE",
+        turnMessageId,
+        text: raw,
+        attachments: ready.map((entry) => ({
+          attachmentId: entry.result!.attachment_id,
+          filename: entry.result!.filename,
+          mime: entry.result!.mime_type,
+          size: entry.result!.size_bytes,
+          url: entry.result!.url,
+        })),
+      });
+
+      const delivered = wsRef.current.sendMessage(
+        { messageId: turnMessageId, text: raw, attachments },
+        session.chatId,
+        USER_ID,
+      );
+
+      if (!delivered) {
+        dispatch({
+          type: "USER_ERROR",
+          code: "WS_NOT_CONNECTED",
+          message: "message not delivered — reconnect and resend",
+          chatId: session.chatId,
+        });
+      }
+
       dispatch({ type: "SET_INPUT", input: "" });
       dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
       pendingFilesRef.current.clear();
-      return;
-    }
-
-    const turnMessageId = newId();
-    const attachments: MessageAttachment[] = ready.map((entry) => ({
-      attachment_id: entry.result!.attachment_id,
-      mime_type: entry.result!.mime_type,
-      size_bytes: entry.result!.size_bytes,
-      url: entry.result!.url,
-      filename: entry.result!.filename,
-    }));
-
-    dispatch({
-      type: "USER_MESSAGE",
-      turnMessageId,
-      text: raw,
-      attachments: ready.map((entry) => ({
-        attachmentId: entry.result!.attachment_id,
-        filename: entry.result!.filename,
-        mime: entry.result!.mime_type,
-        size: entry.result!.size_bytes,
-        url: entry.result!.url,
-      })),
-    });
-
-    const delivered = wsRef.current.sendMessage(
-      { messageId: turnMessageId, text: raw, attachments },
-      session.chatId,
-      USER_ID,
-    );
-
-    if (!delivered) {
-      dispatch({
-        type: "USER_ERROR",
-        code: "WS_NOT_CONNECTED",
-        message: "message not delivered — reconnect and resend",
-        chatId: session.chatId,
-      });
-    }
-
-    dispatch({ type: "SET_INPUT", input: "" });
-    dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
-    pendingFilesRef.current.clear();
-  }, [state.activeChatId, state.sessionsById, connected]);
+    })();
+  }, []);
 
   const cancel = useCallback(() => {
     const session = state.sessionsById[state.activeChatId];
