@@ -345,6 +345,17 @@
 .reasoning-body .markdown-text :where(p, ul, ol, pre, blockquote, table) {
   margin: 6px 0;
 }
+.reasoning-body .markdown-text pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: hidden;
+}
+.reasoning-body .markdown-text pre code {
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
 .reasoning-body .markdown-text > :first-child {
   margin-top: 0;
 }
