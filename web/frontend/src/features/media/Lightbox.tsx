@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { downloadMedia } from "../../lib/downloadMedia";
 import type { MediaImage } from "./MediaProvider";
 import { IconClose, IconArrowUp, IconDownload } from "../shell/icons";
@@ -57,7 +58,7 @@ export function Lightbox({ open, images, index, onClose, onIndexChange }: Lightb
 
   if (!open || !current) return null;
 
-  return (
+  const content = (
     <div
       className="lightbox-backdrop motion-fade-in"
       role="dialog"
@@ -130,4 +131,6 @@ export function Lightbox({ open, images, index, onClose, onIndexChange }: Lightb
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }
