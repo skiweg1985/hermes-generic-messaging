@@ -136,6 +136,12 @@
   min-width: 0;
 }
 
+.message-part-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
 /* ── User message ────────────────────────────────────────────────────── */
 
 .msg-user {

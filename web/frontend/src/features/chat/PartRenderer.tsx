@@ -138,7 +138,7 @@ export function PartRenderer({
   onButtonClick,
 }: PartRendererProps) {
   return (
-    <>
+    <div className="message-part-stack">
       {message.parts.map((part, index) => {
         const line = partToLine(part, message);
         const key = `${message.messageId}-${part.type}-${index}`;
@@ -204,6 +204,6 @@ export function PartRenderer({
             return null;
         }
       })}
-    </>
+    </div>
   );
 }
