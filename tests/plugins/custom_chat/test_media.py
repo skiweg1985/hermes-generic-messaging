@@ -70,10 +70,21 @@ def test_unsupported_mime_rejected():
     assert exc.value.code == "UNSUPPORTED_MEDIA_TYPE"
 
 
-def test_tts_outbound_event_shape():
-    audio = synthesize_audio_url("hello")
-    assert audio["mime_type"] == "audio/mpeg"
-    assert audio["url"].startswith("https://")
+def test_tts_outbound_event_shape(monkeypatch, tmp_path):
+    settings = CustomChatSettings(tts_response_format="pcm")
+    audio_path = tmp_path / "tts.ogg"
+    audio_path.write_bytes(b"voice")
+
+    def fake_invoke(_text, *, output_path, response_format=""):
+        assert response_format == "pcm"
+        assert str(output_path).endswith(".ogg")
+        return {"success": True, "file_path": str(audio_path)}
+
+    monkeypatch.setattr(media_module, "_invoke_hermes_tts", fake_invoke)
+    audio = synthesize_audio_url("hello", settings)
+    assert audio["mime_type"] == "audio/ogg"
+    assert audio["url"] == str(audio_path)
+    assert audio["size_bytes"] == len(b"voice")
 
 
 def test_valid_file_accepted():
@@ -325,7 +336,7 @@ async def test_audio_uploaded_invokes_transcription_path(adapter, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_assistant_audio_emitted(adapter, parse_sent_events):
+async def test_assistant_audio_emitted(adapter, parse_sent_events, monkeypatch, tmp_path):
     ws = MockWebSocket()
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     adapter._reply_routes["aud-1"] = {
@@ -335,6 +346,27 @@ async def test_assistant_audio_emitted(adapter, parse_sent_events):
         "session_id": "",
     }
     adapter._ws_by_chat["c1"] = ws
+
+    voice_path = tmp_path / "reply.ogg"
+    voice_path.write_bytes(b"voice")
+
+    monkeypatch.setattr(
+        adapter_module,
+        "synthesize_audio_url",
+        lambda _text, _settings: {
+            "mime_type": "audio/ogg",
+            "url": str(voice_path),
+            "filename": voice_path.name,
+            "size_bytes": voice_path.stat().st_size,
+        },
+    )
+
+    async def fake_resolve(media_url, *, metadata=None):
+        assert media_url == str(voice_path)
+        return "https://example.local/reply.ogg", dict(metadata or {})
+
+    monkeypatch.setattr(adapter, "_resolve_outbound_media_url", fake_resolve)
+
     await adapter.send(
         "c1",
         "spoken reply",
@@ -343,4 +375,8 @@ async def test_assistant_audio_emitted(adapter, parse_sent_events):
     events = parse_sent_events(ws)
     audio_events = [e for e in events if e["type"] == "assistant_audio"]
     assert len(audio_events) == 1
-    assert "mime_type" in audio_events[0]["payload"]
+    payload = audio_events[0]["payload"]
+    assert payload["mime_type"] == "audio/ogg"
+    assert payload["url"] == "https://example.local/reply.ogg"
+    assert payload["filename"] == voice_path.name
+    assert payload["size_bytes"] == voice_path.stat().st_size

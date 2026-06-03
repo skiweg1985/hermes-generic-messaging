@@ -49,6 +49,7 @@ The lookup key is `custom_chat-platform` (from `plugin.yaml` `name:`), not `cust
 | `rate_limit_per_minute` | no | `60` | Per-user rate limit |
 | `dedupe_ttl_seconds` | no | `60` | Duplicate `event_id` window |
 | `media_public_base_url` | no | — | Web BFF base URL for outbound local file uploads (fallback when no `client.register` from BFF) |
+| `tts_response_format` | no | — | Optional override for Hermes TTS `response_format` when `audio_response` is requested (`pcm`, `mp3`, `opus`, `wav`, `flac`) |
 
 Top-level `platforms.custom_chat.enabled` tells Hermes to include the platform. The plugin additionally requires `extra.enabled: true` (or env-based enablement below).
 
@@ -66,6 +67,7 @@ Set in `~/.hermes/.env` or the process environment. Env values **override** the 
 | `CUSTOM_CHAT_HOME_CHANNEL` | Default `chat_id` for cron-delivered messages (`deliver=custom_chat`) |
 | `CUSTOM_CHAT_HOME_CHANNEL_NAME` | Human-readable name for the home channel |
 | `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | Web BFF base URL for publishing outbound attachments (optional when the web BFF sends `client.register` on connect) |
+| `CUSTOM_CHAT_TTS_RESPONSE_FORMAT` | Optional override for Hermes TTS `response_format` used by `audio_response`; set `pcm` to force PCM synthesis and automatic OGG/Opus conversion for Telegram-style voice delivery |
 
 Example for LAN access (VM or host `192.168.177.149`):
 
@@ -304,6 +306,8 @@ Inbound `audio.uploaded` events require allowed MIME types and size under the co
 ## Outbound attachments
 
 When Hermes calls `send_file`, `send_image`, or `send` with a local path, the adapter uploads the bytes to `{media_public_base_url}/api/v1/media/upload` and emits an `assistant_file` / `assistant_image` event with the returned HTTP URL.
+
+`audio_response` now uses the same path: the plugin synthesizes a real local audio file via Hermes TTS, publishes it through the media API, then emits `assistant_audio` with the resulting URL. If `tts_response_format: pcm` (or `CUSTOM_CHAT_TTS_RESPONSE_FORMAT=pcm`) is configured, the plugin asks Hermes for PCM-compatible synthesis and delivers the final file as `audio/ogg` so Telegram-style voice-note clients can play it directly.
 
 The web BFF announces its public media base URL via inbound `client.register` on WebSocket connect. That URL takes precedence over `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` / `extra.media_public_base_url`. Without either, local paths appear in the chat as plain filesystem links the browser cannot open.
 
