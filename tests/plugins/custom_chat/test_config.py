@@ -22,22 +22,13 @@ def test_settings_defaults_disabled():
     assert s.ws_port == 8765
 
 
-def test_settings_from_extra(monkeypatch):
-    monkeypatch.delenv("CUSTOM_CHAT_WS_PORT", raising=False)
-    monkeypatch.delenv("CUSTOM_CHAT_BEARER_TOKEN", raising=False)
-    monkeypatch.delenv("CUSTOM_CHAT_TTS_RESPONSE_FORMAT", raising=False)
+def test_settings_from_extra():
     s = CustomChatSettings.from_env_and_extra(
-        {
-            "enabled": True,
-            "ws_port": 9000,
-            "bearer_token": "tok",
-            "tts_response_format": "pcm",
-        }
+        {"enabled": True, "ws_port": 9000, "bearer_token": "tok"}
     )
     assert s.enabled is True
     assert s.ws_port == 9000
     assert s.bearer_token == "tok"
-    assert s.tts_response_format == "pcm"
 
 
 def test_inbound_envelope_valid():

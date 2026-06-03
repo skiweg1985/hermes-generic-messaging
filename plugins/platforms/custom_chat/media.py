@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 import json
 import logging
 import mimetypes
-import os
 import re
 import shutil
 import tempfile
-import threading
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -36,27 +33,6 @@ _PATH_TOKEN_RE = re.compile(
     r"|"
     r"/(?:[\w@.~-]+/)+[\w@.~-]+(?:\.[\w]{1,8})?",
 )
-
-_TTS_TOOL_LOCK = threading.Lock()
-_PCM_COMPATIBLE_RESPONSE_FORMATS = {"pcm"}
-_RESPONSE_FORMAT_TO_EXTENSION = {
-    "": "mp3",
-    "mp3": "mp3",
-    "mpeg": "mp3",
-    "aac": "mp3",
-    "wav": "wav",
-    "wave": "wav",
-    "flac": "flac",
-    "opus": "ogg",
-    "ogg": "ogg",
-    "pcm": "ogg",
-}
-_EXTENSION_TO_MIME = {
-    "mp3": "audio/mpeg",
-    "ogg": "audio/ogg",
-    "wav": "audio/wav",
-    "flac": "audio/flac",
-}
 
 
 def validate_file_payload(
@@ -329,108 +305,13 @@ async def publish_local_file(
     return await asyncio.to_thread(publish_local_file_sync, path, base)
 
 
-def _tts_output_extension(settings: CustomChatSettings) -> str:
-    requested = str(settings.tts_response_format or "").strip().lower()
-    return _RESPONSE_FORMAT_TO_EXTENSION.get(requested, "mp3")
-
-
-def _tts_output_mime_type(path: Path) -> str:
-    return _EXTENSION_TO_MIME.get(path.suffix.lower().lstrip("."), "audio/mpeg")
-
-
-def _invoke_hermes_tts(
-    text: str,
-    *,
-    output_path: Path,
-    response_format: str = "",
-) -> dict[str, Any]:
-    """Run Hermes TTS with an optional response_format override.
-
-    The custom_chat plugin reuses Hermes' built-in TTS stack so provider/model
-    config still comes from ``~/.hermes/config.yaml``.  When the web/plugin
-    config specifies ``tts_response_format`` (for OpenAI-compatible backends like
-    Gemini Flash TTS that require PCM), we temporarily override only that part
-    of the loaded TTS config for this single synthesis call.
-    """
-    from tools import tts_tool as hermes_tts
-
-    requested_format = str(response_format or "").strip().lower()
-    tts_config = copy.deepcopy(hermes_tts._load_tts_config())
-    if requested_format:
-        provider = hermes_tts._get_provider(tts_config)
-        if provider == "openai":
-            openai_cfg = tts_config.setdefault("openai", {})
-            if not isinstance(openai_cfg, dict):
-                openai_cfg = {}
-                tts_config["openai"] = openai_cfg
-            openai_cfg["response_format"] = requested_format
-        elif provider == "gemini":
-            logger.info(
-                "custom_chat tts_response_format=%s requested for Gemini; "
-                "Gemini already returns PCM internally, so only the final output "
-                "container is adjusted via %s",
-                requested_format,
-                output_path.suffix,
-            )
-        else:
-            logger.info(
-                "custom_chat tts_response_format=%s ignored for provider %s",
-                requested_format,
-                provider,
-            )
-
-    with _TTS_TOOL_LOCK:
-        original_loader = hermes_tts._load_tts_config
-        hermes_tts._load_tts_config = lambda: copy.deepcopy(tts_config)
-        try:
-            raw = hermes_tts.text_to_speech_tool(text, output_path=str(output_path))
-        finally:
-            hermes_tts._load_tts_config = original_loader
-
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Hermes TTS returned non-JSON output: {raw[:200]}") from exc
-    if not parsed.get("success"):
-        raise RuntimeError(str(parsed.get("error") or "unknown Hermes TTS failure"))
-    return parsed
-
-
-def synthesize_audio_url(
-    text: str,
-    settings: CustomChatSettings,
-) -> dict[str, Any]:
-    """Generate assistant audio via Hermes TTS and return a publishable reference.
-
-    Returns a local file path first; the adapter publishes it to the media API
-    and rewrites it to a public URL when needed.
-    """
-    requested_format = str(settings.tts_response_format or "").strip().lower()
-    extension = _tts_output_extension(settings)
-    output_dir = Path(tempfile.mkdtemp(prefix="custom_chat_tts_"))
-    output_path = output_dir / f"tts-{uuid.uuid4().hex}.{extension}"
-    try:
-        result = _invoke_hermes_tts(
-            text,
-            output_path=output_path,
-            response_format=requested_format,
-        )
-        file_path = Path(str(result.get("file_path") or output_path)).expanduser()
-        if not file_path.exists():
-            raise RuntimeError(f"Hermes TTS produced no file at {file_path}")
-        mime_type = _tts_output_mime_type(file_path)
-        if requested_format in _PCM_COMPATIBLE_RESPONSE_FORMATS and mime_type != "audio/ogg":
-            logger.warning(
-                "custom_chat PCM TTS did not produce OGG output (%s); Telegram "
-                "voice compatibility may be degraded",
-                file_path,
-            )
-        return {
-            "mime_type": mime_type,
-            "url": str(file_path),
-            "filename": file_path.name,
-            "size_bytes": file_path.stat().st_size,
-        }
-    except Exception:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        raise
+def synthesize_audio_url(text: str, *, mime_type: str = "audio/mpeg") -> dict[str, str]:
+    """Placeholder TTS — returns a synthetic file reference until a provider is wired."""
+    logger.warning(
+        "custom_chat TTS is not configured; returning placeholder audio URL "
+        "(set up a real TTS provider before enabling audio_response in production)"
+    )
+    return {
+        "mime_type": mime_type,
+        "url": f"https://example.local/tts/{hash(text) % 10**8}.{mime_type.split('/')[-1]}",
+    }

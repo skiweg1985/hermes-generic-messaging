@@ -933,31 +933,16 @@ class CustomChatAdapter(BasePlatformAdapter):
       )
 
     if meta.get("audio_response"):
-      try:
-        audio = synthesize_audio_url(content, self.settings)
-        audio_url, audio_meta = await self._resolve_outbound_media_url(
-          str(audio["url"]), metadata=audio
-        )
-      except InboundEventError as exc:
-        logger.warning("audio_response publish failed: %s", exc.message)
-        return SendResult(success=False, message_id=reply_id, error=exc.message)
-      except Exception as exc:
-        logger.warning("audio_response TTS failed: %s", exc)
-        return SendResult(success=False, message_id=reply_id, error=str(exc))
-      payload: dict[str, Any] = {
-        "message_id": reply_id,
-        "mime_type": str(audio_meta.get("mime_type") or audio["mime_type"]),
-        "url": audio_url,
-      }
-      if audio_meta.get("size_bytes") is not None:
-        payload["size_bytes"] = int(audio_meta["size_bytes"])
-      if audio_meta.get("filename"):
-        payload["filename"] = str(audio_meta["filename"])
+      audio = synthesize_audio_url(content)
       await self._emit_outbound(
         chat_id=session.chat_id,
         user_id=session.user_id,
         event_type="assistant_audio",
-        payload=payload,
+        payload={
+          "message_id": reply_id,
+          "mime_type": audio["mime_type"],
+          "url": audio["url"],
+        },
       )
     else:
       answer = (content or session.accumulated or "").strip()
@@ -1860,10 +1845,6 @@ def _apply_yaml_config(yaml_cfg: dict, platform_cfg: dict) -> dict | None:
     ).lower()
   if "home_channel" in platform_cfg and not os.getenv("CUSTOM_CHAT_HOME_CHANNEL"):
     os.environ["CUSTOM_CHAT_HOME_CHANNEL"] = str(platform_cfg["home_channel"])
-  if "tts_response_format" in platform_cfg and not os.getenv("CUSTOM_CHAT_TTS_RESPONSE_FORMAT"):
-    os.environ["CUSTOM_CHAT_TTS_RESPONSE_FORMAT"] = str(
-      platform_cfg["tts_response_format"]
-    ).strip().lower()
   media_base = platform_cfg.get("media_public_base_url")
   if media_base and not os.getenv("CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL"):
     os.environ["CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL"] = str(media_base).rstrip("/")
