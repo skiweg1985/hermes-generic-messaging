@@ -1,7 +1,10 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import health, media, sessions
 from app.core.config import get_settings
@@ -41,3 +44,34 @@ app.include_router(sessions.router)
 @app.websocket("/ws/chat")
 async def ws_chat(websocket: WebSocket) -> None:
     await proxy_chat(websocket, get_settings())
+
+
+def _mount_frontend() -> None:
+    dist_dir = Path(settings.frontend_dist_dir)
+    if not dist_dir.is_absolute():
+        dist_dir = (Path(__file__).resolve().parents[1] / dist_dir).resolve()
+    index = dist_dir / "index.html"
+    if not index.is_file():
+        logger.info("Frontend dist not mounted; %s is missing", index)
+        return
+
+    assets = dist_dir / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/{path:path}", include_in_schema=False)
+    async def serve_frontend(path: str = "") -> FileResponse:
+        candidate = (dist_dir / path).resolve() if path else index
+        try:
+            candidate.relative_to(dist_dir)
+        except ValueError:
+            candidate = index
+        if candidate.is_file() and candidate.name != "index.html":
+            return FileResponse(candidate)
+        return FileResponse(index)
+
+    logger.info("Mounted frontend dist from %s", dist_dir)
+
+
+_mount_frontend()

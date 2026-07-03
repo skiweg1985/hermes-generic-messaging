@@ -38,6 +38,7 @@ class Settings(BaseModel):
     web_user_id: str = "user-demo"
     media_upload_dir: str = "./data/uploads"
     session_store_path: str = "./data/chat_sessions.json"
+    frontend_dist_dir: str = "../frontend/dist"
     max_upload_bytes: int = 20 * 1024 * 1024
     public_media_base_url: str = "http://127.0.0.1:8000"
     allowed_upload_mime_types: list[str] = Field(
@@ -95,6 +96,7 @@ def get_settings() -> Settings:
         web_user_id=os.getenv("WEB_USER_ID", "user-demo"),
         media_upload_dir=os.getenv("WEB_MEDIA_UPLOAD_DIR", "./data/uploads"),
         session_store_path=os.getenv("WEB_SESSION_STORE_PATH", "./data/chat_sessions.json"),
+        frontend_dist_dir=os.getenv("WEB_FRONTEND_DIST_DIR", "../frontend/dist"),
         max_upload_bytes=max_upload_bytes,
         public_media_base_url=public_media_base_url,
         allowed_upload_mime_types=parsed_allowed_uploads

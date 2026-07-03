@@ -21,6 +21,7 @@ Browser UI and FastAPI BFF for Event Schema v1. Hermes must run the `custom_chat
 | `WEB_MAX_UPLOAD_BYTES` | `20971520` | Max upload size for the BFF media API |
 | `WEB_ALLOWED_UPLOAD_MIME_TYPES` | see schema | Allowed MIME types for BFF uploads |
 | `WEB_MAX_AUDIO_BYTES` | `10485760` | Legacy alias; prefer `WEB_MAX_UPLOAD_BYTES` |
+| `WEB_FRONTEND_DIST_DIR` | `../frontend/dist` | Built React app served by the BFF in production |
 | `WEB_PUBLIC_MEDIA_BASE_URL` | auto | Base URL in `audio.uploaded` payloads and `client.register` (override for Docker/proxy) |
 | `WEB_PUBLIC_HOST` | auto | Host part when auto-detecting public media URL |
 | `WEB_PUBLIC_PORT` | `8000` | Port part when auto-detecting public media URL |
@@ -59,6 +60,24 @@ npm run dev
 ```
 
 Open http://127.0.0.1:5173
+
+## Run production on one HTTPS port
+
+Build the frontend and start the BFF with TLS. The BFF serves `web/frontend/dist`
+at `/`, keeps `/api/v1/*` for API calls, and keeps `/ws/chat` for streaming.
+
+```bash
+cd web/frontend
+npm install
+npm run build
+
+cd ../backend
+uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --ssl-certfile /path/to/cert.pem \
+  --ssl-keyfile /path/to/key.pem
+```
 
 ## UI features
 
