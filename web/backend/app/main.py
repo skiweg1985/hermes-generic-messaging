@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health, media
+from app.api import health, media, sessions
 from app.core.config import get_settings
 from app.ws.chat_proxy import proxy_chat
 
@@ -35,6 +35,7 @@ else:
 
 app.include_router(health.router)
 app.include_router(media.router)
+app.include_router(sessions.router)
 
 
 @app.websocket("/ws/chat")

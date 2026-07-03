@@ -36,3 +36,11 @@ optional_env:
     description: "Human-readable name for the home channel"
     prompt: "Home channel name"
     password: false
+  - name: CUSTOM_CHAT_TTS_RESPONSE_FORMAT
+    description: "Optional TTS response format override for audio_response (e.g. pcm, mp3, opus, wav, flac)"
+    prompt: "TTS response format"
+    password: false
+  - name: CUSTOM_CHAT_TTS_TIMEOUT_SECONDS
+    description: "Maximum seconds to wait for Hermes TTS during audio_response"
+    prompt: "TTS timeout seconds"
+    password: false

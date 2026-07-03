@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { chatReducer, initialChatState } from "./chatReducer";
-import { MAX_TRANSCRIPT_LINES, loadChatState, persistChatState } from "./sessionPersistence";
+import {
+  MAX_TRANSCRIPT_LINES,
+  loadChatState,
+  persistChatState,
+  stateFromStoredState,
+} from "./sessionPersistence";
 
 describe("sessionPersistence", () => {
   afterEach(() => {
@@ -65,6 +70,66 @@ describe("sessionPersistence", () => {
 
     expect(loaded.sessionsById.c1.lines).toHaveLength(MAX_TRANSCRIPT_LINES);
     expect(loaded.sessionsById.c1.lines[0].text).toBe("line 5");
+  });
+
+  it("drops stale reply target when the referenced line is trimmed", () => {
+    const localStorage = memoryStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    let state = initialChatState("c1", "one");
+    state = chatReducer(state, { type: "USER_TEXT", text: "old", turnMessageId: "old" });
+    state = chatReducer(state, {
+      type: "SET_REPLY_TARGET",
+      target: {
+        lineId: "old",
+        role: "user",
+        label: "You",
+        preview: "old",
+      },
+    });
+    for (let i = 0; i < MAX_TRANSCRIPT_LINES + 1; i += 1) {
+      state = chatReducer(state, { type: "USER_TEXT", text: `line ${i}` });
+    }
+
+    persistChatState(state);
+    const loaded = loadChatState(initialChatState("fallback", "fallback"));
+
+    expect(loaded.sessionsById.c1.replyTarget).toBeUndefined();
+  });
+
+  it("drops the empty legacy demo chat", () => {
+    const fallback = initialChatState("fresh", "New chat");
+    const loaded = stateFromStoredState(
+      {
+        version: 1,
+        activeChatId: "workspace:demo",
+        sessions: [
+          {
+            ...initialChatState("workspace:demo", "demo").sessionsById["workspace:demo"],
+          },
+        ],
+      },
+      fallback,
+    );
+
+    expect(loaded.activeChatId).toBe("fresh");
+    expect(loaded.sessionsById["workspace:demo"]).toBeUndefined();
+  });
+
+  it("drops chats that only contain a composer draft", () => {
+    const fallback = initialChatState("fresh", "New chat");
+    const draft = initialChatState("draft", "Draft").sessionsById.draft;
+    const loaded = stateFromStoredState(
+      {
+        version: 1,
+        activeChatId: "draft",
+        sessions: [{ ...draft, input: "/bg" }],
+      },
+      fallback,
+    );
+
+    expect(loaded.activeChatId).toBe("fresh");
+    expect(loaded.sessionsById.draft).toBeUndefined();
   });
 });
 

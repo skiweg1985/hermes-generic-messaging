@@ -20,6 +20,7 @@ class CustomChatSettings(BaseModel):
     dedupe_ttl_seconds: int = 60
     rate_limit_per_minute: int = 60
     local_command_bypass: bool = False
+    tts_response_format: str = ""
     allowed_upload_mime_types: list[str] = Field(
         default_factory=lambda: list(DEFAULT_ALLOWED_UPLOAD_MIME_TYPES)
     )
@@ -76,6 +77,10 @@ class CustomChatSettings(BaseModel):
                 )
             ),
             local_command_bypass=bool(extra.get("local_command_bypass", False)),
+            tts_response_format=os.getenv(
+                "CUSTOM_CHAT_TTS_RESPONSE_FORMAT",
+                str(extra.get("tts_response_format", "")),
+            ).strip().lower(),
             allowed_upload_mime_types=allowed_upload_mime_types
             or list(DEFAULT_ALLOWED_UPLOAD_MIME_TYPES),
         )

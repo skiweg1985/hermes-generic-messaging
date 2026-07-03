@@ -17,6 +17,8 @@ from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 
+import yaml
+
 from .config import (
     CustomChatSettings,
     build_outbound_event,
@@ -27,6 +29,7 @@ from .events.schema import (
     parse_inbound,
 )
 from .media import (
+    cleanup_synthesized_audio,
     extract_local_paths,
     guess_mime_type,
     is_local_reference,
@@ -174,6 +177,7 @@ class CustomChatAdapter(BasePlatformAdapter):
     self._registered_media_base_url: str = ""
     # Temp dirs for inbound attachments materialized from the BFF media API.
     self._temp_media_dirs: set[Path] = set()
+    self._show_reasoning_cache: tuple[Path, float, bool] | None = None
 
   def _effective_media_base_url(self) -> str | None:
     registered = self._registered_media_base_url.strip().rstrip("/")
@@ -304,7 +308,7 @@ class CustomChatAdapter(BasePlatformAdapter):
       )
     return strip_local_paths(content, paths)
 
-  async def connect(self) -> bool:
+  async def connect(self, is_reconnect: bool = False) -> bool:
     if not self.settings.enabled:
       logger.info("custom_chat disabled in config")
       return False
@@ -726,6 +730,84 @@ class CustomChatAdapter(BasePlatformAdapter):
     return f"{block}{text}" if text else block.rstrip()
 
   @staticmethod
+  def _env_bool(name: str) -> Optional[bool]:
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+      return None
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+  @staticmethod
+  def _hermes_config_path() -> Path:
+    explicit_path = os.getenv("HERMES_CONFIG_PATH")
+    if explicit_path and explicit_path.strip():
+      return Path(explicit_path).expanduser()
+    hermes_home = os.getenv("HERMES_HOME") or "~/.hermes"
+    return Path(hermes_home).expanduser() / "config.yaml"
+
+  def _show_reasoning_enabled(self) -> bool:
+    forced = self._env_bool("CUSTOM_CHAT_SHOW_REASONING")
+    if forced is not None:
+      return forced
+
+    cfg_path = self._hermes_config_path()
+    try:
+      mtime = cfg_path.stat().st_mtime
+    except OSError:
+      self._show_reasoning_cache = (cfg_path, -1.0, False)
+      return False
+
+    cached = self._show_reasoning_cache
+    if cached and cached[0] == cfg_path and cached[1] == mtime:
+      return cached[2]
+
+    try:
+      cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+      self._show_reasoning_cache = (cfg_path, mtime, False)
+      return False
+
+    try:
+      from gateway.display_config import resolve_display_setting
+
+      enabled = bool(resolve_display_setting(cfg, "custom_chat", "show_reasoning", False))
+    except Exception:
+      display = cfg.get("display") if isinstance(cfg, dict) else {}
+      if not isinstance(display, dict):
+        self._show_reasoning_cache = (cfg_path, mtime, False)
+        return False
+      value = display.get("show_reasoning")
+      if isinstance(value, str):
+        enabled = value.strip().lower() in {"1", "true", "yes", "on"}
+      else:
+        enabled = bool(value)
+    self._show_reasoning_cache = (cfg_path, mtime, enabled)
+    return enabled
+
+  def _visible_draft_text(self, text: str, meta: Dict[str, Any]) -> str:
+    """Hide streamed reasoning text until a final answer is separable."""
+    if self._show_reasoning_enabled():
+      return text
+    if REASONING_PREFIX not in text and not meta.get("reasoning"):
+      return text
+    split_source = text
+    if REASONING_PREFIX in split_source:
+      split_source = split_source.split(REASONING_PREFIX, 1)[1].strip()
+    reasoning_meta = str(meta.get("reasoning") or "").strip()
+    if reasoning_meta and "\n\n" in split_source:
+      _head, tail = split_source.rsplit("\n\n", 1)
+      if tail.strip():
+        return tail.strip()
+    reasoning_text, answer_text = self._split_reasoning_answer(
+      reasoning_meta,
+      split_source,
+    )
+    if not answer_text:
+      return ""
+    if answer_text == split_source:
+      return "" if REASONING_PREFIX in text or reasoning_meta else text
+    return answer_text
+
+  @staticmethod
   def _segment_label(meta: Dict[str, Any]) -> Optional[str]:
     label = meta.get("label") or meta.get("segment_label")
     if label:
@@ -793,6 +875,8 @@ class CustomChatAdapter(BasePlatformAdapter):
       return SendResult(success=False, message_id=reply_id)
 
     text = "" if content is None else str(content)
+    if text:
+      text = self._visible_draft_text(text, meta)
     is_segment_boundary = (
       meta.get("new_segment")
       or content is None
@@ -892,6 +976,8 @@ class CustomChatAdapter(BasePlatformAdapter):
     _ = reply_to
     meta = metadata or {}
     notice_kind = meta.get("kind")
+    if notice_kind == "reasoning" and not self._show_reasoning_enabled():
+      return SendResult(success=True, message_id=str(meta.get("notice_id") or self._new_event_id()))
     if notice_kind in {"tool", "reasoning"} or meta.get("is_tool_status"):
       return await self.send_private_notice(
         chat_id,
@@ -923,8 +1009,9 @@ class CustomChatAdapter(BasePlatformAdapter):
       user_id=route.get("user_id", "assistant"),
     )
     line_id = session.active_line_id or reply_id
+    audio_response = bool(meta.get("audio_response"))
 
-    if not session.started:
+    if not audio_response and not session.started:
       await self._emit_outbound(
         chat_id=session.chat_id,
         user_id=session.user_id,
@@ -932,31 +1019,65 @@ class CustomChatAdapter(BasePlatformAdapter):
         payload={"message_id": line_id, "turn_message_id": reply_id},
       )
 
-    if meta.get("audio_response"):
-      audio = synthesize_audio_url(content)
+    if audio_response:
+      audio: dict[str, Any] = {}
+      try:
+        audio = await asyncio.to_thread(synthesize_audio_url, content, self.settings)
+        audio_url, audio_meta = await self._resolve_outbound_media_url(
+          str(audio["url"]), metadata=audio
+        )
+      except InboundEventError as exc:
+        logger.warning("audio_response publish failed: %s", exc.message)
+        await self._cleanup_reply_state(session, reply_id)
+        return SendResult(success=False, message_id=reply_id, error=exc.message)
+      except Exception as exc:
+        logger.warning("audio_response TTS failed: %s", exc)
+        await self._cleanup_reply_state(session, reply_id)
+        return SendResult(success=False, message_id=reply_id, error=str(exc))
+      finally:
+        cleanup_synthesized_audio(audio)
+      payload: dict[str, Any] = {
+        "message_id": reply_id,
+        "mime_type": str(audio_meta.get("mime_type") or audio["mime_type"]),
+        "url": audio_url,
+      }
+      if audio_meta.get("size_bytes") is not None:
+        payload["size_bytes"] = int(audio_meta["size_bytes"])
+      if audio_meta.get("filename"):
+        payload["filename"] = str(audio_meta["filename"])
       await self._emit_outbound(
         chat_id=session.chat_id,
         user_id=session.user_id,
         event_type="assistant_audio",
+        payload=payload,
+      )
+      await self._emit_outbound(
+        chat_id=session.chat_id,
+        user_id=session.user_id,
+        event_type="assistant_done",
         payload={
           "message_id": reply_id,
-          "mime_type": audio["mime_type"],
-          "url": audio["url"],
+          "final_text": "",
+          "turn_message_id": reply_id,
         },
       )
     else:
       answer = (content or session.accumulated or "").strip()
       reasoning_raw = meta.get("reasoning")
       reasoning_meta = str(reasoning_raw).strip() if reasoning_raw else ""
+      show_reasoning = self._show_reasoning_enabled()
       reasoning_text: Optional[str] = None
       answer_text = answer
-      if reasoning_meta and REASONING_PREFIX not in answer:
+      if reasoning_meta:
+        split_source = answer
+        if REASONING_PREFIX in split_source:
+          split_source = split_source.split(REASONING_PREFIX, 1)[1].strip()
         reasoning_text, answer_text = self._split_reasoning_answer(
-          reasoning_meta, answer
+          reasoning_meta, split_source
         )
-        final = answer_text
+        final = answer_text or answer
       else:
-        final = self._prepend_reasoning(answer, meta)
+        final = answer
       stripped = (final or "").strip()
       if stripped and is_local_reference(stripped):
         path = resolve_local_path(stripped)
@@ -989,7 +1110,7 @@ class CustomChatAdapter(BasePlatformAdapter):
         "final_text": final,
         "turn_message_id": reply_id,
       }
-      if reasoning_text:
+      if show_reasoning and reasoning_text:
         done_payload["reasoning_text"] = reasoning_text
       if session.segment_index > 0:
         done_payload["segments"] = session.segment_index + 1
@@ -1000,13 +1121,16 @@ class CustomChatAdapter(BasePlatformAdapter):
         payload=done_payload,
       )
 
+    await self._cleanup_reply_state(session, reply_id)
+    return SendResult(success=True, message_id=reply_id)
+
+  async def _cleanup_reply_state(self, session: Any, reply_id: str) -> None:
     self._close_typing_for_chat(session.chat_id)
     await self.stop_typing(session.chat_id)
     self.streams.mark_done(reply_id)
     self.streams.remove(reply_id)
     self.state.end_stream(reply_id)
     self._reply_routes.pop(reply_id, None)
-    return SendResult(success=True, message_id=reply_id)
 
   async def send_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
     """Emit a typing indicator. Frontend should auto-stop after a short timeout."""
@@ -1106,6 +1230,73 @@ class CustomChatAdapter(BasePlatformAdapter):
     )
     return SendResult(success=True, message_id=reply_id)
 
+  async def send_voice(
+    self,
+    chat_id: str,
+    audio_path: str,
+    caption: Optional[str] = None,
+    reply_to: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+  ) -> SendResult:
+    """Emit a native assistant_audio event for gateway-generated voice replies."""
+    _ = reply_to, kwargs
+    meta = dict(metadata or {})
+    route = self._route_for_send(chat_id, meta)
+    routed_chat_id = route.get("chat_id", chat_id)
+    reply_id = str(
+      meta.get("reply_id")
+      or self._active_reply_id_for_chat(routed_chat_id)
+      or self._new_event_id()
+    )
+
+    if not audio_path or not str(audio_path).strip():
+      return SendResult(success=False, message_id=reply_id, error="Audio file not found")
+    if is_local_reference(audio_path):
+      path = resolve_local_path(audio_path)
+      if not path.is_file():
+        return SendResult(success=False, message_id=reply_id, error=f"Audio file not found: {path}")
+
+    try:
+      audio_url, audio_meta = await self._resolve_outbound_media_url(
+        audio_path,
+        metadata=meta,
+      )
+    except InboundEventError as exc:
+      logger.warning("send_voice publish failed: %s", exc.message)
+      return SendResult(success=False, message_id=reply_id, error=exc.message)
+
+    guessed_mime = guess_mime_type(Path(urlparse(audio_path).path))
+    mime_type = str(audio_meta.get("mime_type") or guessed_mime or "audio/mpeg")
+    if not mime_type.startswith("audio/"):
+      mime_type = "audio/mpeg"
+    payload: dict[str, Any] = {
+      "message_id": reply_id,
+      "url": audio_url,
+      "mime_type": mime_type,
+    }
+    if caption:
+      payload["caption"] = caption
+    if audio_meta.get("size_bytes") is not None:
+      try:
+        payload["size_bytes"] = int(audio_meta["size_bytes"])
+      except (TypeError, ValueError):
+        logger.debug("send_voice ignored invalid size_bytes: %r", audio_meta.get("size_bytes"))
+
+    try:
+      await self._emit_outbound(
+        chat_id=route.get("chat_id", chat_id),
+        user_id=route.get("user_id", "assistant"),
+        event_type="assistant_audio",
+        payload=payload,
+        thread_id=route.get("thread_id") or None,
+        session_id=route.get("session_id") or None,
+      )
+    except Exception as exc:
+      logger.warning("send_voice emit failed: %s", exc)
+      return SendResult(success=False, message_id=reply_id, error=str(exc))
+    return SendResult(success=True, message_id=reply_id)
+
   async def send_private_notice(
     self,
     chat_id: str,
@@ -1115,11 +1306,14 @@ class CustomChatAdapter(BasePlatformAdapter):
     """Emit an out-of-band notice (system/info bubble, not part of streaming reply)."""
     meta = metadata or {}
     route = self._route_for_send(chat_id, meta)
+    notice_kind = str(meta.get("kind", "info"))
+    if notice_kind == "reasoning" and not self._show_reasoning_enabled():
+      return SendResult(success=True, message_id=str(meta.get("notice_id") or self._new_event_id()))
     notice_id = meta.get("notice_id") or self._new_event_id()
     payload: dict[str, Any] = {
       "message_id": notice_id,
       "text": content,
-      "kind": meta.get("kind", "info"),
+      "kind": notice_kind,
     }
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
@@ -1153,6 +1347,57 @@ class CustomChatAdapter(BasePlatformAdapter):
     )
     self._tool_progress_ids.add(msg_id)
     return result
+
+  async def send_exec_approval(
+    self,
+    chat_id: str,
+    command: str,
+    session_key: str,
+    description: str = "dangerous command",
+    metadata: Optional[Dict[str, Any]] = None,
+  ) -> SendResult:
+    """Render dangerous-command approval buttons (Telegram parity)."""
+    approval_id = f"ap-{uuid.uuid4().hex[:12]}"
+    preview = str(command or "")
+    if len(preview) > 1500:
+      preview = preview[:1500] + "..."
+    body = (
+      "⚠️ Dangerous command requires approval\n\n"
+      f"```\n{preview}\n```\n"
+      f"Reason: {description}"
+    )
+
+    meta = dict(metadata or {})
+    meta["gateway_approval"] = True
+    route = self._route_for_send(chat_id, meta)
+    payload = {
+      "message_id": approval_id,
+      "confirm_id": approval_id,
+      "title": "Command Approval Required",
+      "body": body,
+      "kind": "slash_confirm",
+      "buttons": [
+        {"id": "once", "label": "Allow Once", "style": "primary"},
+        {"id": "session", "label": "Approve Session", "style": "secondary"},
+        {"id": "deny", "label": "Deny", "style": "danger"},
+      ],
+    }
+
+    try:
+      await self._emit_outbound(
+        chat_id=route.get("chat_id", chat_id),
+        user_id=route.get("user_id", "assistant"),
+        event_type="assistant_buttons",
+        payload=payload,
+        thread_id=route.get("thread_id") or None,
+        session_id=route.get("session_id") or None,
+      )
+    except Exception as exc:
+      logger.warning("send_exec_approval failed: %s", exc)
+      return SendResult(success=False, message_id=approval_id, error=str(exc))
+
+    self._approval_state[approval_id] = session_key
+    return SendResult(success=True, message_id=approval_id)
 
   async def send_slash_confirm(
     self,
@@ -1842,6 +2087,10 @@ def _apply_yaml_config(yaml_cfg: dict, platform_cfg: dict) -> dict | None:
     ).lower()
   if "home_channel" in platform_cfg and not os.getenv("CUSTOM_CHAT_HOME_CHANNEL"):
     os.environ["CUSTOM_CHAT_HOME_CHANNEL"] = str(platform_cfg["home_channel"])
+  if "tts_response_format" in platform_cfg and not os.getenv("CUSTOM_CHAT_TTS_RESPONSE_FORMAT"):
+    os.environ["CUSTOM_CHAT_TTS_RESPONSE_FORMAT"] = str(
+      platform_cfg["tts_response_format"]
+    ).strip().lower()
   media_base = platform_cfg.get("media_public_base_url")
   if media_base and not os.getenv("CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL"):
     os.environ["CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL"] = str(media_base).rstrip("/")

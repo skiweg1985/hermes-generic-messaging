@@ -38,8 +38,12 @@ export function SlashPopover({
               <IconSlash size={12} />
             </span>
             <span className="slash-popover-cmd t-mono-sm">{cmd.name}</span>
-            <span className="slash-popover-desc t-meta truncate">
-              {cmd.description}
+            <span className="slash-popover-desc truncate">
+              <span className="slash-popover-title">{cmd.description}</span>
+              <span className="slash-popover-meta t-meta">
+                {cmd.category ?? "Hermes"}
+                {cmd.usage ? ` - ${cmd.usage}` : ""}
+              </span>
             </span>
           </button>
         </li>

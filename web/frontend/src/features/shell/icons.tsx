@@ -85,6 +85,15 @@ export function IconClose({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconLock({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <rect x="5.5" y="10" width="13" height="10" rx="2" />
+      <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10" />
+    </svg>
+  );
+}
+
 export function IconArrowUp({ size, ...rest }: IconProps) {
   return (
     <svg {...base(size)} {...rest}>
@@ -166,6 +175,41 @@ export function IconDownload({ size, ...rest }: IconProps) {
   return (
     <svg {...base(size)} {...rest}>
       <path d="M12 4v12M6 12l6 6 6-6M5 20h14" />
+    </svg>
+  );
+}
+
+export function IconReply({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M10 7 5 12l5 5" />
+      <path d="M6 12h8a5 5 0 0 1 5 5v1" />
+    </svg>
+  );
+}
+
+export function IconTrash({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M5 7h14M10 11v6M14 11v6M9 7l1-2h4l1 2M7 7l1 13h8l1-13" />
+    </svg>
+  );
+}
+
+export function IconRetry({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M20 12a8 8 0 1 1-2.35-5.65" />
+      <path d="M20 4v6h-6" />
+    </svg>
+  );
+}
+
+export function IconInfo({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 10v6M12 7.5v.1" />
     </svg>
   );
 }

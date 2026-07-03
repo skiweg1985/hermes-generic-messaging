@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { downloadMedia } from "../../lib/downloadMedia";
-import { IconAudio, IconDownload } from "../shell/icons";
+import { IconDownload } from "../shell/icons";
 import { useWaveform, WaveformCanvas } from "./waveform";
 
 interface WaveformPlayerProps {
@@ -102,9 +102,10 @@ export function WaveformPlayer({
   );
 
   const progress = duration > 0 ? progressTime / duration : 0;
+  const durationLabel = duration > 0 ? formatTime(duration) : "--:--";
 
   return (
-    <div className="waveform" role="group" aria-label={fileName ?? "audio"}>
+    <div className="waveform" role="group" aria-label={fileName ?? "Voice message"}>
       <audio ref={audioRef} src={url} preload="metadata">
         {mimeType ? <source src={url} type={mimeType} /> : null}
       </audio>
@@ -119,52 +120,49 @@ export function WaveformPlayer({
         {playing ? <PauseGlyph /> : <PlayGlyph />}
       </button>
 
-      <div ref={containerRef} className="waveform-track">
-        {width > 0 ? (
-          <WaveformCanvas
-            peaks={peaks}
-            progress={progress}
-            width={width}
-            height={36}
-            onSeek={seekRatio}
-          />
-        ) : null}
-      </div>
-
-      <div className="waveform-meta">
-        <span className="t-mono-sm waveform-time">
-          {formatTime(progressTime)} / {formatTime(duration)}
-        </span>
-        <button
-          type="button"
-          className="waveform-speed"
-          onClick={() => setSpeedIndex((i) => (i + 1) % SPEEDS.length)}
-          aria-label="Playback speed"
-          title="Playback speed"
-        >
-          {SPEEDS[speedIndex]}×
-        </button>
-        {downloadUrl ? (
-          <a
-            href={downloadUrl}
-            className="waveform-download"
-            aria-label="Download audio"
-            title="Download"
-            onClick={(e) => {
-              e.preventDefault();
-              void downloadMedia(downloadUrl, fileName);
-            }}
-          >
-            <IconDownload size={14} />
-          </a>
-        ) : null}
-      </div>
-
-      {fileName ? (
-        <div className="waveform-name t-meta truncate">
-          <IconAudio size={11} /> <span className="truncate">{fileName}</span>
+      <div className="waveform-main">
+        <div ref={containerRef} className="waveform-track">
+          {width > 0 ? (
+            <WaveformCanvas
+              peaks={peaks}
+              progress={progress}
+              width={width}
+              height={44}
+              onSeek={seekRatio}
+            />
+          ) : null}
         </div>
-      ) : null}
+
+        <div className="waveform-meta">
+          <span className="t-mono-sm waveform-time">
+            {formatTime(progressTime)} / {durationLabel}
+          </span>
+          <span className="waveform-kind t-meta">Voice</span>
+          <button
+            type="button"
+            className="waveform-speed"
+            onClick={() => setSpeedIndex((i) => (i + 1) % SPEEDS.length)}
+            aria-label="Playback speed"
+            title="Playback speed"
+          >
+            {SPEEDS[speedIndex]}×
+          </button>
+          {downloadUrl ? (
+            <a
+              href={downloadUrl}
+              className="waveform-download"
+              aria-label="Download audio"
+              title="Download"
+              onClick={(e) => {
+                e.preventDefault();
+                void downloadMedia(downloadUrl, fileName);
+              }}
+            >
+              <IconDownload size={14} />
+            </a>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

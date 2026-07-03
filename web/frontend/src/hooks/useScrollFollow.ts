@@ -57,6 +57,31 @@ export function useScrollFollow(
     };
   }, [threshold]);
 
+  // Keep pinned content above the composer when rendered media changes height.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    let frame = 0;
+    const followResize = () => {
+      if (!pinnedRef.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+      });
+    };
+
+    const observer = new ResizeObserver(followResize);
+    observer.observe(el);
+    const content = el.firstElementChild;
+    if (content instanceof HTMLElement) observer.observe(content);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+
   // Jump to latest when switching chat sessions.
   useEffect(() => {
     if (sessionKey === undefined) return;

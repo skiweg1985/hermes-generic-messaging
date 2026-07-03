@@ -16,6 +16,7 @@ data/uploads/
 web/backend/data/
 web/frontend/node_modules/
 web/frontend/dist/
+web/frontend/.cert/
 .DS_Store
 .idea/
 .vscode/

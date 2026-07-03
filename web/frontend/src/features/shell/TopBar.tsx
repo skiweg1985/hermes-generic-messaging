@@ -1,5 +1,5 @@
 import type { ConnectionStatus } from "../../types/events";
-import { IconMore, IconPanel, IconMenu } from "./icons";
+import { IconPanel, IconMenu } from "./icons";
 
 interface TopBarProps {
   title: string;
@@ -67,9 +67,11 @@ export function TopBar({
             Reconnect
           </button>
         ) : null}
-        <button type="button" className="topbar-chip" disabled title="Model picker">
-          <span className="t-body-sm truncate">{modelLabel ?? "Auto"}</span>
-        </button>
+        {modelLabel ? (
+          <span className="topbar-chip" title="Model">
+            <span className="t-body-sm truncate">{modelLabel}</span>
+          </span>
+        ) : null}
         <button
           type="button"
           className="topbar-icon-btn"
@@ -78,15 +80,6 @@ export function TopBar({
           title="Session details (⌘I)"
         >
           <IconPanel size={16} />
-        </button>
-        <button
-          type="button"
-          className="topbar-icon-btn"
-          aria-label="More options"
-          title="More options"
-          disabled
-        >
-          <IconMore size={16} />
         </button>
       </div>
     </header>

@@ -16,6 +16,7 @@ interface Item {
   group: "actions" | "commands" | "chats";
   label: string;
   hint?: string;
+  search?: string;
   run: () => void;
 }
 
@@ -56,7 +57,8 @@ export function CommandPalette({
       id: `cmd:${c.name}`,
       group: "commands",
       label: c.name,
-      hint: c.description,
+      hint: c.usage ?? `${c.category ?? "Hermes"} - ${c.description}`,
+      search: [c.name, c.description, c.category, c.usage, ...(c.aliases ?? [])].join(" "),
       run: () => {
         onRunCommand(c.name);
         onClose();
@@ -78,7 +80,8 @@ export function CommandPalette({
     return all.filter(
       (it) =>
         it.label.toLowerCase().includes(q) ||
-        (it.hint ?? "").toLowerCase().includes(q),
+        (it.hint ?? "").toLowerCase().includes(q) ||
+        (it.search ?? "").toLowerCase().includes(q),
     );
   }, [query, sessions, onCreateChat, onRunCommand, onSelectChat, onClose]);
 

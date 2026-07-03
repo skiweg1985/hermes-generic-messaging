@@ -10,7 +10,20 @@ describe("MarkdownText", () => {
 
     expect(html).toContain("<h1>Title</h1>");
     expect(html).toContain("<li>one</li>");
+    expect(html).toContain("markdown-table-wrap");
     expect(html).toContain("<table>");
+  });
+
+  it("renders premium code blocks and standalone link previews", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownText text={'```ts\nconst ok = true\n```\n\nhttps://example.com/report'} />,
+    );
+
+    expect(html).toContain("markdown-code-block");
+    expect(html).toContain("markdown-code-copy");
+    expect(html).toContain("syntax-keyword");
+    expect(html).toContain("markdown-link-preview");
+    expect(html).toContain("example.com");
   });
 
   it("does not render raw html or unsafe links", () => {

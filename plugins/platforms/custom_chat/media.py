@@ -6,9 +6,13 @@ import asyncio
 import json
 import logging
 import mimetypes
+import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
+import textwrap
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -33,6 +37,26 @@ _PATH_TOKEN_RE = re.compile(
     r"|"
     r"/(?:[\w@.~-]+/)+[\w@.~-]+(?:\.[\w]{1,8})?",
 )
+
+_PCM_COMPATIBLE_RESPONSE_FORMATS = {"pcm"}
+_RESPONSE_FORMAT_TO_EXTENSION = {
+    "": "mp3",
+    "mp3": "mp3",
+    "mpeg": "mp3",
+    "aac": "mp3",
+    "wav": "wav",
+    "wave": "wav",
+    "flac": "flac",
+    "opus": "ogg",
+    "ogg": "ogg",
+    "pcm": "ogg",
+}
+_EXTENSION_TO_MIME = {
+    "mp3": "audio/mpeg",
+    "ogg": "audio/ogg",
+    "wav": "audio/wav",
+    "flac": "audio/flac",
+}
 
 
 def validate_file_payload(
@@ -305,13 +329,133 @@ async def publish_local_file(
     return await asyncio.to_thread(publish_local_file_sync, path, base)
 
 
-def synthesize_audio_url(text: str, *, mime_type: str = "audio/mpeg") -> dict[str, str]:
-    """Placeholder TTS — returns a synthetic file reference until a provider is wired."""
-    logger.warning(
-        "custom_chat TTS is not configured; returning placeholder audio URL "
-        "(set up a real TTS provider before enabling audio_response in production)"
-    )
-    return {
-        "mime_type": mime_type,
-        "url": f"https://example.local/tts/{hash(text) % 10**8}.{mime_type.split('/')[-1]}",
-    }
+def _tts_output_extension(settings: CustomChatSettings) -> str:
+    requested = str(settings.tts_response_format or "").strip().lower()
+    return _RESPONSE_FORMAT_TO_EXTENSION.get(requested, "mp3")
+
+
+def _tts_output_mime_type(path: Path) -> str:
+    return _EXTENSION_TO_MIME.get(path.suffix.lower().lstrip("."), "audio/mpeg")
+
+
+def _invoke_hermes_tts(
+    text: str,
+    *,
+    output_path: Path,
+    response_format: str = "",
+) -> dict[str, Any]:
+    """Run Hermes TTS in an isolated subprocess.
+
+    The custom_chat plugin reuses Hermes' built-in TTS stack so provider/model
+    config still comes from ``~/.hermes/config.yaml``. The subprocess avoids
+    monkeypatching the gateway process' global ``tools.tts_tool`` module state.
+    """
+    script = textwrap.dedent(
+        """
+        import copy
+        import json
+        import sys
+
+        from tools import tts_tool as hermes_tts
+
+        data = json.loads(sys.stdin.read())
+        requested_format = str(data.get("response_format") or "").strip().lower()
+        tts_config = copy.deepcopy(hermes_tts._load_tts_config())
+        if requested_format:
+            provider = hermes_tts._get_provider(tts_config)
+            if provider == "openai":
+                openai_cfg = tts_config.setdefault("openai", {})
+                if not isinstance(openai_cfg, dict):
+                    openai_cfg = {}
+                    tts_config["openai"] = openai_cfg
+                openai_cfg["response_format"] = requested_format
+
+        original_loader = hermes_tts._load_tts_config
+        hermes_tts._load_tts_config = lambda: copy.deepcopy(tts_config)
+        try:
+            raw = hermes_tts.text_to_speech_tool(
+                data["text"],
+                output_path=data["output_path"],
+            )
+        finally:
+            hermes_tts._load_tts_config = original_loader
+        print(raw)
+        """
+    ).strip()
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            input=json.dumps(
+                {
+                    "text": text,
+                    "output_path": str(output_path),
+                    "response_format": str(response_format or ""),
+                }
+            ),
+            text=True,
+            capture_output=True,
+            timeout=int(os.getenv("CUSTOM_CHAT_TTS_TIMEOUT_SECONDS", "120")),
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Hermes TTS timed out") from exc
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(f"Hermes TTS failed: {detail[:500]}")
+    raw = completed.stdout.strip()
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Hermes TTS returned non-JSON output: {raw[:200]}") from exc
+    if not parsed.get("success"):
+        raise RuntimeError(str(parsed.get("error") or "unknown Hermes TTS failure"))
+    return parsed
+
+
+def synthesize_audio_url(
+    text: str,
+    settings: CustomChatSettings,
+) -> dict[str, Any]:
+    """Generate assistant audio via Hermes TTS and return a publishable reference.
+
+    Returns a local file path first; the adapter publishes it to the media API
+    and rewrites it to a public URL when needed.
+    """
+    requested_format = str(settings.tts_response_format or "").strip().lower()
+    extension = _tts_output_extension(settings)
+    output_dir = Path(tempfile.mkdtemp(prefix="custom_chat_tts_"))
+    output_path = output_dir / f"tts-{uuid.uuid4().hex}.{extension}"
+    try:
+        result = _invoke_hermes_tts(
+            text,
+            output_path=output_path,
+            response_format=requested_format,
+        )
+        file_path = Path(str(result.get("file_path") or output_path)).expanduser()
+        if not file_path.exists():
+            raise RuntimeError(f"Hermes TTS produced no file at {file_path}")
+        mime_type = _tts_output_mime_type(file_path)
+        if requested_format in _PCM_COMPATIBLE_RESPONSE_FORMATS and mime_type != "audio/ogg":
+            logger.warning(
+                "custom_chat PCM TTS did not produce OGG output (%s); Telegram "
+                "voice compatibility may be degraded",
+                file_path,
+            )
+        return {
+            "mime_type": mime_type,
+            "url": str(file_path),
+            "filename": file_path.name,
+            "size_bytes": file_path.stat().st_size,
+            "temp_dir": str(output_dir),
+        }
+    except Exception:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        raise
+
+
+def cleanup_synthesized_audio(audio: dict[str, Any]) -> None:
+    """Remove temp files created by ``synthesize_audio_url`` after publishing."""
+    temp_dir = str(audio.get("temp_dir") or "").strip()
+    if temp_dir:
+        shutil.rmtree(temp_dir, ignore_errors=True)

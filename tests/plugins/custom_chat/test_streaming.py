@@ -107,6 +107,7 @@ async def test_reasoning_prepend_on_send(adapter: CustomChatAdapter, parse_sent_
         "session_id": "",
     }
     adapter._ws_by_chat["c1"] = ws
+    adapter._show_reasoning_enabled = lambda: True  # type: ignore[method-assign]
 
     await adapter.send(
         "c1",
@@ -122,6 +123,87 @@ async def test_reasoning_prepend_on_send(adapter: CustomChatAdapter, parse_sent_
 
 
 @pytest.mark.asyncio
+async def test_reasoning_hidden_omits_reasoning_block(adapter: CustomChatAdapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._reply_routes["stream-4off"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter._ws_by_chat["c1"] = ws
+    adapter._show_reasoning_enabled = lambda: False  # type: ignore[method-assign]
+
+    thinking = (
+        "I think the user might be asking if I'm here, possibly with \"läuft?\" "
+        "I don't need any tools for this."
+    )
+    await adapter.send(
+        "c1",
+        f"{thinking}\n\nFinal answer",
+        metadata={"reply_id": "stream-4off", "reasoning": "Internal reasoning"},
+    )
+
+    events = parse_sent_events(ws)
+    done = next(e for e in events if e["type"] == "assistant_done")
+    assert "reasoning_text" not in done["payload"]
+    assert done["payload"]["final_text"] == "Final answer"
+
+
+@pytest.mark.asyncio
+async def test_reasoning_notice_hidden_when_reasoning_disabled(
+    adapter: CustomChatAdapter, parse_sent_events
+):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+    adapter._show_reasoning_enabled = lambda: False  # type: ignore[method-assign]
+
+    await adapter.send_private_notice(
+        "c1",
+        "Reasoning…",
+        metadata={"kind": "reasoning", "notice_id": "n-reason-1"},
+    )
+
+    events = parse_sent_events(ws)
+    assert events == []
+
+
+@pytest.mark.asyncio
+async def test_reasoning_draft_hidden_until_final_answer(
+    adapter: CustomChatAdapter, parse_sent_events
+):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._reply_routes["stream-hidden"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter._ws_by_chat["c1"] = ws
+    adapter._show_reasoning_enabled = lambda: False  # type: ignore[method-assign]
+
+    await adapter.send_draft(
+        "c1",
+        1,
+        "private reasoning only",
+        metadata={"reply_id": "stream-hidden", "reasoning": "meta reasoning"},
+    )
+    await adapter.send_draft(
+        "c1",
+        1,
+        "private reasoning only\n\nPublic answer",
+        metadata={"reply_id": "stream-hidden", "reasoning": "meta reasoning"},
+    )
+
+    events = parse_sent_events(ws)
+    deltas = [e["payload"]["delta"] for e in events if e["type"] == "assistant_delta"]
+    assert deltas == ["Public answer"]
+
+
+@pytest.mark.asyncio
 async def test_reasoning_splits_streamed_thinking_from_final_answer(
     adapter: CustomChatAdapter, parse_sent_events
 ):
@@ -134,6 +216,7 @@ async def test_reasoning_splits_streamed_thinking_from_final_answer(
         "session_id": "",
     }
     adapter._ws_by_chat["c1"] = ws
+    adapter._show_reasoning_enabled = lambda: True  # type: ignore[method-assign]
 
     thinking = (
         "I think the user might be asking if I'm here, possibly with \"läuft?\" "

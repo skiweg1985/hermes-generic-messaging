@@ -136,6 +136,65 @@
     "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --surface-canvas:   #f7f8fa;
+    --surface-sunken:   #eef0f3;
+    --surface-1:        #f2f4f6;
+    --surface-2:        #ffffff;
+    --surface-3:        #f1f3f5;
+    --surface-4:        #e7eaee;
+    --surface-overlay:  rgba(247, 248, 250, 0.78);
+    --surface-scrim:    rgba(30, 30, 25, 0.26);
+
+    --line-hairline:    rgba(20, 20, 18, 0.06);
+    --line-soft:        rgba(20, 20, 18, 0.10);
+    --line-strong:      rgba(20, 20, 18, 0.16);
+
+    --text-primary:     rgba(18, 18, 16, 0.94);
+    --text-secondary:   rgba(18, 18, 16, 0.68);
+    --text-tertiary:    rgba(18, 18, 16, 0.48);
+    --text-quaternary:  rgba(18, 18, 16, 0.34);
+    --text-disabled:    rgba(18, 18, 16, 0.20);
+    --text-on-solid:    #ffffff;
+
+    --accent-strong:    rgba(18, 18, 16, 0.92);
+    --accent:           rgba(18, 18, 16, 0.82);
+    --accent-soft:      rgba(18, 18, 16, 0.10);
+    --accent-faint:     rgba(18, 18, 16, 0.055);
+    --accent-glow:      rgba(18, 18, 16, 0.14);
+
+    --state-success:        #188f5d;
+    --state-success-bg:     rgba(24, 143, 93, 0.09);
+    --state-success-border: rgba(24, 143, 93, 0.22);
+    --state-warning:        #9b6a16;
+    --state-warning-bg:     rgba(155, 106, 22, 0.10);
+    --state-warning-border: rgba(155, 106, 22, 0.24);
+    --state-danger:         #b94040;
+    --state-danger-bg:      rgba(185, 64, 64, 0.09);
+    --state-danger-border:  rgba(185, 64, 64, 0.22);
+    --state-info:           #2563b8;
+    --state-info-bg:        rgba(37, 99, 184, 0.09);
+    --state-info-border:    rgba(37, 99, 184, 0.22);
+
+    --shadow-xs: 0 1px 2px rgba(20, 20, 18, 0.05);
+    --shadow-sm:
+      0 1px 0 rgba(255, 255, 255, 0.75) inset,
+      0 8px 24px -18px rgba(20, 20, 18, 0.28);
+    --shadow-md:
+      0 1px 0 rgba(255, 255, 255, 0.75) inset,
+      0 18px 44px -28px rgba(20, 20, 18, 0.35);
+    --shadow-lg:
+      0 1px 0 rgba(255, 255, 255, 0.78) inset,
+      0 28px 70px -34px rgba(20, 20, 18, 0.45);
+    --shadow-overlay:
+      0 1px 0 rgba(255, 255, 255, 0.84) inset,
+      0 34px 90px -34px rgba(20, 20, 18, 0.45);
+  }
+}
+
 /* ── Reduced motion overrides ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   :root {

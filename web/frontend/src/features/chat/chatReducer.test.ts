@@ -33,6 +33,52 @@ describe("chatReducer", () => {
     expect(session(s).lines[0].text).toBe("hi");
   });
 
+  it("sets and clears a reply target", () => {
+    let s = chatReducer(base, {
+      type: "SET_REPLY_TARGET",
+      target: {
+        lineId: "l1",
+        role: "assistant",
+        label: "Hermes",
+        preview: "Previous answer",
+      },
+    });
+    expect(session(s).replyTarget?.lineId).toBe("l1");
+
+    s = chatReducer(s, { type: "CLEAR_REPLY_TARGET" });
+    expect(session(s).replyTarget).toBeUndefined();
+  });
+
+  it("clears reply target after sending user text", () => {
+    let s = chatReducer(base, {
+      type: "SET_REPLY_TARGET",
+      target: {
+        lineId: "l1",
+        role: "assistant",
+        label: "Hermes",
+        preview: "Previous answer",
+      },
+    });
+    s = chatReducer(s, { type: "USER_TEXT", text: "answering" });
+    expect(session(s).replyTarget).toBeUndefined();
+  });
+
+  it("deletes a line locally and clears stale reply target", () => {
+    let s = chatReducer(base, { type: "USER_TEXT", text: "remove me", turnMessageId: "u1" });
+    s = chatReducer(s, {
+      type: "SET_REPLY_TARGET",
+      target: {
+        lineId: "u1",
+        role: "user",
+        label: "You",
+        preview: "remove me",
+      },
+    });
+    s = chatReducer(s, { type: "DELETE_LINE_LOCAL", lineId: "u1" });
+    expect(session(s).lines).toHaveLength(0);
+    expect(session(s).replyTarget).toBeUndefined();
+  });
+
   it("streams assistant deltas", () => {
     let s = chatReducer(base, {
       type: "INBOUND_EVENT",
@@ -111,6 +157,24 @@ describe("chatReducer", () => {
     expect(session(s).lines[0].audioUrl).toContain("example.local");
   });
 
+  it("replaces a started audio turn with the assistant audio attachment", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r-audio", turn_message_id: "r-audio" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_audio", {
+        message_id: "r-audio",
+        mime_type: "audio/ogg",
+        url: "https://example.local/a.ogg",
+      }),
+    });
+    expect(session(s).lines).toHaveLength(1);
+    expect(session(s).lines[0].kind).toBe("audio-out");
+    expect(session(s).streamingMessageId).toBeNull();
+  });
+
   it("handles assistant_file as inline media or link", () => {
     let s = chatReducer(base, {
       type: "INBOUND_EVENT",
@@ -146,6 +210,25 @@ describe("chatReducer", () => {
     });
     expect(session(s).lines[0].kind).toBe("audio-out");
     expect(session(s).lines[0].audioUrl).toContain("recording.webm");
+  });
+
+  it("renders recorded voice without exposing a filename", () => {
+    const s = chatReducer(base, {
+      type: "USER_VOICE",
+      turnMessageId: "voice-turn",
+      attachmentId: "voice-1",
+      mime: "audio/webm",
+      size: 1280,
+      url: "https://example.local/voice-message.webm",
+    });
+    expect(session(s).lines[0]).toMatchObject({
+      kind: "audio-out",
+      role: "user",
+      text: "user> [voice]",
+      audioUrl: "https://example.local/voice-message.webm",
+      turnMessageId: "voice-turn",
+    });
+    expect(session(s).lines[0].fileName).toBeUndefined();
   });
 
   it("upserts model_picker cards with the same message id", () => {

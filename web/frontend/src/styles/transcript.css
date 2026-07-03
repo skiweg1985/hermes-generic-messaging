@@ -18,7 +18,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--s-8) var(--s-6) var(--s-4);
+  padding: var(--s-8) var(--s-6) calc(var(--composer-clearance, 112px) + var(--s-4));
+  scroll-padding-bottom: calc(var(--composer-clearance, 112px) + var(--s-4));
   scroll-behavior: smooth;
 }
 
@@ -249,7 +250,7 @@
 .reasoning {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 6px;
   min-width: 0;
   width: 100%;
 }
@@ -257,15 +258,19 @@
 .reasoning-header {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
-  height: 24px;
-  padding: 0 var(--s-2) 0 0;
-  border-radius: var(--r-sm);
+  gap: 7px;
+  min-height: 26px;
+  padding: 0 9px 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 46%, transparent);
   color: var(--text-tertiary);
   align-self: flex-start;
-  transition: color var(--dur-fast);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
 }
 .reasoning-header:hover {
+  background: color-mix(in srgb, var(--surface-3) 62%, transparent);
   color: var(--text-secondary);
 }
 
@@ -298,11 +303,12 @@
 }
 
 .reasoning-body {
-  padding-left: var(--s-3);
-  border-left: 1px solid var(--line-hairline);
+  margin-left: 6px;
+  padding: 8px 0 8px 13px;
+  border-left: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
   color: var(--text-tertiary);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: 12.5px;
+  line-height: 1.62;
   font-style: normal;
   min-width: 0;
   max-width: 68ch;
@@ -334,7 +340,7 @@
 }
 
 .reasoning-body .markdown-text {
-  font-size: 13px;
+  font-size: 12.5px;
   color: inherit;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -343,7 +349,22 @@
   white-space: pre-wrap;
 }
 .reasoning-body .markdown-text :where(p, ul, ol, pre, blockquote, table) {
-  margin: 6px 0;
+  margin: 4px 0;
+}
+.reasoning-body .markdown-text code {
+  background: color-mix(in srgb, var(--surface-3) 52%, transparent);
+  color: var(--text-secondary);
+}
+.reasoning-body .markdown-text pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: hidden;
+}
+.reasoning-body .markdown-text pre code {
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
 }
 .reasoning-body .markdown-text > :first-child {
   margin-top: 0;
@@ -719,7 +740,8 @@
 
 @media (max-width: 720px) {
   .transcript {
-    padding: var(--s-5) var(--s-4) var(--s-3);
+    padding: var(--s-5) var(--s-4) calc(var(--composer-clearance, 104px) + var(--s-3));
+    scroll-padding-bottom: calc(var(--composer-clearance, 104px) + var(--s-3));
   }
   .transcript-content {
     gap: var(--s-6);
