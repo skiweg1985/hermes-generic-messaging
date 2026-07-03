@@ -3,19 +3,37 @@ import type { AssistantButton, TranscriptLine } from "../../types/events";
 import { useScrollFollow } from "../../hooks/useScrollFollow";
 import { groupTurnsFromLines } from "./model/groupMessages";
 import { TurnGroup } from "./TurnGroup";
-import { TypingIndicator } from "./messages/TypingIndicator";
 import { IconArrowUp } from "../shell/icons";
 import { MediaProvider, type MediaImage } from "../media/MediaProvider";
 import { Lightbox } from "../media/Lightbox";
+import { MessageActionSheet } from "./MessageActionSheet";
+import {
+  downloadableUrlForLine,
+  transcriptLineCopyText,
+  type MessageActionId,
+  type MessageActionTarget,
+} from "./messageActions";
+import { downloadMedia } from "../../lib/downloadMedia";
 
 interface TranscriptProps {
   chatId: string;
   lines: TranscriptLine[];
   typing?: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
+  onReplyLine: (line: TranscriptLine) => void;
+  onRetryLine: (line: TranscriptLine) => void;
+  onDeleteLine: (lineId: string) => void;
 }
 
-export function Transcript({ chatId, lines, typing = false, onButtonClick }: TranscriptProps) {
+export function Transcript({
+  chatId,
+  lines,
+  typing = false,
+  onButtonClick,
+  onReplyLine,
+  onRetryLine,
+  onDeleteLine,
+}: TranscriptProps) {
   const turns = useMemo(() => groupTurnsFromLines(lines), [lines]);
   const turnActive = useMemo(() => lines.some((l) => l.streaming), [lines]);
   const trigger = useMemo(() => {
@@ -28,6 +46,7 @@ export function Transcript({ chatId, lines, typing = false, onButtonClick }: Tra
   const [lightboxImages, setLightboxImages] = useState<MediaImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [actionTarget, setActionTarget] = useState<MessageActionTarget | null>(null);
 
   const openLightbox = useCallback((images: MediaImage[], index: number) => {
     setLightboxImages(images);
@@ -35,6 +54,27 @@ export function Transcript({ chatId, lines, typing = false, onButtonClick }: Tra
     setLightboxOpen(true);
   }, []);
   const closeLightbox = useCallback(() => setLightboxOpen(false), []);
+  const closeActions = useCallback(() => setActionTarget(null), []);
+
+  const handleAction = useCallback(
+    (action: MessageActionId, target: MessageActionTarget) => {
+      const { line } = target;
+      if (action === "copy") {
+        void copyText(transcriptLineCopyText(line)).catch(() => {});
+      } else if (action === "reply") {
+        onReplyLine(line);
+      } else if (action === "retry") {
+        onRetryLine(line);
+      } else if (action === "delete") {
+        onDeleteLine(line.id);
+      } else if (action === "download") {
+        const url = downloadableUrlForLine(line);
+        if (url) void downloadMedia(url, line.fileName);
+      }
+      closeActions();
+    },
+    [closeActions, onDeleteLine, onReplyLine, onRetryLine],
+  );
 
   const isEmpty = turns.length === 0 && !typing;
 
@@ -58,20 +98,12 @@ export function Transcript({ chatId, lines, typing = false, onButtonClick }: Tra
                   turn={turn}
                   turnActive={turnActive}
                   onButtonClick={onButtonClick}
+                  onMessageAction={setActionTarget}
                 />
               ))}
             </div>
           )}
         </div>
-
-        {typing ? (
-          <div className="transcript-typing-float" aria-live="polite">
-            <div className="transcript-typing-float-inner">
-              <TypingIndicator />
-            </div>
-          </div>
-        ) : null}
-
         {!isPinned && hasNew ? (
           <button
             type="button"
@@ -92,17 +124,36 @@ export function Transcript({ chatId, lines, typing = false, onButtonClick }: Tra
         onClose={closeLightbox}
         onIndexChange={setLightboxIndex}
       />
+      <MessageActionSheet
+        target={actionTarget}
+        onClose={closeActions}
+        onAction={handleAction}
+      />
     </MediaProvider>
   );
+}
+
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const el = document.createElement("textarea");
+  el.value = text;
+  el.setAttribute("readonly", "true");
+  el.style.position = "fixed";
+  el.style.opacity = "0";
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand("copy");
+  el.remove();
 }
 
 function EmptyState() {
   return (
     <div className="transcript-empty">
-      <div className="transcript-empty-title t-title">What can I help with?</div>
-      <p className="t-secondary transcript-empty-hint">
-        Type a message, paste a file, or press <kbd>⌘K</kbd> to run a command.
-      </p>
+      <div className="transcript-empty-title t-title">Start a conversation</div>
+      <p className="t-secondary transcript-empty-hint">Hermes is ready.</p>
     </div>
   );
 }

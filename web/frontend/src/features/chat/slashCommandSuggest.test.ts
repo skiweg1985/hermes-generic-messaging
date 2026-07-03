@@ -34,6 +34,17 @@ describe("filterSlashCommands", () => {
     expect(names).toContain("/reload-mcp");
     expect(names).not.toContain("/model");
   });
+
+  it("filters by Telegram-style aliases", () => {
+    const names = filterSlashCommands("reload_").map((c) => c.name);
+    expect(names).toContain("/reload-mcp");
+    expect(names).toContain("/reload-skills");
+  });
+
+  it("filters by short aliases", () => {
+    expect(filterSlashCommands("bg")[0]?.name).toBe("/background");
+    expect(filterSlashCommands("fork")[0]?.name).toBe("/branch");
+  });
 });
 
 describe("applySlashCommand", () => {
@@ -41,5 +52,15 @@ describe("applySlashCommand", () => {
     expect(applySlashCommand("/mo extra", { name: "/model", description: "" })).toBe(
       "/model extra",
     );
+  });
+
+  it("applies the canonical command when an alias matched", () => {
+    expect(
+      applySlashCommand("/reload_ now", {
+        name: "/reload-mcp",
+        aliases: ["/reload_mcp"],
+        description: "",
+      }),
+    ).toBe("/reload-mcp now");
   });
 });

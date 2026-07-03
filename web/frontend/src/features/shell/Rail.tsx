@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { ChatSession } from "../../types/events";
 import { SessionGroupList } from "./SessionGroupList";
-import { IconPlus, IconSearch, IconAgents, IconLibrary, IconClose } from "./icons";
+import { IconPlus, IconSearch, IconClose } from "./icons";
 
 interface RailProps {
   userId: string;
@@ -63,7 +63,7 @@ export function Rail({
             <div className="t-body-sm rail-workspace-title truncate">
               {workspaceName}
             </div>
-            <div className="t-meta truncate">Personal</div>
+            <div className="t-meta rail-workspace-subtitle truncate">Web chats</div>
           </div>
           <button
             type="button"
@@ -97,14 +97,6 @@ export function Rail({
             <span>Search</span>
             <kbd>⌘K</kbd>
           </button>
-          <button type="button" className="rail-quick-item" disabled title="Coming soon">
-            <IconAgents size={14} />
-            <span>Agents</span>
-          </button>
-          <button type="button" className="rail-quick-item" disabled title="Coming soon">
-            <IconLibrary size={14} />
-            <span>Library</span>
-          </button>
         </div>
 
         <SessionGroupList
@@ -117,7 +109,7 @@ export function Rail({
           <div className="rail-avatar" aria-hidden>{initials(userId)}</div>
           <div className="rail-footer-body">
             <div className="t-body-sm truncate">{userId}</div>
-            <div className="t-meta truncate">Online</div>
+            <div className="t-meta truncate">Synced</div>
           </div>
         </div>
       </aside>

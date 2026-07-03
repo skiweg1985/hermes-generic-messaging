@@ -1,22 +1,18 @@
 import type { ChatSession, ChatState, TranscriptLine } from "../../types/events";
 
 const STORAGE_KEY = "custom-chat-web:sessions:v1";
+const LEGACY_DEMO_CHAT_ID = "workspace:demo";
 export const MAX_TRANSCRIPT_LINES = 200;
 
-interface StoredState {
+export interface StoredState {
   version: 1;
-  activeChatId: string;
+  activeChatId: string | null;
   sessions: ChatSession[];
 }
 
 export function persistChatState(state: ChatState): void {
   if (typeof window === "undefined") return;
-  const sessions = Object.values(state.sessionsById).map(trimSession);
-  const payload: StoredState = {
-    version: 1,
-    activeChatId: state.activeChatId,
-    sessions,
-  };
+  const payload = toStoredState(state);
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
@@ -31,37 +27,88 @@ export function loadChatState(fallback: ChatState): ChatState {
 
   try {
     const parsed = JSON.parse(raw) as Partial<StoredState>;
-    if (parsed.version !== 1 || !Array.isArray(parsed.sessions)) return fallback;
-    const sessions = parsed.sessions.filter(isStoredSession).map(trimSession);
-    if (sessions.length === 0) return fallback;
-
-    const sessionsById = Object.fromEntries(
-      sessions.map((session) => [
-        session.chatId,
-        { ...session, pendingAttachments: session.pendingAttachments ?? [] },
-      ]),
-    );
-    const activeChatId =
-      typeof parsed.activeChatId === "string" && sessionsById[parsed.activeChatId]
-        ? parsed.activeChatId
-        : sessions[0].chatId;
-
-    return {
-      ...fallback,
-      activeChatId,
-      sessionsById,
-    };
+    return stateFromStoredState(parsed, fallback);
   } catch {
     return fallback;
   }
 }
 
+export function toStoredState(state: ChatState): StoredState {
+  const sessions = Object.values(state.sessionsById)
+    .map(trimSession)
+    .filter((session) => shouldPersistSession(session));
+  const hasActive = sessions.some((session) => session.chatId === state.activeChatId);
+  return {
+    version: 1,
+    activeChatId: hasActive ? state.activeChatId : sessions[0]?.chatId ?? null,
+    sessions,
+  };
+}
+
+export function stateFromStoredState(
+  raw: Partial<StoredState>,
+  fallback: ChatState,
+): ChatState {
+  if (raw.version !== 1 || !Array.isArray(raw.sessions)) return fallback;
+  const sessions = raw.sessions
+    .filter(isStoredSession)
+    .map(trimSession)
+    .filter((session) => shouldPersistSession(session));
+  if (sessions.length === 0) return fallback;
+
+  const sessionsById = Object.fromEntries(
+    sessions.map((session) => [
+      session.chatId,
+      { ...session, pendingAttachments: session.pendingAttachments ?? [] },
+    ]),
+  );
+  const activeChatId =
+    typeof raw.activeChatId === "string" && sessionsById[raw.activeChatId]
+      ? raw.activeChatId
+      : sessions[0].chatId;
+
+  return {
+    ...fallback,
+    activeChatId,
+    sessionsById,
+  };
+}
+
+export function mergeChatStates(current: ChatState, incoming: ChatState): ChatState {
+  const sessionsById = { ...incoming.sessionsById };
+  for (const [chatId, session] of Object.entries(current.sessionsById)) {
+    const remote = sessionsById[chatId];
+    if (!remote || sessionTimestamp(session) >= sessionTimestamp(remote)) {
+      sessionsById[chatId] = session;
+    }
+  }
+  const activeChatId = sessionsById[incoming.activeChatId]
+    ? incoming.activeChatId
+    : sessionsById[current.activeChatId]
+      ? current.activeChatId
+      : Object.values(sessionsById).sort((a, b) =>
+          sessionTimestamp(b).localeCompare(sessionTimestamp(a)),
+        )[0]?.chatId ?? current.activeChatId;
+
+  return {
+    ...current,
+    activeChatId,
+    sessionsById,
+  };
+}
+
 function trimSession(session: ChatSession): ChatSession {
+  const lines = session.lines.slice(-MAX_TRANSCRIPT_LINES).map(trimLine);
+  const replyTarget =
+    session.replyTarget && lines.some((line) => line.id === session.replyTarget?.lineId)
+      ? session.replyTarget
+      : undefined;
   return {
     ...session,
-    lines: session.lines.slice(-MAX_TRANSCRIPT_LINES).map(trimLine),
+    lines,
     streamingMessageId: null,
     streamTurnId: null,
+    replyTarget,
     pendingAttachments: [],
     typing: false,
     typingStartedAt: undefined,
@@ -88,4 +135,23 @@ function isStoredSession(value: unknown): value is ChatSession {
     typeof session.createdAt === "string" &&
     typeof session.updatedAt === "string"
   );
+}
+
+function isLegacyDemoSession(session: ChatSession): boolean {
+  return (
+    session.chatId === LEGACY_DEMO_CHAT_ID &&
+    session.label.toLowerCase() === "demo"
+  );
+}
+
+function isEmptyPlaceholderSession(session: ChatSession): boolean {
+  return session.lines.length === 0;
+}
+
+function shouldPersistSession(session: ChatSession): boolean {
+  return !isLegacyDemoSession(session) && !isEmptyPlaceholderSession(session);
+}
+
+function sessionTimestamp(session: ChatSession): string {
+  return session.updatedAt || session.createdAt || "";
 }

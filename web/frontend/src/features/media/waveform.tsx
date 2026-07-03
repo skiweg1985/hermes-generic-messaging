@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const TARGET_BARS = 200;
-const BAR_WIDTH = 1.5;
-const BAR_GAP = 2;
+const BAR_STRIDE = 4;
 
 interface UseWaveformResult {
   peaks: number[] | null;
@@ -106,23 +105,32 @@ export function WaveformCanvas({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    const bars = peaks ?? new Array(TARGET_BARS).fill(0.08);
+    const bars =
+      peaks ??
+      Array.from({ length: TARGET_BARS }, (_, index) => {
+        const a = Math.sin(index * 0.35) * 0.22;
+        const b = Math.sin(index * 0.09 + 1.6) * 0.3;
+        return Math.max(0.1, Math.min(0.9, 0.34 + a + b));
+      });
     const total = bars.length;
-    const totalWidth = total * BAR_WIDTH + (total - 1) * BAR_GAP;
-    const scale = Math.min(1, width / totalWidth);
-    const stride = (BAR_WIDTH + BAR_GAP) * scale;
-    const barW = BAR_WIDTH * scale;
+    const visibleBars = Math.max(24, Math.min(total, Math.floor(width / BAR_STRIDE)));
+    const stride = width / visibleBars;
+    const barW = Math.max(2, Math.min(4, stride * 0.5));
     const mid = height / 2;
+    const styles = getComputedStyle(canvas);
+    const playedColor =
+      styles.getPropertyValue("--waveform-played").trim() || "rgba(20, 20, 20, 0.88)";
+    const idleColor =
+      styles.getPropertyValue("--waveform-idle").trim() || "rgba(20, 20, 20, 0.18)";
 
-    for (let i = 0; i < total; i++) {
-      const peak = bars[i] ?? 0.05;
-      const minHeight = 2;
-      const h = Math.max(minHeight, peak * (height - 4));
-      const x = i * stride;
-      const played = i / total <= progress;
-      ctx.fillStyle = played
-        ? "rgba(255, 255, 255, 0.92)"
-        : "rgba(255, 255, 255, 0.32)";
+    for (let i = 0; i < visibleBars; i++) {
+      const sourceIndex = Math.min(total - 1, Math.floor((i / visibleBars) * total));
+      const peak = bars[sourceIndex] ?? 0.05;
+      const minHeight = 5;
+      const h = Math.max(minHeight, peak * (height - 6));
+      const x = i * stride + (stride - barW) / 2;
+      const played = i / Math.max(1, visibleBars - 1) <= progress;
+      ctx.fillStyle = played ? playedColor : idleColor;
       ctx.beginPath();
       const r = barW / 2;
       const y = mid - h / 2;

@@ -48,6 +48,11 @@ def parse_inbound(data: dict[str, Any]) -> tuple[EventEnvelope, Any]:
     except InboundEventError:
         raise
     except Exception as exc:
+        if envelope.type == "button.click":
+            raise InboundEventError(
+                "BAD_REQUEST",
+                "button.click requires message_id and button_id; confirm_id and choice are optional",
+            ) from exc
         raise InboundEventError("BAD_REQUEST", str(exc)) from exc
 
     return envelope, payload_model

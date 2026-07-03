@@ -151,6 +151,14 @@ export interface TranscriptLine {
   posterUrl?: string;
 }
 
+export interface ReplyTarget {
+  lineId: string;
+  role: "user" | "assistant" | "system";
+  label: string;
+  preview: string;
+  quotedText?: string;
+}
+
 export interface SessionMetaPayload {
   title?: string;
   extra?: Record<string, unknown>;
@@ -184,6 +192,7 @@ export interface ChatSession {
   /** Internal turn/reply id for message.cancel (may differ from streamingMessageId after segments). */
   streamTurnId: string | null;
   input: string;
+  replyTarget?: ReplyTarget;
   pendingAttachments: PendingAttachment[];
   typing: boolean;
   typingStartedAt?: string;

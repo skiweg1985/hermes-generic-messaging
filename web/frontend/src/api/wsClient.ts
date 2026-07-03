@@ -4,6 +4,8 @@ import { newId } from "../lib/uuid";
 export type MessageHandler = (event: EventEnvelope) => void;
 export type StatusHandler = (status: "connecting" | "connected" | "error") => void;
 
+const CONNECT_TIMEOUT_MS = 10_000;
+
 interface SendContext {
   threadId?: string;
   sessionId?: string;
@@ -25,6 +27,7 @@ export class WsClient {
   private retries = 0;
   private maxRetries = 3;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
 
   constructor(onMessage: MessageHandler, onStatus: StatusHandler) {
@@ -39,7 +42,15 @@ export class WsClient {
     }
   }
 
+  private clearConnectTimer(): void {
+    if (this.connectTimer !== null) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
+  }
+
   private closeSocket(): void {
+    this.clearConnectTimer();
     if (!this.ws) return;
     const socket = this.ws;
     this.ws = null;
@@ -57,12 +68,19 @@ export class WsClient {
     }
     this.closeSocket();
     this.onStatus("connecting");
-    this.ws = new WebSocket(wsUrl());
-    this.ws.onopen = () => {
+    const socket = new WebSocket(wsUrl());
+    this.ws = socket;
+    this.connectTimer = setTimeout(() => {
+      if (this.ws !== socket || socket.readyState !== WebSocket.CONNECTING) return;
+      this.onStatus("error");
+      socket.close();
+    }, CONNECT_TIMEOUT_MS);
+    socket.onopen = () => {
+      this.clearConnectTimer();
       this.retries = 0;
       this.onStatus("connected");
     };
-    this.ws.onmessage = (ev) => {
+    socket.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data as string) as EventEnvelope;
         this.onMessage(data);
@@ -70,9 +88,13 @@ export class WsClient {
         /* ignore malformed */
       }
     };
-    this.ws.onerror = () => this.onStatus("error");
-    this.ws.onclose = () => {
-      this.ws = null;
+    socket.onerror = () => {
+      this.clearConnectTimer();
+      this.onStatus("error");
+    };
+    socket.onclose = () => {
+      this.clearConnectTimer();
+      if (this.ws === socket) this.ws = null;
       if (this.intentionalClose) {
         this.intentionalClose = false;
         return;

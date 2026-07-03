@@ -82,6 +82,22 @@ describe("normalizeTranscript", () => {
     expect(messages[0]!.parts[0]).toMatchObject({ type: "audio" });
   });
 
+  it("does not expose assistant audio filenames as captions", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "aud-a",
+        kind: "audio-out",
+        role: "assistant",
+        text: "assistant> [audio] tts_20260703.mp3",
+        audioUrl: "https://example.local/tts.mp3",
+        fileName: "tts_20260703.mp3",
+        mimeType: "audio/mpeg",
+      }),
+    ]);
+    expect(messages[0]!.parts[0]).toMatchObject({ type: "audio" });
+    expect(messages[0]!.parts[0]).not.toHaveProperty("caption");
+  });
+
   it("maps assistant text, image, and file as separate messages", () => {
     const messages = normalizeTranscript([
       line({ id: "a1", kind: "assistant", text: "Here you go" }),
@@ -124,6 +140,34 @@ describe("normalizeTranscript", () => {
     ]);
     const assistant = messages.find((m) => m.messageId === "a1");
     expect(assistant?.parts.map((p) => p.type)).toEqual(["reasoning", "text"]);
+  });
+
+  it("splits implicit TTS reasoning from assistant answer", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "tts",
+        kind: "assistant",
+        text: "**Generating TTS** I need to create audio.\nHier ist deine Sprachi:",
+      }),
+    ]);
+    expect(messages[0]!.parts.map((p) => p.type)).toEqual(["reasoning", "text"]);
+    expect(messages[0]!.parts[1]).toMatchObject({ text: "Hier ist deine Sprachi:" });
+  });
+
+  it("splits fenced Hermes reasoning before assistant answer", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "fenced-reasoning",
+        kind: "assistant",
+        text:
+          "💭 **Reasoning:**\n```\n**Generating TTS**\n\nI need audio.\n```\n\nHier ist deine Sprachi:",
+      }),
+    ]);
+    expect(messages[0]!.parts.map((p) => p.type)).toEqual(["reasoning", "text"]);
+    expect(messages[0]!.parts[0]).toMatchObject({
+      text: "**Generating TTS**\n\nI need audio.",
+    });
+    expect(messages[0]!.parts[1]).toMatchObject({ text: "Hier ist deine Sprachi:" });
   });
 
   it("maps structured tool notice to tool_call part", () => {

@@ -3,6 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
+from plugins.platforms.custom_chat import adapter as adapter_module
 from plugins.platforms.custom_chat.config import (
     AudioUploadedPayload,
     CommandCreatePayload,
@@ -22,13 +23,22 @@ def test_settings_defaults_disabled():
     assert s.ws_port == 8765
 
 
-def test_settings_from_extra():
+def test_settings_from_extra(monkeypatch):
+    monkeypatch.delenv("CUSTOM_CHAT_WS_PORT", raising=False)
+    monkeypatch.delenv("CUSTOM_CHAT_BEARER_TOKEN", raising=False)
+    monkeypatch.delenv("CUSTOM_CHAT_TTS_RESPONSE_FORMAT", raising=False)
     s = CustomChatSettings.from_env_and_extra(
-        {"enabled": True, "ws_port": 9000, "bearer_token": "tok"}
+        {
+            "enabled": True,
+            "ws_port": 9000,
+            "bearer_token": "tok",
+            "tts_response_format": "pcm",
+        }
     )
     assert s.enabled is True
     assert s.ws_port == 9000
     assert s.bearer_token == "tok"
+    assert s.tts_response_format == "pcm"
 
 
 def test_inbound_envelope_valid():
@@ -120,3 +130,28 @@ def test_outbound_event_builder():
     )
     assert ev["type"] == "assistant_done"
     assert ev["schema_version"] == "v1"
+
+
+def test_show_reasoning_uses_hermes_home_and_caches_config(adapter, monkeypatch, tmp_path):
+    monkeypatch.delenv("CUSTOM_CHAT_SHOW_REASONING", raising=False)
+    monkeypatch.delenv("HERMES_CONFIG_PATH", raising=False)
+    hermes_home = tmp_path / "hermes-home"
+    hermes_home.mkdir()
+    (hermes_home / "config.yaml").write_text(
+        "display:\n  show_reasoning: true\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+    original_safe_load = adapter_module.yaml.safe_load
+    reads: list[str] = []
+
+    def spy_safe_load(text: str):
+        reads.append(text)
+        return original_safe_load(text)
+
+    monkeypatch.setattr(adapter_module.yaml, "safe_load", spy_safe_load)
+
+    assert adapter._show_reasoning_enabled() is True
+    assert adapter._show_reasoning_enabled() is True
+    assert len(reads) == 1

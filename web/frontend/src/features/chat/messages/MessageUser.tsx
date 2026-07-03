@@ -10,7 +10,6 @@ export function MessageUser({ line }: MessageUserProps) {
   return (
     <div className="msg-user motion-rise-in-soft">
       <div className="msg-user-stack">
-        <span className="msg-sender-label">you</span>
         <div className={`msg-user-bubble${isCommand ? " msg-user-bubble-command" : ""}`}>
           {isCommand ? (
             <span className="msg-user-cmd">{line.text}</span>

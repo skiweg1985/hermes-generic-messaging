@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { AssistantButton, TranscriptLine } from "../../types/events";
 import type { ChatMessage, MessagePart } from "./model/messageTypes";
 import { MessageUser } from "./messages/MessageUser";
@@ -12,6 +12,8 @@ import { FileCard } from "../media/FileCard";
 import { AudioCard } from "../media/AudioCard";
 import { VideoCard } from "../media/VideoCard";
 import { ActivityCard } from "../activity/ActivityCard";
+import { MessageActionSurface } from "./MessageActionSurface";
+import type { MessageActionTarget } from "./messageActions";
 
 function partToLine(part: MessagePart, message: ChatMessage): TranscriptLine {
   const base = {
@@ -129,6 +131,7 @@ interface PartRendererProps {
   alignRight?: boolean;
   turnActive: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
+  onMessageAction: (target: MessageActionTarget) => void;
 }
 
 export function PartRenderer({
@@ -136,7 +139,14 @@ export function PartRenderer({
   alignRight = false,
   turnActive,
   onButtonClick,
+  onMessageAction,
 }: PartRendererProps) {
+  const withActions = (line: TranscriptLine, node: ReactNode) => (
+    <MessageActionSurface line={line} onOpen={onMessageAction}>
+      {node}
+    </MessageActionSurface>
+  );
+
   return (
     <div className="message-part-stack">
       {message.parts.map((part, index) => {
@@ -146,60 +156,82 @@ export function PartRenderer({
         switch (part.type) {
           case "text":
             if (part.command || message.role === "user") {
+              const userLine = {
+                ...line,
+                kind: part.command ? "command" : "user",
+                text: part.text,
+              } as TranscriptLine;
               return (
-                <MessageUser
-                  key={key}
-                  line={{ ...line, kind: part.command ? "command" : "user", text: part.text }}
-                />
+                <div key={key}>
+                  {withActions(userLine, <MessageUser line={userLine} />)}
+                </div>
               );
             }
-            return <MessageAssistant key={key} line={line} />;
+            return <div key={key}>{withActions(line, <MessageAssistant line={line} />)}</div>;
           case "reasoning":
             return (
-              <MessageReasoning
-                key={key}
-                text={part.text}
-                active={part.active ?? turnActive}
-                line={line}
-              />
+              <div key={key}>
+                {withActions(
+                  line,
+                  <MessageReasoning
+                    text={part.text}
+                    active={part.active ?? turnActive}
+                    line={line}
+                  />,
+                )}
+              </div>
             );
           case "tool_call":
-            return <ActivityCard key={key} line={line} turnActive={turnActive} />;
+            return (
+              <div key={key}>
+                {withActions(line, <ActivityCard line={line} turnActive={turnActive} />)}
+              </div>
+            );
           case "image":
             return (
               <div key={key} className={alignRight ? "turn-user-row" : undefined}>
-                <ImageCard line={line} alignRight={alignRight} />
+                {withActions(line, <ImageCard line={line} alignRight={alignRight} />)}
               </div>
             );
           case "video":
             return (
               <div key={key} className={alignRight ? "turn-user-row" : undefined}>
-                <VideoCard line={line} alignRight={alignRight} />
+                {withActions(line, <VideoCard line={line} alignRight={alignRight} />)}
               </div>
             );
           case "file":
             return (
               <div key={key} className={alignRight ? "turn-user-row" : undefined}>
-                <FileCard line={line} alignRight={alignRight} />
+                {withActions(line, <FileCard line={line} alignRight={alignRight} />)}
               </div>
             );
           case "audio":
             return (
               <Fragment key={key}>
                 {part.caption && message.role === "assistant" ? (
-                  <MessageAssistant line={{ ...line, kind: "assistant", text: part.caption }} />
+                  withActions(
+                    { ...line, kind: "assistant", text: part.caption },
+                    <MessageAssistant line={{ ...line, kind: "assistant", text: part.caption }} />,
+                  )
                 ) : null}
                 <div className={alignRight ? "turn-user-row" : undefined}>
-                  <AudioCard line={line} alignRight={alignRight} />
+                  {withActions(line, <AudioCard line={line} alignRight={alignRight} />)}
                 </div>
               </Fragment>
             );
           case "error":
-            return <ErrorCard key={key} line={line} />;
+            return <div key={key}>{withActions(line, <ErrorCard line={line} />)}</div>;
           case "buttons":
-            return <ApprovalCard key={key} line={line} onButtonClick={onButtonClick} />;
+            return (
+              <div key={key}>
+                {withActions(
+                  line,
+                  <ApprovalCard line={line} onButtonClick={onButtonClick} />,
+                )}
+              </div>
+            );
           case "notice":
-            return <NoticeCard key={key} line={line} />;
+            return <div key={key}>{withActions(line, <NoticeCard line={line} />)}</div>;
           default:
             return null;
         }

@@ -9,6 +9,7 @@ import {
   useState,
   type ChangeEvent,
   type KeyboardEvent,
+  type PointerEvent,
 } from "react";
 import {
   applySlashCommand,
@@ -16,7 +17,7 @@ import {
   getSlashSuggestionQuery,
 } from "../chat/slashCommandSuggest";
 import { SlashPopover } from "./SlashPopover";
-import type { PendingAttachment } from "../../types/events";
+import type { PendingAttachment, ReplyTarget } from "../../types/events";
 import {
   IconArrowUp,
   IconStop,
@@ -24,7 +25,11 @@ import {
   IconMic,
   IconSlash,
   IconAlert,
+  IconClose,
+  IconLock,
+  IconReply,
 } from "../shell/icons";
+import { TypingIndicator } from "../chat/messages/TypingIndicator";
 
 const MIN_HEIGHT = 56;
 const MAX_HEIGHT = 240;
@@ -37,15 +42,36 @@ interface ComposerProps {
   value: string;
   disabled: boolean;
   streaming: boolean;
+  typing?: boolean;
   recording: boolean;
+  recordingLevel: number;
+  replyTarget?: ReplyTarget;
   pendingAttachments?: PendingAttachment[];
   onChange: (value: string) => void;
+  onClearReply?: () => void;
   onSubmit: () => void;
   onCancel: () => void;
   onFiles: (files: File[]) => void;
   onRetryUpload?: (localId: string) => void;
   onRemovePending?: (localId: string) => void;
-  onToggleRecord: () => void;
+  onStartRecord: () => Promise<void>;
+  onStopRecord: (options?: { send?: boolean }) => Promise<void>;
+}
+
+const RECORD_LOCK_DISTANCE = 72;
+const RECORD_MIN_SEND_MS = 650;
+const WAVEFORM_BARS = 32;
+
+type RecordGestureState = "idle" | "starting" | "pressing" | "locked" | "finishing";
+type RecordPendingStop = "send" | "cancel" | null;
+
+interface RecordPointerState {
+  pointerId: number;
+  startY: number;
+  startAt: number;
+  started: boolean;
+  locked: boolean;
+  pendingStop: RecordPendingStop;
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
@@ -53,15 +79,20 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     value,
     disabled,
     streaming,
+    typing = false,
     recording,
+    recordingLevel,
+    replyTarget,
     onChange,
+    onClearReply,
     pendingAttachments = [],
     onSubmit,
     onCancel,
     onFiles,
     onRetryUpload,
     onRemovePending,
-    onToggleRecord,
+    onStartRecord,
+    onStopRecord,
   },
   ref,
 ) {
@@ -70,6 +101,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [cursor, setCursor] = useState(0);
   const [highlight, setHighlight] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
+  const [recordGesture, setRecordGesture] = useState<RecordGestureState>("idle");
+  const [recordLockProgress, setRecordLockProgress] = useState(0);
+  const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
+  const [recordElapsed, setRecordElapsed] = useState(0);
+  const [waveformLevels, setWaveformLevels] = useState<number[]>(
+    Array.from({ length: WAVEFORM_BARS }, () => 0.08),
+  );
+  const recordPointerRef = useRef<RecordPointerState | null>(null);
 
   useImperativeHandle(
     ref,
@@ -95,6 +134,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   useEffect(() => {
     if (!value.startsWith("/")) setMenuDismissed(false);
   }, [value]);
+
+  useEffect(() => {
+    if (!recording && recordGesture === "idle") {
+      recordPointerRef.current = null;
+      setRecordLockProgress(0);
+      setRecordStartedAt(null);
+      setRecordElapsed(0);
+      setWaveformLevels(Array.from({ length: WAVEFORM_BARS }, () => 0.08));
+      return;
+    }
+    const start = recordStartedAt ?? Date.now();
+    if (recordStartedAt === null) setRecordStartedAt(start);
+    const tick = () => setRecordElapsed(Math.max(0, Date.now() - start));
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [recording, recordGesture, recordStartedAt]);
+
+  useEffect(() => {
+    if (!recording && recordGesture === "idle") return;
+    setWaveformLevels((levels) => {
+      const next = [...levels.slice(1), Math.max(0.08, Math.min(1, recordingLevel))];
+      return next;
+    });
+  }, [recording, recordGesture, recordingLevel]);
 
   // Auto-grow.
   useLayoutEffect(() => {
@@ -198,9 +262,146 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     e.target.value = "";
   };
 
+  const finishRecording = useCallback(
+    async (send: boolean) => {
+      const state = recordPointerRef.current;
+      if (state && !state.started) {
+        state.pendingStop = send ? "send" : "cancel";
+        setRecordGesture("finishing");
+        return;
+      }
+
+      const elapsed = state ? Date.now() - state.startAt : recordElapsed;
+      const shouldSend = send && elapsed >= RECORD_MIN_SEND_MS;
+      setRecordGesture("finishing");
+      setRecordLockProgress(0);
+      try {
+        await onStopRecord({ send: shouldSend });
+      } finally {
+        recordPointerRef.current = null;
+        setRecordGesture("idle");
+        setRecordStartedAt(null);
+        setRecordElapsed(0);
+      }
+    },
+    [onStopRecord, recordElapsed],
+  );
+
+  const handleRecordPointerDown = async (e: PointerEvent<HTMLButtonElement>) => {
+    if (disabled || recording || recordGesture !== "idle") return;
+    e.preventDefault();
+    const button = e.currentTarget;
+    const pointerId = e.pointerId;
+    button.setPointerCapture(pointerId);
+    const startAt = Date.now();
+    recordPointerRef.current = {
+      pointerId,
+      startY: e.clientY,
+      startAt,
+      started: false,
+      locked: false,
+      pendingStop: null,
+    };
+    setRecordGesture("starting");
+    setRecordStartedAt(startAt);
+    setRecordElapsed(0);
+    setRecordLockProgress(0);
+    try {
+      await onStartRecord();
+    } catch {
+      recordPointerRef.current = null;
+      setRecordGesture("idle");
+      setRecordStartedAt(null);
+      setRecordElapsed(0);
+      setRecordLockProgress(0);
+      return;
+    }
+
+    const state = recordPointerRef.current;
+    if (!state || state.pointerId !== pointerId) {
+      return;
+    }
+    state.started = true;
+    if (state.pendingStop) {
+      void finishRecording(state.pendingStop === "send");
+      return;
+    }
+    setRecordGesture(state.locked ? "locked" : "pressing");
+  };
+
+  const handleRecordPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
+    const state = recordPointerRef.current;
+    if (!state || state.pointerId !== e.pointerId || state.locked) return;
+    const deltaY = Math.max(0, state.startY - e.clientY);
+    const progress = Math.min(1, deltaY / RECORD_LOCK_DISTANCE);
+    setRecordLockProgress(progress);
+    if (progress >= 1) {
+      state.locked = true;
+      state.pendingStop = null;
+      setRecordGesture("locked");
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* pointer capture may already be gone on some mobile browsers */
+      }
+    }
+  };
+
+  const handleRecordPointerUp = (e: PointerEvent<HTMLButtonElement>) => {
+    const state = recordPointerRef.current;
+    if (!state || state.pointerId !== e.pointerId || state.locked) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (!state.started) {
+      state.pendingStop = "send";
+      setRecordGesture("finishing");
+      return;
+    }
+    void finishRecording(true);
+  };
+
+  const handleRecordPointerCancel = (e: PointerEvent<HTMLButtonElement>) => {
+    const state = recordPointerRef.current;
+    if (!state || state.pointerId !== e.pointerId) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (!state.started) {
+      state.pendingStop = "cancel";
+      setRecordGesture("finishing");
+      return;
+    }
+    void finishRecording(false);
+  };
+
+  const formatElapsed = (ms: number) => {
+    const total = Math.floor(ms / 1000);
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  };
+
   const hasText = value.trim().length > 0;
   const canSend = hasText || hasReadyAttachment;
-  const sendDisabled = disabled || (!canSend && !streaming) || hasUploading;
+  const recordingActive = recording || recordGesture !== "idle";
+  const recordLocked = recordGesture === "locked";
+  const recordBusy = recordGesture === "starting" || recordGesture === "finishing";
+  const sendDisabled = disabled || recordingActive || (!canSend && !streaming) || hasUploading;
+  const recordButtonLabel = recordLocked
+    ? "Aufnahme beenden und senden"
+    : recordingActive
+      ? "Aufnahme läuft"
+      : "Sprachnachricht aufnehmen";
+  const recordButtonTitle = recordLocked
+    ? "Aufnahme beenden und senden"
+    : recordingActive
+      ? "Nach oben wischen zum Fixieren"
+      : "Gedrückt halten für Sprachnachricht";
 
   const sendButton = streaming ? (
     <button
@@ -235,10 +436,41 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           : "Message Hermes",
     [recording, streaming],
   );
+  const recordHint = recordBusy
+    ? "Mikrofon startet"
+    : recordLocked
+      ? "Fixiert: Stop beendet und sendet"
+      : "Nach oben wischen zum Fixieren";
 
   return (
     <div className="composer-region">
-      <div className={`composer${disabled ? " composer-disabled" : ""}`}>
+      <div
+        className={`composer${disabled ? " composer-disabled" : ""}${
+          recordingActive ? " composer-recording" : ""
+        }${recordLocked ? " composer-recording-locked" : ""}`}
+      >
+        {replyTarget ? (
+          <div className="composer-reply" aria-label="Replying to message">
+            <span className="composer-reply-marker" aria-hidden>
+              <IconReply size={13} />
+            </span>
+            <span className="composer-reply-body">
+              <span className="composer-reply-label">{replyTarget.label}</span>
+              <span className="composer-reply-preview truncate">
+                {replyTarget.preview}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="composer-reply-clear"
+              onClick={onClearReply}
+              aria-label="Clear reply"
+            >
+              <IconClose size={13} />
+            </button>
+          </div>
+        ) : null}
+
         {pendingAttachments.length > 0 ? (
           <div className="composer-attachments" aria-label="Anhänge">
             {pendingAttachments.map((entry) => (
@@ -294,26 +526,62 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           onHover={(i) => setHighlight(i)}
         />
 
-        <textarea
-          ref={textareaRef}
-          className="composer-input"
-          value={value}
-          disabled={disabled}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onKeyUp={syncCursor}
-          onClick={syncCursor}
-          onSelect={syncCursor}
-          onFocus={syncCursor}
-          placeholder={placeholder}
-          rows={1}
-          spellCheck
-          autoComplete="off"
-          aria-label="Message"
-          aria-autocomplete={menuOpen ? "list" : undefined}
-          aria-controls={menuOpen ? "composer-slash-list" : undefined}
-          aria-expanded={menuOpen}
-        />
+        {recordingActive ? (
+          <div className="composer-recording-panel" aria-live="polite">
+            <div className="composer-recording-dot" aria-hidden />
+            <span className="composer-recording-time t-mono-sm">
+              {formatElapsed(recordElapsed)}
+            </span>
+            <div className="composer-recording-wave" aria-hidden>
+              {waveformLevels.map((level, index) => (
+                <span
+                  key={index}
+                  className="composer-recording-bar"
+                  style={{ transform: `scaleY(${0.24 + level * 0.76})` }}
+                />
+              ))}
+            </div>
+            {!recordLocked ? (
+              <div className="composer-record-lock-rail" aria-hidden>
+                <span
+                  className="composer-record-lock-target"
+                  style={{
+                    transform: `translateY(${Math.round((1 - recordLockProgress) * 28)}px)`,
+                    opacity: 0.45 + recordLockProgress * 0.55,
+                  }}
+                >
+                  <IconLock size={13} />
+                </span>
+                <span className="composer-record-lock-label">Fixieren</span>
+              </div>
+            ) : null}
+            <div className="composer-recording-lock-hint t-meta">
+              <IconLock size={12} />
+              <span>{recordHint}</span>
+            </div>
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            className="composer-input"
+            value={value}
+            disabled={disabled}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onKeyUp={syncCursor}
+            onClick={syncCursor}
+            onSelect={syncCursor}
+            onFocus={syncCursor}
+            placeholder={placeholder}
+            rows={1}
+            spellCheck
+            autoComplete="off"
+            aria-label="Message"
+            aria-autocomplete={menuOpen ? "list" : undefined}
+            aria-controls={menuOpen ? "composer-slash-list" : undefined}
+            aria-expanded={menuOpen}
+          />
+        )}
 
         <div className="composer-actions">
           <div className="composer-actions-left">
@@ -328,7 +596,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <button
               type="button"
               className="composer-icon"
-              disabled={disabled}
+              disabled={disabled || recordingActive}
               onClick={() => fileInputRef.current?.click()}
               aria-label="Attach file"
               title="Attach file"
@@ -337,18 +605,26 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             </button>
             <button
               type="button"
-              className={`composer-icon${recording ? " composer-icon-recording" : ""}`}
-              disabled={disabled}
-              onClick={onToggleRecord}
-              aria-label={recording ? "Stop recording" : "Start voice recording"}
-              title={recording ? "Stop recording" : "Voice"}
+              className={`composer-icon${recordingActive ? " composer-icon-recording" : ""}${
+                recordLocked ? " composer-icon-recording-locked" : ""
+              }`}
+              disabled={recordBusy || (disabled && !recordingActive)}
+              onPointerDown={handleRecordPointerDown}
+              onPointerMove={handleRecordPointerMove}
+              onPointerUp={handleRecordPointerUp}
+              onPointerCancel={handleRecordPointerCancel}
+              onClick={() => {
+                if (recordLocked) void finishRecording(true);
+              }}
+              aria-label={recordButtonLabel}
+              title={recordButtonTitle}
             >
-              <IconMic size={14} />
+              {recordLocked ? <IconStop size={14} /> : <IconMic size={14} />}
             </button>
             <button
               type="button"
               className="composer-icon"
-              disabled={disabled}
+              disabled={disabled || recordingActive}
               onClick={() => {
                 if (!value.trim()) onChange("/");
                 requestAnimationFrame(() => textareaRef.current?.focus());
@@ -361,16 +637,33 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </div>
 
           <div className="composer-actions-right">
-            <span className="composer-hint t-meta">
-              {streaming ? (
+            {recordingActive && recordLocked ? (
+              <button
+                type="button"
+                className="composer-icon composer-recording-cancel"
+                onClick={() => void finishRecording(false)}
+                aria-label="Cancel voice recording"
+                title="Cancel"
+              >
+                <IconClose size={14} />
+              </button>
+            ) : (
+              <span className="composer-hint t-meta">
+              {typing ? (
+                <span className="composer-status" aria-live="polite" aria-label="Assistant schreibt">
+                  <TypingIndicator />
+                  <span className="composer-status-label">Schreibt…</span>
+                </span>
+              ) : streaming ? (
                 "Generating…"
               ) : (
                 <>
                   <kbd>⏎</kbd> send · <kbd>⇧⏎</kbd> newline
                 </>
               )}
-            </span>
-            {sendButton}
+              </span>
+            )}
+            {recordingActive && recordLocked ? null : sendButton}
           </div>
         </div>
       </div>

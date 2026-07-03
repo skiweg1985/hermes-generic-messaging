@@ -4,6 +4,7 @@ import type {
   ChatState,
   EventEnvelope,
   PendingAttachment,
+  ReplyTarget,
   ToolStatus,
   TranscriptLine,
 } from "../../types/events";
@@ -27,6 +28,15 @@ export function resolveCancelTargetId(session: ChatSession): string | null {
 export function chatDisplayTitle(session: ChatSession): string {
   if (session.title && session.title.trim().length > 0) {
     return truncate(session.title, MAX_TITLE_LENGTH);
+  }
+  const firstUserLine = session.lines.find((line) =>
+    ["user", "command", "audio-out", "upload"].includes(line.kind) && line.role !== "assistant",
+  );
+  if (firstUserLine?.text.trim()) {
+    const clean = firstUserLine.text
+      .replace(/^user>\s*/i, "")
+      .replace("[voice]", "Voice message");
+    return truncate(clean, MAX_TITLE_LENGTH);
   }
   if (session.label && session.label.trim().length > 0) return session.label;
   const id = session.chatId;
@@ -62,7 +72,7 @@ export function createChatSession(chatId: string, label = defaultLabel(chatId)):
 
 export const initialChatState = (
   chatId = DEFAULT_CHAT_ID,
-  label = "demo",
+  label = "New chat",
 ): ChatState => {
   const session = createChatSession(chatId, label);
   return {
@@ -75,12 +85,24 @@ export const initialChatState = (
 
 export type ChatAction =
   | { type: "SET_CONNECTION"; connection: ChatState["connection"] }
+  | { type: "HYDRATE_STATE"; state: ChatState }
   | { type: "SET_ACTIVE_CHAT"; chatId: string }
   | { type: "CREATE_CHAT"; chatId: string; label?: string }
   | { type: "SET_INPUT"; input: string }
+  | { type: "SET_REPLY_TARGET"; chatId?: string; target: ReplyTarget }
+  | { type: "CLEAR_REPLY_TARGET"; chatId?: string }
+  | { type: "DELETE_LINE_LOCAL"; chatId?: string; lineId: string }
   | { type: "SET_RECORDING"; recording: boolean }
   | { type: "USER_TEXT"; text: string; turnMessageId?: string }
   | { type: "USER_COMMAND"; command: string }
+  | {
+      type: "USER_VOICE";
+      turnMessageId: string;
+      attachmentId: string;
+      mime: string;
+      size: number;
+      url: string;
+    }
   | {
       type: "USER_MESSAGE";
       turnMessageId: string;
@@ -177,6 +199,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "SET_CONNECTION":
       return { ...state, connection: action.connection };
+    case "HYDRATE_STATE":
+      return {
+        ...action.state,
+        connection: state.connection,
+        recording: state.recording,
+      };
     case "SET_ACTIVE_CHAT":
       if (!state.sessionsById[action.chatId]) return state;
       return updateSession(
@@ -194,11 +222,26 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
     case "SET_INPUT":
       return updateActiveSession(state, (session) => ({ ...session, input: action.input }));
+    case "SET_REPLY_TARGET":
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
+        touchSession({ ...session, replyTarget: action.target }),
+      );
+    case "CLEAR_REPLY_TARGET":
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
+        session.replyTarget ? touchSession({ ...session, replyTarget: undefined }) : session,
+      );
+    case "DELETE_LINE_LOCAL":
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) => {
+        const lines = session.lines.filter((line) => line.id !== action.lineId);
+        const replyTarget =
+          session.replyTarget?.lineId === action.lineId ? undefined : session.replyTarget;
+        return touchSession({ ...session, lines, replyTarget });
+      });
     case "SET_RECORDING":
       return { ...state, recording: action.recording };
     case "USER_TEXT":
       return updateActiveSession(state, (session) =>
-        appendLine(openTyping(session), {
+        appendLine({ ...openTyping(session), replyTarget: undefined }, {
           id: action.turnMessageId ?? newId(),
           kind: "user",
           text: action.text,
@@ -208,7 +251,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "USER_MESSAGE": {
       const { turnMessageId, text, attachments } = action;
       return updateActiveSession(state, (session) => {
-        let next = openTyping(session);
+        let next: ChatSession = { ...openTyping(session), replyTarget: undefined };
         if (text.trim()) {
           next = appendLine(next, {
             id: turnMessageId,
@@ -236,10 +279,24 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
     case "USER_COMMAND":
       return updateActiveSession(state, (session) =>
-        appendLine(openTyping(session), {
+        appendLine({ ...openTyping(session), replyTarget: undefined }, {
           id: newId(),
           kind: "command",
           text: action.command,
+        }),
+      );
+    case "USER_VOICE":
+      return updateActiveSession(state, (session) =>
+        appendLine({ ...openTyping(session), replyTarget: undefined }, {
+          id: action.attachmentId,
+          kind: "audio-out",
+          role: "user",
+          text: "user> [voice]",
+          audioUrl: action.url,
+          fileUrl: action.url,
+          sizeBytes: action.size,
+          mimeType: action.mime,
+          turnMessageId: action.turnMessageId,
         }),
       );
     case "USER_UPLOAD":
@@ -449,7 +506,7 @@ function buildAttachmentLine(params: {
       id,
       kind: "audio-out",
       role,
-      text: `${role}> [audio] ${label}`,
+      text: "",
       audioUrl: url,
       fileName: filename,
       fileUrl: url,
@@ -639,8 +696,19 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const messageId = String(p.message_id ?? newId());
       const url = String(p.url ?? p.file_ref ?? "");
       const mime = String(p.mime_type ?? "audio/mpeg");
-      return appendLine(
-        { ...withoutTyping(session), streamingMessageId: null, streamTurnId: null },
+      const lines = finalizeStreamingLines(
+        session.lines,
+        messageId,
+        session.streamingMessageId,
+      );
+      return upsertLine(
+        {
+          ...withoutTyping(session),
+          lines,
+          streamingMessageId: null,
+          streamTurnId: null,
+          typingClosed: true,
+        },
         buildAttachmentLine({
           id: messageId,
           role: "assistant",

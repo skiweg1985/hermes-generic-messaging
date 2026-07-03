@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type DragEvent } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type DragEvent } from "react";
 import { Rail } from "../shell/Rail";
 import { TopBar } from "../shell/TopBar";
 import { CommandPalette } from "../shell/CommandPalette";
@@ -13,6 +13,7 @@ import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import "../shell/shell.css";
 import "../composer/composer.css";
 import "../media/media.css";
+import "../../styles/premium.css";
 
 export function ChatPage() {
   const ctrl = useChatController();
@@ -22,6 +23,34 @@ export function ChatPage() {
   const [dropOver, setDropOver] = useState(false);
   const dragCounter = useRef(0);
   const composerRef = useRef<ComposerHandle>(null);
+  const stageMainRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const root = stageMainRef.current;
+    if (!root) return;
+
+    let frame = 0;
+    const updateComposerClearance = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const composer = root.querySelector<HTMLElement>(".composer-region");
+        const height = composer?.getBoundingClientRect().height ?? 0;
+        root.style.setProperty("--composer-clearance", `${Math.ceil(height)}px`);
+      });
+    };
+
+    updateComposerClearance();
+    const composer = root.querySelector<HTMLElement>(".composer-region");
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateComposerClearance) : null;
+    if (composer) observer?.observe(composer);
+    window.addEventListener("resize", updateComposerClearance);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", updateComposerClearance);
+    };
+  }, []);
 
   const openPalette = useCallback(() => {
     setRailOpen(false);
@@ -112,7 +141,7 @@ export function ChatPage() {
     <div className="shell-root">
       <Rail
         userId={ctrl.userId}
-        workspaceName="Hermes"
+        workspaceName="Generic Messaging"
         sessions={ctrl.sessions}
         activeChatId={ctrl.activeChatId}
         drawerOpen={railOpen}
@@ -144,12 +173,18 @@ export function ChatPage() {
           onReconnect={ctrl.reconnect}
         />
 
-        <main className="stage-main">
+        <main ref={stageMainRef} className="stage-main">
           <Transcript
             chatId={ctrl.activeChatId}
             lines={activeSession.lines}
             typing={activeSession.typing}
             onButtonClick={ctrl.clickButton}
+            onReplyLine={(line) => {
+              ctrl.replyToLine(line);
+              requestAnimationFrame(() => composerRef.current?.focus());
+            }}
+            onRetryLine={ctrl.retryLine}
+            onDeleteLine={ctrl.deleteLineLocal}
           />
 
           <Composer
@@ -157,15 +192,20 @@ export function ChatPage() {
             value={activeSession.input}
             disabled={!ctrl.connected}
             streaming={ctrl.streaming}
+            typing={activeSession.typing}
             recording={ctrl.recording}
+            recordingLevel={ctrl.recordingLevel}
+            replyTarget={activeSession.replyTarget}
             pendingAttachments={activeSession.pendingAttachments}
             onChange={ctrl.setInput}
+            onClearReply={ctrl.clearReply}
             onSubmit={ctrl.submit}
             onCancel={ctrl.cancel}
             onFiles={(files) => void ctrl.addFiles(files)}
             onRetryUpload={(id) => void ctrl.retryUpload(id)}
             onRemovePending={ctrl.removePending}
-            onToggleRecord={ctrl.toggleRecord}
+            onStartRecord={ctrl.startRecording}
+            onStopRecord={ctrl.stopRecording}
           />
         </main>
 

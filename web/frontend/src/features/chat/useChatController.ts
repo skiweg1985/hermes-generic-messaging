@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useReducer, useRef, type Dispatch } from "react";
 import { WsClient } from "../../api/wsClient";
 import { uploadMedia } from "../../api/mediaClient";
+import { loadRemoteChatState, persistRemoteChatState } from "../../api/sessionClient";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
 import {
-  DEFAULT_CHAT_ID,
   chatReducer,
   createChatSession,
   initialChatState,
   resolveCancelTargetId,
   type ChatAction,
 } from "./chatReducer";
-import { loadChatState, persistChatState } from "./sessionPersistence";
+import { loadChatState, mergeChatStates, persistChatState } from "./sessionPersistence";
+import { replyTargetFromLine, withReplyPrefix } from "./messageActions";
 import { newId } from "../../lib/uuid";
 import { normalizeMimeType } from "../../lib/normalizeMimeType";
 import type {
   AssistantButton,
   ChatSession,
+  ChatState,
   MessageAttachment,
   PendingAttachment,
+  ReplyTarget,
   TranscriptLine,
 } from "../../types/events";
 
@@ -30,6 +33,8 @@ export interface ChatController {
   reconnecting: boolean;
   connected: boolean;
   recording: boolean;
+  recordingLevel: number;
+  replyTarget?: ReplyTarget;
   streaming: boolean;
   activeChatId: string;
   activeSession: ChatSession;
@@ -43,14 +48,31 @@ export interface ChatController {
   retryUpload: (localId: string) => Promise<void>;
   removePending: (localId: string) => void;
   uploadFile: (file: File) => Promise<void>;
-  toggleRecord: () => Promise<void>;
+  startRecording: () => Promise<void>;
+  stopRecording: (options?: { send?: boolean }) => Promise<void>;
+  replyToLine: (line: TranscriptLine) => void;
+  clearReply: () => void;
+  deleteLineLocal: (lineId: string) => void;
+  retryLine: (line: TranscriptLine) => void;
   clickButton: (line: TranscriptLine, button: AssistantButton) => void;
   reconnect: () => void;
   sendCommand: (command: string) => void;
 }
 
+function voiceFilenameForMime(mime: string): string {
+  const lower = mime.toLowerCase();
+  if (lower.includes("mp4")) return "voice-message.m4a";
+  if (lower.includes("mpeg") || lower.includes("mp3")) return "voice-message.mp3";
+  if (lower.includes("ogg") || lower.includes("opus")) return "voice-message.ogg";
+  if (lower.includes("wav")) return "voice-message.wav";
+  return "voice-message.webm";
+}
+
 function createBrowserChatId(): string {
-  const id = window.crypto?.randomUUID ? window.crypto.randomUUID() : newId();
+  const id =
+    typeof window !== "undefined" && window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : newId();
   return `workspace:${id}`;
 }
 
@@ -94,14 +116,20 @@ async function uploadPendingFile(
 }
 
 export function useChatController(): ChatController {
+  const fallbackStateRef = useRef<ChatState | null>(null);
+  if (fallbackStateRef.current === null) {
+    fallbackStateRef.current = initialChatState(createBrowserChatId(), "New chat");
+  }
   const [state, dispatch] = useReducer(
     chatReducer,
-    initialChatState(DEFAULT_CHAT_ID, "demo"),
+    fallbackStateRef.current,
     loadChatState,
   );
   const stateRef = useRef(state);
   stateRef.current = state;
   const wsRef = useRef<WsClient | null>(null);
+  const remotePersistenceReadyRef = useRef(false);
+  const remotePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasConnectedOnceRef = useRef(false);
   const pendingFilesRef = useRef<Map<string, File>>(new Map());
   const uploadPromisesRef = useRef<
@@ -110,14 +138,14 @@ export function useChatController(): ChatController {
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
-  const { recording, start: startRec, stop: stopRec } = useAudioRecorder();
+  const { recording, level: recordingLevel, start: startRec, stop: stopRec } = useAudioRecorder();
 
   const activeSession =
     state.sessionsById[state.activeChatId] ??
     Object.values(state.sessionsById)[0] ??
     createChatSession(state.activeChatId);
   const sessions = Object.values(state.sessionsById).sort((a, b) =>
-    a.createdAt.localeCompare(b.createdAt),
+    (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt),
   );
 
   useEffect(() => {
@@ -136,7 +164,45 @@ export function useChatController(): ChatController {
 
   useEffect(() => {
     persistChatState(state);
+    if (!remotePersistenceReadyRef.current) return;
+    if (remotePersistTimerRef.current !== null) {
+      clearTimeout(remotePersistTimerRef.current);
+    }
+    remotePersistTimerRef.current = setTimeout(() => {
+      remotePersistTimerRef.current = null;
+      void persistRemoteChatState(stateRef.current).catch(() => {});
+    }, 700);
   }, [state.activeChatId, state.sessionsById]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadRemoteChatState(stateRef.current)
+      .then((remoteState) => {
+        if (cancelled) return;
+        if (remoteState) {
+          const merged = mergeChatStates(stateRef.current, remoteState);
+          dispatch({ type: "HYDRATE_STATE", state: merged });
+        } else {
+          void persistRemoteChatState(stateRef.current).catch(() => {});
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) remotePersistenceReadyRef.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (remotePersistTimerRef.current !== null) {
+        clearTimeout(remotePersistTimerRef.current);
+        remotePersistTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const timers = typingTimersRef.current;
@@ -338,6 +404,7 @@ export function useChatController(): ChatController {
       }
 
       const turnMessageId = newId();
+      const outboundText = withReplyPrefix(raw, session.replyTarget);
       const attachments: MessageAttachment[] = ready.map((entry) => ({
         attachment_id: entry.result!.attachment_id,
         mime_type: entry.result!.mime_type,
@@ -361,7 +428,7 @@ export function useChatController(): ChatController {
       });
 
       const delivered = wsRef.current.sendMessage(
-        { messageId: turnMessageId, text: raw, attachments },
+        { messageId: turnMessageId, text: outboundText, attachments },
         session.chatId,
         USER_ID,
       );
@@ -398,6 +465,69 @@ export function useChatController(): ChatController {
     },
     [connected, state.activeChatId],
   );
+
+  const replyToLine = useCallback((line: TranscriptLine) => {
+    dispatch({
+      type: "SET_REPLY_TARGET",
+      chatId: stateRef.current.activeChatId,
+      target: replyTargetFromLine(line),
+    });
+  }, []);
+
+  const clearReply = useCallback(() => {
+    dispatch({
+      type: "CLEAR_REPLY_TARGET",
+      chatId: stateRef.current.activeChatId,
+    });
+  }, []);
+
+  const deleteLineLocal = useCallback((lineId: string) => {
+    dispatch({
+      type: "DELETE_LINE_LOCAL",
+      chatId: stateRef.current.activeChatId,
+      lineId,
+    });
+  }, []);
+
+  const retryLine = useCallback((line: TranscriptLine) => {
+    const current = stateRef.current;
+    const chatId = current.activeChatId;
+    if (!wsRef.current || current.connection !== "connected") {
+      dispatch(notConnectedError(chatId));
+      return;
+    }
+
+    if (line.kind === "command" && line.text.trim().startsWith("/")) {
+      const command = line.text.trim();
+      dispatch({ type: "USER_COMMAND", command });
+      wsRef.current.sendCommand(command, chatId, USER_ID);
+      return;
+    }
+
+    if (line.kind === "user" && line.text.trim()) {
+      const turnMessageId = newId();
+      const text = line.text.trim();
+      dispatch({ type: "USER_TEXT", text, turnMessageId });
+      const delivered = wsRef.current.sendMessage(
+        { messageId: turnMessageId, text, attachments: [] },
+        chatId,
+        USER_ID,
+      );
+      if (!delivered) {
+        dispatch({
+          type: "USER_ERROR",
+          code: "WS_NOT_CONNECTED",
+          message: "message not delivered - reconnect and resend",
+          chatId,
+        });
+      }
+      return;
+    }
+
+    const command = "/retry";
+    dispatch({ type: "USER_COMMAND", command });
+    wsRef.current.sendCommand(command, chatId, USER_ID);
+  }, []);
 
   const uploadFile = useCallback(
     async (file: File) => {
@@ -451,36 +581,96 @@ export function useChatController(): ChatController {
     [connected, state.activeChatId],
   );
 
-  const toggleRecord = useCallback(async () => {
+  const startRecording = useCallback(async () => {
     if (!connected) {
       dispatch(notConnectedError(state.activeChatId));
       return;
     }
-    if (recording) {
+    try {
+      await startRec();
+    } catch (err) {
+      dispatch({
+        type: "USER_ERROR",
+        code: "MIC_DENIED",
+        message: "microphone access denied",
+        chatId: state.activeChatId,
+      });
+      throw err;
+    }
+  }, [connected, startRec, state.activeChatId]);
+
+  const stopRecording = useCallback(
+    async (options: { send?: boolean } = { send: true }) => {
+      const shouldSend = options.send !== false;
+      const chatId = stateRef.current.activeChatId;
       try {
         const blob = await stopRec();
+        if (!shouldSend || blob.size === 0) return;
+        if (!wsRef.current || stateRef.current.connection !== "connected") {
+          dispatch(notConnectedError(chatId));
+          return;
+        }
+        const session = stateRef.current.sessionsById[chatId];
+        const outboundText = withReplyPrefix("", session?.replyTarget);
+
         const mime = normalizeMimeType(blob.type || "audio/webm");
-        const file = new File([blob], "recording.webm", { type: mime });
-        await addFiles([file]);
+        const filename = voiceFilenameForMime(mime);
+        const file = new File([blob], filename, { type: mime });
+        const upload = await uploadMedia(file, filename);
+        if (!wsRef.current || stateRef.current.connection !== "connected") {
+          dispatch(notConnectedError(chatId));
+          return;
+        }
+
+        const turnMessageId = newId();
+        const attachmentId = newId();
+        dispatch({
+          type: "USER_VOICE",
+          turnMessageId,
+          attachmentId,
+          mime: upload.mime_type,
+          size: upload.size_bytes,
+          url: upload.url,
+        });
+        const delivered = wsRef.current.sendMessage(
+          {
+            messageId: turnMessageId,
+            text: outboundText,
+            attachments: [
+              {
+                attachment_id: attachmentId,
+                mime_type: upload.mime_type,
+                size_bytes: upload.size_bytes,
+                url: upload.url,
+                file_ref: upload.url,
+                filename,
+              },
+            ],
+          },
+          chatId,
+          USER_ID,
+        );
+
+        if (!delivered) {
+          dispatch({
+            type: "USER_ERROR",
+            code: "WS_NOT_CONNECTED",
+            message: "voice message not delivered - reconnect and resend",
+            chatId,
+          });
+        }
       } catch {
+        if (!shouldSend) return;
         dispatch({
           type: "USER_ERROR",
           code: "RECORD_FAILED",
-          message: "could not finalize recording",
+          message: shouldSend ? "could not send voice message" : "could not finalize recording",
+          chatId,
         });
       }
-    } else {
-      try {
-        await startRec();
-      } catch {
-        dispatch({
-          type: "USER_ERROR",
-          code: "MIC_DENIED",
-          message: "microphone access denied",
-        });
-      }
-    }
-  }, [connected, recording, startRec, stopRec, addFiles, state.activeChatId]);
+    },
+    [stopRec],
+  );
 
   const reconnect = useCallback(() => {
     wsRef.current?.reconnect();
@@ -492,6 +682,8 @@ export function useChatController(): ChatController {
     reconnecting,
     connected,
     recording,
+    recordingLevel,
+    replyTarget: activeSession.replyTarget,
     streaming: activeSession.streamingMessageId !== null,
     activeChatId: state.activeChatId,
     activeSession,
@@ -505,7 +697,12 @@ export function useChatController(): ChatController {
     retryUpload,
     removePending,
     uploadFile,
-    toggleRecord,
+    startRecording,
+    stopRecording,
+    replyToLine,
+    clearReply,
+    deleteLineLocal,
+    retryLine,
     clickButton,
     reconnect,
     sendCommand,
