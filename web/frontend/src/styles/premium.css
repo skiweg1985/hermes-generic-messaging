@@ -404,6 +404,8 @@ body {
   font-size: 15.5px;
   line-height: 1.72;
   max-width: 74ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .prose h1,
@@ -472,14 +474,20 @@ body {
 
 .markdown-table-wrap {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
   margin: 14px 0;
   border-radius: 14px;
   background: var(--accent-faint);
+  -webkit-overflow-scrolling: touch;
 }
 
 .markdown-table-wrap table {
   display: table;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   margin: 0;
   border-collapse: collapse;
   font-size: 14px;

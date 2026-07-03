@@ -137,12 +137,15 @@
 
 .turn-output {
   min-width: 0;
+  max-width: 100%;
 }
 
 .message-part-stack {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* ── User message ────────────────────────────────────────────────────── */
@@ -150,6 +153,8 @@
 .msg-user {
   display: flex;
   justify-content: flex-end;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .msg-user-stack {
@@ -174,6 +179,8 @@
 
 .msg-user-bubble {
   max-width: 560px;
+  min-width: 0;
+  width: fit-content;
   padding: var(--s-3) var(--s-4);
   background: var(--surface-2);
   border-radius: var(--r-lg);
@@ -185,6 +192,7 @@
 }
 .msg-user-bubble .markdown-text {
   line-height: 1.55;
+  max-width: 100%;
 }
 .msg-user-bubble-command {
   background: var(--surface-3);
@@ -203,6 +211,7 @@
   align-items: flex-start;
   gap: var(--s-1);
   min-width: 0;
+  max-width: 100%;
   color: var(--text-primary);
 }
 
@@ -212,6 +221,7 @@
 
 .msg-assistant-bubble {
   max-width: 560px;
+  width: 100%;
   padding: var(--s-3) var(--s-4);
   background: var(--surface-2);
   border-radius: var(--r-lg);
@@ -221,6 +231,7 @@
 
 .msg-assistant-bubble .prose {
   max-width: none;
+  min-width: 0;
 }
 
 .msg-assistant-interrupted {

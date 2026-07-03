@@ -93,6 +93,8 @@
   line-height: 1.65;
   color: var(--text-primary);
   max-width: 68ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-feature-settings: "cv11", "ss01", "tnum";
 }
 
@@ -215,6 +217,9 @@
 
 .markdown-text {
   line-height: inherit;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .markdown-text > :first-child { margin-top: 0; }
 .markdown-text > :last-child  { margin-bottom: 0; }
@@ -253,8 +258,8 @@
 }
 .markdown-text table {
   border-collapse: collapse;
-  display: block;
-  overflow-x: auto;
+  width: max-content;
+  min-width: 100%;
 }
 .markdown-text th,
 .markdown-text td {
