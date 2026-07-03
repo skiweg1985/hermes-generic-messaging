@@ -31,6 +31,33 @@ async def test_send_private_notice_emits_notice_event(adapter, parse_sent_events
 
 
 @pytest.mark.asyncio
+async def test_send_private_notice_preserves_tool_metadata(adapter, parse_sent_events):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+
+    await adapter.send_private_notice(
+        "c1",
+        "read_file: done",
+        metadata={
+            "kind": "tool",
+            "notice_id": "tool-1",
+            "tool_name": "read_file",
+            "status": "completed",
+            "result": "ok",
+            "duration_ms": 42,
+        },
+    )
+
+    ev = parse_sent_events(ws)[0]
+    assert ev["payload"]["kind"] == "tool"
+    assert ev["payload"]["tool_name"] == "read_file"
+    assert ev["payload"]["status"] == "success"
+    assert ev["payload"]["result"] == "ok"
+    assert ev["payload"]["duration_ms"] == 42
+
+
+@pytest.mark.asyncio
 async def test_send_image_emits_image_event(adapter, parse_sent_events):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

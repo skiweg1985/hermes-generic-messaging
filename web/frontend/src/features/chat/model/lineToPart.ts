@@ -4,9 +4,13 @@ import { splitReasoning } from "../reasoningSplit";
 import type { MessagePart } from "./messageTypes";
 
 function parseToolStatus(value?: string): ToolStatus | undefined {
-  if (value === "running" || value === "success" || value === "error" || value === "idle") {
-    return value;
+  const s = String(value ?? "").trim().toLowerCase();
+  if (s === "running" || s === "pending" || s === "started" || s === "starting") return "running";
+  if (s === "success" || s === "done" || s === "completed" || s === "complete" || s === "ok") {
+    return "success";
   }
+  if (s === "error" || s === "failed" || s === "failure" || s === "timeout") return "error";
+  if (s === "idle" || s === "stale") return "idle";
   return undefined;
 }
 
@@ -51,7 +55,9 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
     case "notice": {
       const kind = (line.noticeKind ?? "info").toLowerCase();
       if (kind === "tool") {
-        const structuredStatus = parseToolStatus(line.toolStatus);
+        const structuredStatus =
+          parseToolStatus(line.toolStatus) ??
+          (line.toolError ? "error" : line.toolResult ? "success" : undefined);
         if (line.toolName || structuredStatus) {
           const parsed = parseActivity(line.text);
           return [

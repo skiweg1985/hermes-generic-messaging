@@ -59,6 +59,38 @@ _TOOL_PROGRESS_LINE_RE = re.compile(
   r"^[\s]*[^\w\s]{1,4}\s+[\w.-]+(?::\s[\"'].+[\"']|\.\.\.|\([^)]*\))?(?:\s*\(×\d+\))?$"
 )
 
+def _normalize_tool_status(value: Any) -> Optional[str]:
+  status = str(value or "").strip().lower()
+  if status in {"running", "pending", "started", "starting"}:
+    return "running"
+  if status in {"success", "done", "completed", "complete", "ok"}:
+    return "success"
+  if status in {"error", "failed", "failure", "timeout"}:
+    return "error"
+  if status in {"idle", "stale"}:
+    return "idle"
+  return None
+
+
+def _apply_tool_notice_metadata(payload: Dict[str, Any], meta: Dict[str, Any]) -> None:
+  if meta.get("tool_name"):
+    payload["tool_name"] = str(meta["tool_name"])
+  status = _normalize_tool_status(meta.get("status"))
+  if status:
+    payload["status"] = status
+  elif meta.get("error") is not None:
+    payload["status"] = "error"
+  elif meta.get("result") is not None:
+    payload["status"] = "success"
+  if meta.get("args") is not None:
+    payload["args"] = meta["args"] if isinstance(meta["args"], str) else str(meta["args"])
+  if meta.get("result") is not None:
+    payload["result"] = meta["result"] if isinstance(meta["result"], str) else str(meta["result"])
+  if meta.get("duration_ms") is not None:
+    payload["duration_ms"] = int(meta["duration_ms"])
+  if meta.get("error") is not None:
+    payload["error"] = str(meta["error"])
+
 try:
     from gateway.config import Platform, PlatformConfig
     from gateway.platforms.base import BasePlatformAdapter, SendResult
@@ -943,18 +975,7 @@ class CustomChatAdapter(BasePlatformAdapter):
       "text": content,
       "kind": "tool",
     }
-    if meta.get("tool_name"):
-      payload["tool_name"] = str(meta["tool_name"])
-    if meta.get("status"):
-      payload["status"] = str(meta["status"])
-    if meta.get("args") is not None:
-      payload["args"] = meta["args"] if isinstance(meta["args"], str) else str(meta["args"])
-    if meta.get("result") is not None:
-      payload["result"] = meta["result"] if isinstance(meta["result"], str) else str(meta["result"])
-    if meta.get("duration_ms") is not None:
-      payload["duration_ms"] = int(meta["duration_ms"])
-    if meta.get("error") is not None:
-      payload["error"] = str(meta["error"])
+    _apply_tool_notice_metadata(payload, meta)
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),
@@ -1315,6 +1336,8 @@ class CustomChatAdapter(BasePlatformAdapter):
       "text": content,
       "kind": notice_kind,
     }
+    if notice_kind == "tool" or meta.get("is_tool_status"):
+      _apply_tool_notice_metadata(payload, meta)
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),

@@ -604,11 +604,13 @@
 }
 
 .activity-card-spinner {
+  display: block;
   width: 12px;
   height: 12px;
   border-radius: 999px;
   border: 1.5px solid var(--line-soft);
   border-top-color: var(--text-primary);
+  transform-origin: 50% 50%;
   animation: hermes-status-rotate 0.9s linear infinite;
 }
 
@@ -639,9 +641,12 @@
 
 .activity-card-state-label {
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   font-size: 10px;
   color: var(--text-tertiary);
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
 }
 
 .activity-card-elapsed {
@@ -692,6 +697,10 @@
 .activity-card-state-success .activity-card-glyph {
   color: var(--state-success);
 }
+.activity-card-state-success .activity-card-state-label {
+  color: var(--state-success);
+  background: color-mix(in srgb, var(--state-success) 10%, transparent);
+}
 .activity-card-state-error .activity-card-glyph {
   color: var(--state-danger);
   background: var(--state-danger-bg);
@@ -701,6 +710,10 @@
 }
 .activity-card-state-running .activity-card-state-label {
   color: var(--text-secondary);
+  background: var(--accent-faint);
+}
+.activity-card-state-running .activity-card-glyph {
+  background: var(--accent-faint);
 }
 
 @media (prefers-reduced-motion: reduce) {

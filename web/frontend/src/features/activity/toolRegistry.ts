@@ -86,7 +86,7 @@ const REGISTRY: Array<{
     },
   },
   {
-    match: /^(audio|tts|stt|transcribe|speech)/i,
+    match: /^(audio|tts|stt|transcribe|speech|voice|text_to_speech|speech_to_text)/i,
     meta: {
       kind: "audio",
       label: "Audio",
@@ -145,19 +145,27 @@ export function parseStructuredActivity(line: {
   toolArgs?: string;
   toolResult?: string;
   toolError?: string;
+  toolDurationMs?: number;
 }): ParsedActivity | null {
   if (!line.toolName && !line.toolStatus) return null;
   const parsed = parseActivity(line.text);
   const status = line.toolStatus ?? parsed.state;
+  const rawName = line.toolName ?? parsed.rawName;
+  const meta = metaFor(rawName);
+  const summary =
+    parsed.summary ||
+    compact(line.toolError) ||
+    compact(line.toolResult) ||
+    compact(line.toolArgs) ||
+    (line.toolName ? humanizeToolName(line.toolName) : "");
+  const detail = structuredDetail(line) || parsed.detail;
   return {
     ...parsed,
-    rawName: line.toolName ?? parsed.rawName,
-    title:
-      status === "running" || status === "idle"
-        ? parsed.meta.presentLabel ?? parsed.meta.label
-        : parsed.meta.pastLabel ?? parsed.meta.label,
-    summary: parsed.summary || line.toolName || "",
-    detail: line.toolResult ?? line.toolArgs ?? parsed.detail,
+    meta,
+    rawName,
+    title: titleFor(meta, status),
+    summary,
+    detail,
     state: status,
   };
 }
@@ -166,34 +174,67 @@ export function parseActivity(text: string): ParsedActivity {
   const raw = text ?? "";
   const lines = raw.split(/\r?\n/);
   const firstLine = lines[0]?.trim() ?? "";
+  const normalizedFirstLine = stripLeadingMarker(firstLine);
 
   // Try to split "tool_name: rest" or "tool_name → rest".
   const split =
-    /^([\w./:-]+)\s*(?:[:→\-]\s*|\s+)(.*)$/.exec(firstLine);
-  const rawName = split?.[1] ?? firstLine;
+    /^([\w./-]+)\s*(?:[:→]\s*|\s+-\s*|\s+)(.*)$/.exec(normalizedFirstLine);
+  const rawName = split?.[1] ?? normalizedFirstLine;
   const summary = split?.[2]?.trim() ?? "";
   const detail = lines.slice(1).join("\n").trim();
 
-  let meta: ToolMeta = GENERIC;
-  for (const entry of REGISTRY) {
-    if (entry.match.test(rawName)) {
-      meta = entry.meta;
-      break;
-    }
-  }
+  const meta = metaFor(rawName);
 
   const state = detectState(raw);
   return {
     meta,
     rawName: rawName || meta.label,
-    title:
-      state === "running" || state === "idle"
-        ? meta.presentLabel ?? meta.label
-        : meta.pastLabel ?? meta.label,
+    title: titleFor(meta, state),
     summary: summary || raw.split(/\r?\n/)[0]?.trim() || "",
     detail,
     state,
   };
+}
+
+function metaFor(rawName: string): ToolMeta {
+  for (const entry of REGISTRY) {
+    if (entry.match.test(rawName)) {
+      return entry.meta;
+    }
+  }
+  return GENERIC;
+}
+
+function titleFor(meta: ToolMeta, state: ParsedActivity["state"]): string {
+  return state === "running" || state === "idle"
+    ? meta.presentLabel ?? meta.label
+    : meta.pastLabel ?? meta.label;
+}
+
+function stripLeadingMarker(value: string): string {
+  return value.replace(/^[^\w/.-]+/u, "").trim();
+}
+
+function compact(value?: string): string {
+  const trimmed = value?.trim().replace(/\s+/g, " ") ?? "";
+  if (!trimmed) return "";
+  return trimmed.length > 120 ? `${trimmed.slice(0, 119)}…` : trimmed;
+}
+
+function humanizeToolName(value: string): string {
+  return value.replace(/[_-]+/g, " ");
+}
+
+function structuredDetail(line: {
+  toolArgs?: string;
+  toolResult?: string;
+  toolError?: string;
+}): string {
+  const chunks: string[] = [];
+  if (line.toolError?.trim()) chunks.push(`Error:\n${line.toolError.trim()}`);
+  if (line.toolArgs?.trim()) chunks.push(`Args:\n${line.toolArgs.trim()}`);
+  if (line.toolResult?.trim()) chunks.push(`Result:\n${line.toolResult.trim()}`);
+  return chunks.join("\n\n");
 }
 
 function detectState(text: string): ParsedActivity["state"] {

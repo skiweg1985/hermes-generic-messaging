@@ -555,6 +555,52 @@ describe("chatReducer", () => {
     expect(session(s).lines[0].toolDurationMs).toBe(42);
   });
 
+  it("upserts structured tool status transitions without duplicates", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "read_file: src/main.py",
+        tool_name: "read_file",
+        status: "starting",
+        args: '{"path":"src/main.py"}',
+      }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "read_file: done",
+        tool_name: "read_file",
+        status: "completed",
+        result: "ok",
+        duration_ms: 51,
+      }),
+    });
+    const lines = session(s).lines.filter((l) => l.kind === "notice");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].toolStatus).toBe("success");
+    expect(lines[0].toolResult).toBe("ok");
+    expect(lines[0].toolDurationMs).toBe(51);
+  });
+
+  it("infers tool error status from structured error payload", () => {
+    const s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "shell: command failed",
+        tool_name: "shell",
+        error: "exit 1",
+      }),
+    });
+    expect(session(s).lines[0].toolStatus).toBe("error");
+    expect(session(s).lines[0].toolError).toBe("exit 1");
+  });
+
   it("creates USER_MESSAGE turn with text and attachments", () => {
     const s = chatReducer(base, {
       type: "USER_MESSAGE",

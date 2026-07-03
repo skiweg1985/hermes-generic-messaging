@@ -184,7 +184,7 @@ export function PartRenderer({
           case "tool_call":
             return (
               <div key={key}>
-                {withActions(line, <ActivityCard line={line} turnActive={turnActive} />)}
+                {withActions(line, <ActivityCard line={line} />)}
               </div>
             );
           case "image":

@@ -399,8 +399,17 @@ function isVideoMime(mime: string): boolean {
 }
 
 function parseToolStatus(value: unknown): ToolStatus | undefined {
-  const s = String(value ?? "").toLowerCase();
-  if (s === "running" || s === "success" || s === "error" || s === "idle") return s;
+  const s = String(value ?? "").trim().toLowerCase();
+  if (s === "running" || s === "pending" || s === "started" || s === "starting") {
+    return "running";
+  }
+  if (s === "success" || s === "done" || s === "completed" || s === "complete" || s === "ok") {
+    return "success";
+  }
+  if (s === "error" || s === "failed" || s === "failure" || s === "timeout") {
+    return "error";
+  }
+  if (s === "idle" || s === "stale") return "idle";
   return undefined;
 }
 
@@ -752,6 +761,9 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     case "assistant_notice": {
       const messageId = String(p.message_id ?? newId());
       const noticeKind = String(p.kind ?? "info");
+      const toolStatus =
+        parseToolStatus(p.status) ??
+        (p.error != null ? "error" : p.result != null ? "success" : undefined);
       const line: TranscriptLine = {
         id: messageId,
         kind: "notice",
@@ -760,7 +772,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         threadId: event.thread_id,
         sessionId: event.session_id,
         toolName: p.tool_name != null ? String(p.tool_name) : undefined,
-        toolStatus: parseToolStatus(p.status),
+        toolStatus,
         toolArgs: p.args != null ? String(p.args) : undefined,
         toolResult: p.result != null ? String(p.result) : undefined,
         toolDurationMs:

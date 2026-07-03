@@ -5,8 +5,6 @@ import { parseActivity, parseStructuredActivity } from "./toolRegistry";
 
 interface ActivityCardProps {
   line: TranscriptLine;
-  /** True while the assistant turn this activity belongs to is still active. */
-  turnActive: boolean;
 }
 
 function formatElapsed(ms: number): string {
@@ -18,9 +16,13 @@ function formatElapsed(ms: number): string {
   return `${m}m ${s}s`;
 }
 
-function useElapsed(running: boolean): number {
+function useElapsed(running: boolean, resetKey: string): number {
   const startRef = useRef<number>(Date.now());
   const [tick, setTick] = useState(0);
+  useEffect(() => {
+    startRef.current = Date.now();
+    setTick(0);
+  }, [resetKey]);
   useEffect(() => {
     if (!running) return;
     const id = window.setInterval(() => {
@@ -33,18 +35,25 @@ function useElapsed(running: boolean): number {
   return Date.now() - startRef.current;
 }
 
-export function ActivityCard({ line, turnActive }: ActivityCardProps) {
+function stateLabel(state: ReturnType<typeof parseActivity>["state"]): string {
+  if (state === "running") return "running";
+  if (state === "success") return "done";
+  if (state === "error") return "error";
+  return "idle";
+}
+
+export function ActivityCard({ line }: ActivityCardProps) {
   const parsed =
     parseStructuredActivity(line) ?? parseActivity(line.text);
   const [open, setOpen] = useState(false);
 
-  // The reducer never marks notice lines as "streaming"; the running state
-  // is inferred from the parent turn and the parsed state.
-  const running = turnActive && parsed.state === "running";
-  const elapsedMs = useElapsed(running);
+  const running = parsed.state === "running";
+  const elapsedMs = useElapsed(running, line.id);
+  const visibleDurationMs = running ? elapsedMs : line.toolDurationMs;
 
   const stateClass = `activity-card-state-${parsed.state}`;
   const Icon = parsed.meta.icon;
+  const label = stateLabel(parsed.state);
 
   const hasDetail = parsed.detail.length > 0;
 
@@ -53,6 +62,7 @@ export function ActivityCard({ line, turnActive }: ActivityCardProps) {
       className={`activity-card ${stateClass}${open ? " activity-card-open" : ""}`}
       data-tool={parsed.meta.kind}
       aria-label={parsed.title}
+      aria-live={running ? "polite" : undefined}
     >
       <button
         type="button"
@@ -86,17 +96,11 @@ export function ActivityCard({ line, turnActive }: ActivityCardProps) {
 
         <span className="activity-card-meta">
           <span className="t-mono-sm activity-card-state-label">
-            {parsed.state === "running"
-              ? "running"
-              : parsed.state === "success"
-                ? "done"
-                : parsed.state === "error"
-                  ? "error"
-                  : "idle"}
+            {label}
           </span>
-          {running ? (
+          {visibleDurationMs != null ? (
             <span className="t-mono-sm activity-card-elapsed">
-              {formatElapsed(elapsedMs)}
+              {formatElapsed(visibleDurationMs)}
             </span>
           ) : null}
           {hasDetail ? (
