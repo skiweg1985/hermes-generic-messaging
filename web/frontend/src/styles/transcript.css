@@ -18,6 +18,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: var(--s-8) var(--s-6) calc(var(--composer-clearance, 112px) + var(--s-4));
   scroll-padding-bottom: calc(var(--composer-clearance, 112px) + var(--s-4));
   scroll-behavior: smooth;

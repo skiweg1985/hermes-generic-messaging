@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent } from "react";
 import { Rail } from "../shell/Rail";
 import { TopBar } from "../shell/TopBar";
 import { CommandPalette } from "../shell/CommandPalette";
@@ -24,6 +24,30 @@ export function ChatPage() {
   const dragCounter = useRef(0);
   const composerRef = useRef<ComposerHandle>(null);
   const stageMainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty(
+        "--app-viewport-height",
+        `${Math.max(320, Math.round(height))}px`,
+      );
+    };
+
+    updateViewportHeight();
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
+    window.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
+      window.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("orientationchange", updateViewportHeight);
+      document.documentElement.style.removeProperty("--app-viewport-height");
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const root = stageMainRef.current;
