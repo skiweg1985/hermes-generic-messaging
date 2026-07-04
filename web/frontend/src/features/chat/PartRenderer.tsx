@@ -132,6 +132,7 @@ interface PartRendererProps {
   turnActive: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
   onMessageAction: (target: MessageActionTarget) => void;
+  onReplyLine: (line: TranscriptLine) => void;
 }
 
 export function PartRenderer({
@@ -140,9 +141,10 @@ export function PartRenderer({
   turnActive,
   onButtonClick,
   onMessageAction,
+  onReplyLine,
 }: PartRendererProps) {
   const withActions = (line: TranscriptLine, node: ReactNode) => (
-    <MessageActionSurface line={line} onOpen={onMessageAction}>
+    <MessageActionSurface line={line} onOpen={onMessageAction} onReply={onReplyLine}>
       {node}
     </MessageActionSurface>
   );

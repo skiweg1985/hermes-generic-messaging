@@ -168,7 +168,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, el.scrollHeight));
+    const mobileComposer =
+      typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches;
+    const minHeight = mobileComposer ? 48 : MIN_HEIGHT;
+    const maxHeight = mobileComposer ? 132 : MAX_HEIGHT;
+    const next = Math.min(maxHeight, Math.max(minHeight, el.scrollHeight));
     el.style.height = `${next}px`;
   }, [value]);
 
@@ -450,7 +454,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       <div
         className={`composer${disabled ? " composer-disabled" : ""}${
           recordingActive ? " composer-recording" : ""
-        }${recordLocked ? " composer-recording-locked" : ""}`}
+        }${recordLocked ? " composer-recording-locked" : ""}${
+          canSend || streaming ? " composer-can-send" : ""
+        }`}
       >
         {replyTarget ? (
           <div className="composer-reply" aria-label="Replying to message">
@@ -608,7 +614,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             </button>
             <button
               type="button"
-              className={`composer-icon${recordingActive ? " composer-icon-recording" : ""}${
+              className={`composer-icon composer-icon-record${recordingActive ? " composer-icon-recording" : ""}${
                 recordLocked ? " composer-icon-recording-locked" : ""
               }`}
               disabled={recordBusy || (disabled && !recordingActive)}

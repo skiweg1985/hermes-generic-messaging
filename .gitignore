@@ -13,6 +13,7 @@ build/
 .coverage
 htmlcov/
 data/uploads/
+data/chat_sessions.json
 web/backend/data/
 web/frontend/node_modules/
 web/frontend/dist/

@@ -241,7 +241,72 @@ body {
 }
 
 .message-action-surface {
-  display: contents;
+  position: relative;
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  isolation: isolate;
+  touch-action: pan-y;
+  --message-swipe-x: 0px;
+  --message-swipe-progress: 0;
+}
+
+.message-action-surface-content {
+  min-width: 0;
+  max-width: 100%;
+  transform: translate3d(var(--message-swipe-x), 0, 0);
+  transition: transform 180ms var(--ease-standard);
+  will-change: transform;
+}
+
+.message-action-surface-swiping .message-action-surface-content {
+  transition: none;
+}
+
+.message-swipe-cue {
+  position: absolute;
+  top: 50%;
+  z-index: -1;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-hairline) 80%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.48) inset,
+    0 10px 24px rgba(0, 0, 0, 0.12);
+  opacity: var(--message-swipe-progress);
+  transform: translateY(-50%) scale(calc(0.82 + var(--message-swipe-progress) * 0.18));
+  pointer-events: none;
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+.message-swipe-cue svg {
+  stroke-width: 2;
+}
+
+.message-swipe-cue-reply {
+  left: 8px;
+  color: var(--text-primary);
+}
+
+.message-swipe-cue-actions {
+  right: 8px;
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  color: var(--text-secondary);
+}
+
+@media (pointer: coarse) {
+  .message-action-surface,
+  .message-action-surface * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 .message-actions-layer {
@@ -939,6 +1004,29 @@ body {
   .rail.rail-drawer-open {
     width: min(var(--rail-width), calc(100vw - 28px));
     border-radius: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .composer .composer-icon-record,
+  .composer .composer-send {
+    inline-size: 48px;
+    block-size: 48px;
+    width: 48px;
+    height: 48px;
+    min-inline-size: 48px;
+    min-block-size: 48px;
+    max-inline-size: 48px;
+    max-block-size: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    max-width: 48px;
+    max-height: 48px;
+    aspect-ratio: 1 / 1;
+    border-radius: 9999px;
+    -webkit-appearance: none;
+    appearance: none;
+    overflow: hidden;
   }
 }
 

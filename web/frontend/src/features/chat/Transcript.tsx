@@ -125,6 +125,7 @@ export function Transcript({
                   turnActive={turnActive}
                   onButtonClick={onButtonClick}
                   onMessageAction={setActionTarget}
+                  onReplyLine={onReplyLine}
                 />
               ))}
               {typing ? (

@@ -8,6 +8,7 @@ interface TurnGroupProps {
   turnActive: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
   onMessageAction: (target: MessageActionTarget) => void;
+  onReplyLine: (line: TranscriptLine) => void;
 }
 
 export function TurnGroup({
@@ -15,6 +16,7 @@ export function TurnGroup({
   turnActive,
   onButtonClick,
   onMessageAction,
+  onReplyLine,
 }: TurnGroupProps) {
   const outputs = turn.outputs.filter(
     (message, index, all) =>
@@ -32,6 +34,7 @@ export function TurnGroup({
             turnActive={turnActive}
             onButtonClick={onButtonClick}
             onMessageAction={onMessageAction}
+            onReplyLine={onReplyLine}
           />
         </div>
       ) : null}
@@ -51,6 +54,7 @@ export function TurnGroup({
                   turnActive={turnActive}
                   onButtonClick={onButtonClick}
                   onMessageAction={onMessageAction}
+                  onReplyLine={onReplyLine}
                 />
               </div>
             ))}
