@@ -254,12 +254,15 @@
 /* ── Audio card + waveform player ────────────────────────────────────── */
 
 .audio-card {
-  width: 100%;
-  max-width: 560px;
+  width: min(52vw, 520px);
+  max-width: 100%;
+}
+.audio-card-assistant {
+  margin-right: auto;
 }
 .audio-card-right {
-  width: auto;
   margin-left: auto;
+  margin-right: 0;
 }
 
 .waveform {
@@ -275,11 +278,11 @@
   --waveform-idle: color-mix(in srgb, var(--text-primary) 18%, transparent);
 }
 .audio-card-assistant .waveform {
-  background: color-mix(in srgb, var(--surface-2) 78%, white 2%);
+  background: color-mix(in srgb, var(--surface-2) 88%, var(--surface-canvas) 12%);
   border: 1px solid color-mix(in srgb, var(--line-hairline) 78%, transparent);
 }
 .audio-card-user .waveform {
-  background: color-mix(in srgb, var(--surface-4) 42%, var(--surface-2) 58%);
+  background: color-mix(in srgb, var(--surface-4) 56%, var(--surface-2) 44%);
   border: 1px solid color-mix(in srgb, var(--line-soft) 72%, transparent);
   --waveform-idle: color-mix(in srgb, var(--text-primary) 22%, transparent);
 }
@@ -415,6 +418,8 @@
 
 @media (max-width: 720px) {
   .audio-card {
+    width: min(74vw, 340px);
+    min-width: min(280px, 100%);
     max-width: 100%;
   }
   .file-card {

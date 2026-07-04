@@ -359,7 +359,8 @@ body {
 .msg-user-bubble {
   padding: 10px 14px;
   border-radius: 18px 18px 7px 18px;
-  background: color-mix(in srgb, var(--surface-4) 54%, transparent);
+  background: color-mix(in srgb, var(--surface-4) 62%, var(--surface-2) 38%);
+  border: 1px solid color-mix(in srgb, var(--line-soft) 68%, transparent);
   box-shadow: none;
   line-height: 1.48;
 }
@@ -375,6 +376,7 @@ body {
 .msg-assistant-bubble {
   padding: 0;
   background: transparent;
+  border: 0;
   border-radius: 0;
   box-shadow: none;
 }
@@ -712,8 +714,18 @@ body {
   background: color-mix(in srgb, var(--surface-2) 72%, transparent);
 }
 
+.audio-card {
+  width: min(52vw, 520px);
+  max-width: 100%;
+}
+
+.audio-card-assistant {
+  margin-right: auto;
+}
+
 .audio-card-right {
-  max-width: min(460px, 76vw);
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .waveform {
@@ -723,6 +735,14 @@ body {
   padding: 12px 14px;
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+}
+
+.audio-card-assistant .waveform {
+  background: color-mix(in srgb, var(--surface-2) 90%, var(--surface-canvas) 10%);
+}
+
+.audio-card-user .waveform {
+  background: color-mix(in srgb, var(--surface-4) 62%, var(--surface-2) 38%);
 }
 
 .waveform-play {
@@ -812,9 +832,14 @@ body {
 
   .msg-user-stack,
   .msg-user-bubble,
-  .msg-assistant-bubble,
-  .audio-card-right {
+  .msg-assistant-bubble {
     max-width: min(88vw, 680px);
+  }
+
+  .audio-card {
+    width: min(74vw, 340px);
+    min-width: min(280px, 100%);
+    max-width: 100%;
   }
 
   .msg-user-bubble {
