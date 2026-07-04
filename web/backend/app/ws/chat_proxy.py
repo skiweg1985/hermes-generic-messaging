@@ -31,10 +31,18 @@ def _normalize_media_ref(ref: Any, settings: Settings) -> Any:
     if not stripped:
         return ref
     parsed = urlparse(stripped)
-    if parsed.scheme in {"http", "https", "file"}:
+    if parsed.scheme == "file":
+        return stripped
+    if parsed.scheme in {"http", "https"}:
+        if parsed.path.startswith("/api/v1/media/"):
+            suffix = f"{parsed.path.lstrip('/')}{f'?{parsed.query}' if parsed.query else ''}"
+            return urljoin(f"{settings.custom_chat_media_base_url.rstrip('/')}/", suffix)
         return stripped
     if stripped.startswith("/api/v1/media/"):
-        return urljoin(f"{settings.public_media_base_url.rstrip('/')}/", stripped.lstrip("/"))
+        return urljoin(
+            f"{settings.custom_chat_media_base_url.rstrip('/')}/",
+            stripped.lstrip("/"),
+        )
     return ref
 
 
@@ -66,6 +74,22 @@ def _normalize_message_payload(
     return normalized_payload
 
 
+def _normalize_uploaded_payload(
+    payload: dict[str, Any],
+    settings: Settings,
+) -> dict[str, Any]:
+    normalized_payload = dict(payload)
+    normalized_url = _normalize_media_ref(normalized_payload.get("url"), settings)
+    normalized_file_ref = _normalize_media_ref(normalized_payload.get("file_ref"), settings)
+    if normalized_url is not None:
+        normalized_payload["url"] = normalized_url
+    if normalized_file_ref is not None:
+        normalized_payload["file_ref"] = normalized_file_ref
+    elif isinstance(normalized_url, str) and normalized_url:
+        normalized_payload["file_ref"] = normalized_url
+    return normalized_payload
+
+
 def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     out = dict(data)
     if out.get("type") not in INBOUND_TYPES:
@@ -80,6 +104,10 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     out.setdefault("event_id", str(uuid.uuid4()))
     if out.get("type") == "message.create" and isinstance(out.get("payload"), dict):
         out["payload"] = _normalize_message_payload(out["payload"], settings)
+    elif out.get("type") in {"audio.uploaded", "file.uploaded"} and isinstance(
+        out.get("payload"), dict
+    ):
+        out["payload"] = _normalize_uploaded_payload(out["payload"], settings)
     return out
 
 
@@ -93,7 +121,7 @@ def build_client_register(settings: Settings) -> dict[str, Any]:
         "user_id": settings.web_user_id,
         "type": "client.register",
         "payload": {
-            "public_media_base_url": settings.public_media_base_url,
+            "public_media_base_url": settings.custom_chat_media_base_url,
             "client_kind": "web_bff",
         },
     }

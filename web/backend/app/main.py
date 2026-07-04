@@ -16,9 +16,10 @@ app = FastAPI(title="custom_chat BFF", version="0.1.0")
 
 settings = get_settings()
 logger.info(
-    "BFF media base announced to Hermes: %s (override via WEB_PUBLIC_MEDIA_BASE_URL)",
-    settings.public_media_base_url,
+    "BFF media base announced to Hermes: %s (override via WEB_CUSTOM_CHAT_MEDIA_BASE_URL)",
+    settings.custom_chat_media_base_url,
 )
+logger.info("BFF public media base for browsers: %s", settings.public_media_base_url)
 if settings.cors_reflect_origin:
     app.add_middleware(
         CORSMiddleware,

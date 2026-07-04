@@ -41,6 +41,7 @@ class Settings(BaseModel):
     frontend_dist_dir: str = "../frontend/dist"
     max_upload_bytes: int = 20 * 1024 * 1024
     public_media_base_url: str = "http://127.0.0.1:8000"
+    custom_chat_media_base_url: str = "http://127.0.0.1:8000"
     allowed_upload_mime_types: list[str] = Field(
         default_factory=lambda: list(DEFAULT_ALLOWED_UPLOAD_MIME_TYPES)
     )
@@ -83,6 +84,11 @@ def get_settings() -> Settings:
         public_host=os.getenv("WEB_PUBLIC_HOST"),
         public_port=public_port,
     )
+    custom_chat_media_base_url = (
+        os.getenv("WEB_CUSTOM_CHAT_MEDIA_BASE_URL")
+        or os.getenv("CUSTOM_CHAT_INTERNAL_MEDIA_BASE_URL")
+        or public_media_base_url
+    ).strip().rstrip("/")
     cors_reflect = os.getenv("WEB_CORS_REFLECT_ORIGIN", "").strip().lower() in {
         "1",
         "true",
@@ -99,6 +105,7 @@ def get_settings() -> Settings:
         frontend_dist_dir=os.getenv("WEB_FRONTEND_DIST_DIR", "../frontend/dist"),
         max_upload_bytes=max_upload_bytes,
         public_media_base_url=public_media_base_url,
+        custom_chat_media_base_url=custom_chat_media_base_url,
         allowed_upload_mime_types=parsed_allowed_uploads
         or list(DEFAULT_ALLOWED_UPLOAD_MIME_TYPES),
         cors_origins=cors
