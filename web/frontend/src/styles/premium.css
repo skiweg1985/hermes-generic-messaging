@@ -928,8 +928,8 @@ body {
   }
 
   .rail.rail-drawer-open {
-    width: min(342px, 88vw);
-    border-radius: 0 22px 22px 0;
+    width: min(var(--rail-width), calc(100vw - 28px));
+    border-radius: 0;
   }
 }
 

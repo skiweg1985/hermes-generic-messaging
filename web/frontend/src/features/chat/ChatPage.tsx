@@ -10,6 +10,7 @@ import { Transcript } from "./Transcript";
 import { useChatController } from "./useChatController";
 import { chatDisplayTitle } from "./chatReducer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { IconMenu } from "../shell/icons";
 import "../shell/shell.css";
 import "../composer/composer.css";
 import "../media/media.css";
@@ -232,6 +233,19 @@ export function ChatPage() {
         onOpenPalette={openPalette}
         onCloseDrawer={closeRail}
       />
+
+      {!railOpen ? (
+        <button
+          type="button"
+          className="rail-edge-toggle"
+          onClick={toggleRail}
+          aria-label="Open navigation"
+          aria-expanded={railOpen}
+          title="Open navigation"
+        >
+          <IconMenu size={20} />
+        </button>
+      ) : null}
 
       <section
         className="stage"
