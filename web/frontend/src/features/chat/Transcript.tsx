@@ -7,6 +7,7 @@ import { IconArrowUp } from "../shell/icons";
 import { MediaProvider, type MediaImage } from "../media/MediaProvider";
 import { Lightbox } from "../media/Lightbox";
 import { MessageActionSheet } from "./MessageActionSheet";
+import { TypingIndicator } from "./messages/TypingIndicator";
 import {
   downloadableUrlForLine,
   transcriptLineCopyText,
@@ -126,6 +127,15 @@ export function Transcript({
                   onMessageAction={setActionTarget}
                 />
               ))}
+              {typing ? (
+                <div className="turn turn-typing motion-rise-in-soft">
+                  <div className="turn-outputs">
+                    <div className="turn-outputs-list">
+                      <TypingIndicator />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

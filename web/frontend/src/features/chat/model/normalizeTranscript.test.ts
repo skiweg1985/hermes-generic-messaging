@@ -204,6 +204,25 @@ describe("normalizeTranscript", () => {
     expect(messages[0]!.parts).toEqual([]);
   });
 
+  it("keeps failed tool notices visible", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "t1",
+        kind: "notice",
+        noticeKind: "tool",
+        text: "text_to_speech: failed",
+        toolName: "text_to_speech",
+        toolStatus: "error",
+        toolError: "provider timeout",
+      }),
+    ]);
+    expect(messages[0]!.parts[0]).toMatchObject({
+      type: "tool_call",
+      status: "error",
+      toolName: "text_to_speech",
+    });
+  });
+
   it("shows live tool-like info notices while they are running", () => {
     const messages = normalizeTranscript([
       line({

@@ -410,6 +410,111 @@ async def test_assistant_audio_emitted(adapter, parse_sent_events, monkeypatch, 
 
 
 @pytest.mark.asyncio
+async def test_assistant_audio_strips_metadata_reasoning_before_tts(
+    adapter,
+    parse_sent_events,
+    monkeypatch,
+    tmp_path,
+):
+    ws = MockWebSocket()
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    adapter._reply_routes["aud-reasoning"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter._ws_by_chat["c1"] = ws
+
+    voice_path = tmp_path / "reply.ogg"
+    voice_path.write_bytes(b"voice")
+    captured: dict[str, str] = {}
+
+    def fake_synthesize(text, _settings):
+        captured["text"] = text
+        return {
+            "mime_type": "audio/ogg",
+            "url": str(voice_path),
+            "filename": voice_path.name,
+            "size_bytes": voice_path.stat().st_size,
+        }
+
+    async def fake_resolve(media_url, *, metadata=None):
+        assert media_url == str(voice_path)
+        return "https://example.local/reply.ogg", dict(metadata or {})
+
+    monkeypatch.setattr(adapter_module, "synthesize_audio_url", fake_synthesize)
+    monkeypatch.setattr(adapter, "_resolve_outbound_media_url", fake_resolve)
+
+    await adapter.send(
+        "c1",
+        "**Generating TTS** I should prepare the audio.\n\nHier ist deine Sprachi.",
+        metadata={
+            "reply_id": "aud-reasoning",
+            "audio_response": True,
+            "reasoning": "I need to create text-to-speech.",
+        },
+    )
+
+    assert captured["text"] == "Hier ist deine Sprachi."
+    events = parse_sent_events(ws)
+    emitted_types = [e["type"] for e in events]
+    assert emitted_types[:4] == [
+        "assistant_notice",
+        "assistant_notice",
+        "assistant_audio",
+        "assistant_done",
+    ]
+    notices = [e for e in events if e["type"] == "assistant_notice"]
+    assert notices[0]["payload"]["tool_name"] == "text_to_speech"
+    assert notices[0]["payload"]["status"] == "running"
+    assert notices[1]["payload"]["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_assistant_audio_strips_implicit_tts_reasoning_before_tts(
+    adapter,
+    monkeypatch,
+    tmp_path,
+):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    adapter._reply_routes["aud-implicit"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+
+    voice_path = tmp_path / "reply.ogg"
+    voice_path.write_bytes(b"voice")
+    captured: dict[str, str] = {}
+
+    def fake_synthesize(text, _settings):
+        captured["text"] = text
+        return {
+            "mime_type": "audio/ogg",
+            "url": str(voice_path),
+            "filename": voice_path.name,
+            "size_bytes": voice_path.stat().st_size,
+        }
+
+    async def fake_resolve(media_url, *, metadata=None):
+        assert media_url == str(voice_path)
+        return "https://example.local/reply.ogg", dict(metadata or {})
+
+    monkeypatch.setattr(adapter_module, "synthesize_audio_url", fake_synthesize)
+    monkeypatch.setattr(adapter, "_resolve_outbound_media_url", fake_resolve)
+
+    await adapter.send(
+        "c1",
+        "**Generating TTS** I should prepare audio.\nHier ist deine Sprachi.",
+        metadata={"reply_id": "aud-implicit", "audio_response": True},
+    )
+
+    assert captured["text"] == "Hier ist deine Sprachi."
+
+
+@pytest.mark.asyncio
 async def test_send_voice_emits_assistant_audio(adapter, parse_sent_events, monkeypatch, tmp_path):
     ws = MockWebSocket()
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)

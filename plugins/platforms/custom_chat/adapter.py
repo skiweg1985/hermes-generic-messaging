@@ -89,6 +89,14 @@ def _apply_tool_notice_metadata(payload: Dict[str, Any], meta: Dict[str, Any]) -
   if meta.get("error") is not None:
     payload["error"] = str(meta["error"])
 
+
+def _has_tool_terminal_metadata(meta: Dict[str, Any]) -> bool:
+  return (
+    meta.get("status") is not None
+    or meta.get("result") is not None
+    or meta.get("error") is not None
+  )
+
 try:
     from gateway.config import Platform, PlatformConfig
     from gateway.platforms.base import BasePlatformAdapter, SendResult
@@ -751,6 +759,63 @@ class CustomChatAdapter(BasePlatformAdapter):
     return f"{block}{text}" if text else block.rstrip()
 
   @staticmethod
+  def _find_implicit_tts_answer_boundary(text: str) -> int:
+    offset = 0
+    patterns = (
+      re.compile(r"^\s*(?:hier ist|hier sind|hier kommt|hier hast du|fertig\b)", re.I),
+      re.compile(r"^\s*(?:here(?:'s| is| are)|done\b|finished\b)", re.I),
+      re.compile(r"^\s*(?:voice mode enabled|how\s+/voice\s+works)\b", re.I),
+      re.compile(r"^\s*(?:🔧|🛠️|📚|ℹ️|✅|⚠️|❌)\s*\S"),
+      re.compile(r"^\s*(?:tool|info|notice|warning|error|system):\s+", re.I),
+    )
+    for line in text.splitlines(keepends=True):
+      if offset > 0 and any(pattern.search(line) for pattern in patterns):
+        return offset
+      offset += len(line)
+    blank_boundary = re.search(r"\n\s*\n", text)
+    return blank_boundary.start() if blank_boundary else -1
+
+  def _split_implicit_tts_answer(self, text: str) -> Optional[str]:
+    if not re.match(r"^\s*\*\*Generating TTS[^*]*\*\*", text, re.I):
+      return None
+    boundary = self._find_implicit_tts_answer_boundary(text)
+    if boundary < 0:
+      return None
+    answer_text = text[boundary:].strip()
+    return answer_text or None
+
+  def _audio_response_text(self, content: str, meta: Dict[str, Any]) -> str:
+    """Return only the user-facing answer for TTS synthesis."""
+    text = (content or "").strip()
+    if not text:
+      return ""
+
+    reasoning_raw = meta.get("reasoning")
+    reasoning_meta = str(reasoning_raw).strip() if reasoning_raw else ""
+    split_source = text
+    has_reasoning_prefix = REASONING_PREFIX in split_source
+    if has_reasoning_prefix:
+      split_source = split_source.split(REASONING_PREFIX, 1)[1].strip()
+
+    if reasoning_meta:
+      _, answer_text = self._split_reasoning_answer(reasoning_meta, split_source)
+      candidate = (answer_text or split_source).strip()
+      implicit_answer = self._split_implicit_tts_answer(candidate)
+      return (implicit_answer or answer_text or text).strip()
+
+    if has_reasoning_prefix:
+      _reasoning_text, answer_text = self._split_reasoning_answer("reasoning", split_source)
+      candidate = (answer_text or split_source).strip()
+      implicit_answer = self._split_implicit_tts_answer(candidate)
+      return (implicit_answer or answer_text or text).strip()
+
+    implicit_answer = self._split_implicit_tts_answer(split_source)
+    if implicit_answer:
+      return implicit_answer
+
+    return text
+
+  @staticmethod
   def _env_bool(name: str) -> Optional[bool]:
     raw = os.getenv(name)
     if raw is None or not str(raw).strip():
@@ -965,6 +1030,8 @@ class CustomChatAdapter(BasePlatformAdapter):
       "kind": "tool",
     }
     _apply_tool_notice_metadata(payload, meta)
+    if "status" not in payload and not _has_tool_terminal_metadata(meta):
+      payload["status"] = "running"
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),
@@ -1031,21 +1098,67 @@ class CustomChatAdapter(BasePlatformAdapter):
 
     if audio_response:
       audio: dict[str, Any] = {}
+      tts_notice_id = f"{reply_id}-tts"
       try:
-        audio = await asyncio.to_thread(synthesize_audio_url, content, self.settings)
+        tts_text = self._audio_response_text(content, meta) or (content or "").strip()
+        await self._send_tool_progress(
+          chat_id,
+          "text_to_speech: generating voice message",
+          metadata={
+            **meta,
+            "tool_name": "text_to_speech",
+            "status": "running",
+            "args": tts_text[:240],
+          },
+          message_id=tts_notice_id,
+        )
+        audio = await asyncio.to_thread(synthesize_audio_url, tts_text, self.settings)
         audio_url, audio_meta = await self._resolve_outbound_media_url(
           str(audio["url"]), metadata=audio
         )
       except InboundEventError as exc:
         logger.warning("audio_response publish failed: %s", exc.message)
+        await self._send_tool_progress(
+          chat_id,
+          "text_to_speech: failed",
+          metadata={
+            **meta,
+            "tool_name": "text_to_speech",
+            "status": "error",
+            "error": exc.message,
+          },
+          message_id=tts_notice_id,
+        )
         await self._cleanup_reply_state(session, reply_id)
         return SendResult(success=False, message_id=reply_id, error=exc.message)
       except Exception as exc:
         logger.warning("audio_response TTS failed: %s", exc)
+        await self._send_tool_progress(
+          chat_id,
+          "text_to_speech: failed",
+          metadata={
+            **meta,
+            "tool_name": "text_to_speech",
+            "status": "error",
+            "error": str(exc),
+          },
+          message_id=tts_notice_id,
+        )
         await self._cleanup_reply_state(session, reply_id)
         return SendResult(success=False, message_id=reply_id, error=str(exc))
       finally:
         cleanup_synthesized_audio(audio)
+      await self._send_tool_progress(
+        chat_id,
+        "text_to_speech: done",
+        metadata={
+          **meta,
+          "tool_name": "text_to_speech",
+          "status": "success",
+          "result": "voice message generated",
+        },
+        message_id=tts_notice_id,
+      )
       payload: dict[str, Any] = {
         "message_id": reply_id,
         "mime_type": str(audio_meta.get("mime_type") or audio["mime_type"]),
@@ -1327,6 +1440,8 @@ class CustomChatAdapter(BasePlatformAdapter):
     }
     if notice_kind == "tool" or meta.get("is_tool_status"):
       _apply_tool_notice_metadata(payload, meta)
+      if "status" not in payload and not _has_tool_terminal_metadata(meta):
+        payload["status"] = "running"
     await self._emit_outbound(
       chat_id=route.get("chat_id", chat_id),
       user_id=route.get("user_id", "assistant"),
@@ -1347,14 +1462,16 @@ class CustomChatAdapter(BasePlatformAdapter):
     metadata: Optional[Dict[str, Any]] = None,
   ) -> SendResult:
     """Update an in-flight tool-progress notice (Telegram ``editMessageText`` parity)."""
-    _ = finalize
     msg_id = str(message_id)
     if msg_id not in self._tool_progress_ids and not self._looks_like_tool_progress(content):
       return SendResult(success=False, error="Not supported")
+    next_metadata = dict(metadata or {})
+    if finalize and not _has_tool_terminal_metadata(next_metadata):
+      next_metadata["status"] = "success"
     result = await self._send_tool_progress(
       chat_id,
       content,
-      metadata=metadata,
+      metadata=next_metadata,
       message_id=msg_id,
     )
     self._tool_progress_ids.add(msg_id)

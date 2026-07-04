@@ -251,6 +251,7 @@ async def test_tool_progress_send_without_reply_id(adapter: CustomChatAdapter, p
     assert len(events) == 1
     assert events[0]["type"] == "assistant_notice"
     assert events[0]["payload"]["kind"] == "tool"
+    assert events[0]["payload"]["status"] == "running"
     assert "ls -la" in events[0]["payload"]["text"]
     assert events[0]["payload"]["message_id"] == result.message_id
 
@@ -264,13 +265,17 @@ async def test_tool_progress_edit_message(adapter: CustomChatAdapter, parse_sent
     first = await adapter.send("c1", '💻 terminal: "ls"')
     ws.sent.clear()
     result = await adapter.edit_message(
-        "c1", first.message_id, '💻 terminal: "ls -la"\n🔍 read_file: "config.yaml"'
+        "c1",
+        first.message_id,
+        '💻 terminal: "ls -la"\n🔍 read_file: "config.yaml"',
+        finalize=True,
     )
 
     events = parse_sent_events(ws)
     assert result.success
     assert len(events) == 1
     assert events[0]["payload"]["message_id"] == first.message_id
+    assert events[0]["payload"]["status"] == "success"
     assert "read_file" in events[0]["payload"]["text"]
 
 
@@ -329,6 +334,7 @@ async def test_tool_status_routes_to_notice(adapter: CustomChatAdapter, parse_se
     events = parse_sent_events(ws)
     notice = next(e for e in events if e["type"] == "assistant_notice")
     assert notice["payload"]["kind"] == "tool"
+    assert notice["payload"]["status"] == "running"
     assert notice["payload"]["text"] == "Running read_file…"
 
 
