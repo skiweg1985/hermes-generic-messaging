@@ -205,6 +205,12 @@ export function ChatPage() {
         onClose={closePeek}
         session={activeSession}
         connection={ctrl.connection}
+        reconnecting={ctrl.reconnecting}
+        link={ctrl.link}
+        upstream={ctrl.upstream}
+        upstreamLoading={ctrl.upstreamLoading}
+        onReconnect={ctrl.reconnect}
+        onRefreshDiagnostics={ctrl.refreshDiagnostics}
         userId={ctrl.userId}
       />
 

@@ -9,12 +9,15 @@
 
 ### Changed
 
+- Web UI: Verbindungs-/Transport-Zustand aus dem Chat-Reducer in einen eigenen `useConnectionStore` ausgelagert (besitzt WebSocket-Client, Status, Reconnect und Diagnose); `ChatState` trägt keinen `connection`-Zustand mehr
 - Web UI: Viewport-/Keyboard-Logik aus `ChatPage` in wiederverwendbare Hooks extrahiert (`useVisualViewport` als einzige Quelle der Rohwerte, `useKeyboardInset` mit reiner, getesteter Ableitungsfunktion `deriveViewport`); Composer-Dock misst seine Höhe jetzt selbst (`useComposerClearance`)
 - Web UI: Scroll-Follow ist eine explizite State-Machine (`pinned | userDetached | keyboardAdjusting | restoring`) und pinnt nach dem Öffnen der Tastatur wieder ans Ende, damit die letzte Nachricht sichtbar bleibt
 - Web UI: Mobile-Navigation läuft über den Header-Button statt eines schwebenden Rand-Buttons, der den Chat überlagerte
 
 ### Added
 
+- BFF: `GET /api/v1/diagnostics` prüft die Verbindungskette — BFF-Liveness plus eine kurze BFF→Upstream-WebSocket-Probe, die `ok`/`unreachable`/`unauthorized`/`closed`/`error` klassifiziert und das Ziel als `host:port` (ohne Token) zurückgibt
+- Web UI: Verbindungs-Diagnose in den Session-Details — beide Hops (Browser→Server, Server→Upstream) mit Status, Upstream-Ziel, letztem Close-Grund/-Code und Reconnect-Aktion
 - Web UI: Dev-Overlay für Viewport-Diagnose (`?vdebug=1`) mit Live-Werten für `innerHeight`, `visualViewport.height`, `offsetTop`, `keyboardInset`, `composer-clearance` und Composer-Höhe
 - Web UI: Layout-Invarianten-Check `npm run check:layout` (Playwright-CLI) prüft auf Mobile, dass der Composer im Viewport liegt, den Transcript nicht überlappt und die letzte Nachricht erreichbar ist; Vitest deckt `deriveViewport` ab
 

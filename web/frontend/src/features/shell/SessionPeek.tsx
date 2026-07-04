@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 import type { ChatSession, ConnectionStatus } from "../../types/events";
+import type { WsCloseInfo } from "../../api/wsClient";
+import type { UpstreamDiagnostics } from "../../api/diagnosticsClient";
+import { ConnectionDiagnostics } from "./ConnectionDiagnostics";
 import { IconClose } from "./icons";
 
 interface SessionPeekProps {
@@ -7,6 +10,12 @@ interface SessionPeekProps {
   onClose: () => void;
   session: ChatSession;
   connection: ConnectionStatus;
+  reconnecting: boolean;
+  link: WsCloseInfo | null;
+  upstream: UpstreamDiagnostics | null;
+  upstreamLoading: boolean;
+  onReconnect: () => void;
+  onRefreshDiagnostics: () => void;
   userId: string;
 }
 
@@ -32,6 +41,12 @@ export function SessionPeek({
   onClose,
   session,
   connection,
+  reconnecting,
+  link,
+  upstream,
+  upstreamLoading,
+  onReconnect,
+  onRefreshDiagnostics,
   userId,
 }: SessionPeekProps) {
   useEffect(() => {
@@ -101,12 +116,18 @@ export function SessionPeek({
               <dt className="t-meta">Transport</dt>
               <dd className="t-body-sm">WebSocket</dd>
             </div>
-            <div className="peek-row">
-              <dt className="t-meta">Status</dt>
-              <dd className="t-body-sm">{connection}</dd>
-            </div>
           </dl>
         </section>
+
+        <ConnectionDiagnostics
+          connection={connection}
+          reconnecting={reconnecting}
+          link={link}
+          upstream={upstream}
+          upstreamLoading={upstreamLoading}
+          onReconnect={onReconnect}
+          onRefresh={onRefreshDiagnostics}
+        />
 
         <section className="peek-section">
           <div className="t-label peek-section-label">Shortcuts</div>

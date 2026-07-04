@@ -122,6 +122,7 @@ safe protocols (`http`, `https`, `mailto`) and open in a new tab.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/v1/health` | Liveness |
+| GET | `/api/v1/diagnostics` | BFF liveness plus a BFF→upstream reachability probe (`bff`, `upstream.status`, `upstream.target`). The target is `host:port` only; credentials are never returned. |
 | POST | `/api/v1/media/upload` | Multipart audio upload |
 | GET | `/api/v1/media/{file_id}` | Serve uploaded file |
 | WS | `/ws/chat` | Event proxy to adapter, including `button.click` |

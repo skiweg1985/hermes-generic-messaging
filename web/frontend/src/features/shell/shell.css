@@ -614,6 +614,90 @@
   color: var(--text-primary);
 }
 
+/* ── Connection diagnostics (session peek) ───────────────────────────── */
+
+.peek-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.peek-inline-action {
+  height: 20px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--accent-faint);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.peek-inline-action:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+.peek-inline-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.diag-hop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-2) 0;
+}
+.diag-hop + .diag-hop {
+  border-top: 1px solid var(--line-hairline);
+}
+.diag-hop-body {
+  display: grid;
+  gap: 2px;
+}
+.diag-hop-status {
+  color: var(--text-secondary);
+}
+.diag-hop-error {
+  color: var(--state-danger);
+  word-break: break-word;
+}
+.diag-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--text-tertiary);
+}
+.diag-dot-ok {
+  background: var(--state-success, #3fb950);
+}
+.diag-dot-warn {
+  background: var(--state-warning);
+}
+.diag-dot-bad {
+  background: var(--state-danger);
+}
+.diag-dot-idle {
+  background: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.diag-reconnect {
+  margin-top: var(--s-2);
+  height: 30px;
+  width: 100%;
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--accent-soft);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.diag-reconnect:hover {
+  background: var(--accent-strong, var(--accent-soft));
+}
+
 /* ── Connection banner ───────────────────────────────────────────────── */
 
 .connection-banner {
