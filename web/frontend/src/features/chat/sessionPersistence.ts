@@ -57,10 +57,7 @@ export function stateFromStoredState(
   if (sessions.length === 0) return fallback;
 
   const sessionsById = Object.fromEntries(
-    sessions.map((session) => [
-      session.chatId,
-      { ...session, pendingAttachments: session.pendingAttachments ?? [] },
-    ]),
+    sessions.map((session) => [session.chatId, session]),
   );
   const activeChatId =
     typeof raw.activeChatId === "string" && sessionsById[raw.activeChatId]
@@ -99,17 +96,11 @@ export function mergeChatStates(current: ChatState, incoming: ChatState): ChatSt
 
 function trimSession(session: ChatSession): ChatSession {
   const lines = session.lines.slice(-MAX_TRANSCRIPT_LINES).map(trimLine);
-  const replyTarget =
-    session.replyTarget && lines.some((line) => line.id === session.replyTarget?.lineId)
-      ? session.replyTarget
-      : undefined;
   return {
     ...session,
     lines,
     streamingMessageId: null,
     streamTurnId: null,
-    replyTarget,
-    pendingAttachments: [],
     typing: false,
     typingStartedAt: undefined,
     typingClosed: false,
@@ -131,7 +122,6 @@ function isStoredSession(value: unknown): value is ChatSession {
     typeof session.chatId === "string" &&
     typeof session.label === "string" &&
     Array.isArray(session.lines) &&
-    typeof session.input === "string" &&
     typeof session.createdAt === "string" &&
     typeof session.updatedAt === "string"
   );

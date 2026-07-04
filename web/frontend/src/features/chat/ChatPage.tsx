@@ -92,7 +92,7 @@ export function ChatPage() {
     {
       combo: "mod+/",
       handler: () => {
-        if (!ctrl.activeSession.input.trim()) ctrl.setInput("/");
+        if (!ctrl.draft.input.trim()) ctrl.setInput("/");
         composerRef.current?.focus();
       },
       whenTyping: true,
@@ -193,14 +193,14 @@ export function ChatPage() {
 
           <Composer
             ref={composerRef}
-            value={activeSession.input}
+            value={ctrl.draft.input}
             disabled={!ctrl.connected}
             streaming={ctrl.streaming}
             typing={activeSession.typing}
             recording={ctrl.recording}
             recordingLevel={ctrl.recordingLevel}
-            replyTarget={activeSession.replyTarget}
-            pendingAttachments={activeSession.pendingAttachments}
+            replyTarget={ctrl.draft.replyTarget}
+            pendingAttachments={ctrl.draft.pendingAttachments}
             onChange={ctrl.setInput}
             onClearReply={ctrl.clearReply}
             onSubmit={ctrl.submit}

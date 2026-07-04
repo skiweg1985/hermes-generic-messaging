@@ -33,50 +33,10 @@ describe("chatReducer", () => {
     expect(session(s).lines[0].text).toBe("hi");
   });
 
-  it("sets and clears a reply target", () => {
-    let s = chatReducer(base, {
-      type: "SET_REPLY_TARGET",
-      target: {
-        lineId: "l1",
-        role: "assistant",
-        label: "Hermes",
-        preview: "Previous answer",
-      },
-    });
-    expect(session(s).replyTarget?.lineId).toBe("l1");
-
-    s = chatReducer(s, { type: "CLEAR_REPLY_TARGET" });
-    expect(session(s).replyTarget).toBeUndefined();
-  });
-
-  it("clears reply target after sending user text", () => {
-    let s = chatReducer(base, {
-      type: "SET_REPLY_TARGET",
-      target: {
-        lineId: "l1",
-        role: "assistant",
-        label: "Hermes",
-        preview: "Previous answer",
-      },
-    });
-    s = chatReducer(s, { type: "USER_TEXT", text: "answering" });
-    expect(session(s).replyTarget).toBeUndefined();
-  });
-
-  it("deletes a line locally and clears stale reply target", () => {
+  it("deletes a line locally", () => {
     let s = chatReducer(base, { type: "USER_TEXT", text: "remove me", turnMessageId: "u1" });
-    s = chatReducer(s, {
-      type: "SET_REPLY_TARGET",
-      target: {
-        lineId: "u1",
-        role: "user",
-        label: "You",
-        preview: "remove me",
-      },
-    });
     s = chatReducer(s, { type: "DELETE_LINE_LOCAL", lineId: "u1" });
     expect(session(s).lines).toHaveLength(0);
-    expect(session(s).replyTarget).toBeUndefined();
   });
 
   it("streams assistant deltas", () => {

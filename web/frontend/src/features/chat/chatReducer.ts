@@ -3,8 +3,6 @@ import type {
   ChatSession,
   ChatState,
   EventEnvelope,
-  PendingAttachment,
-  ReplyTarget,
   ToolStatus,
   TranscriptLine,
 } from "../../types/events";
@@ -60,8 +58,6 @@ export function createChatSession(chatId: string, label = defaultLabel(chatId)):
     lines: [],
     streamingMessageId: null,
     streamTurnId: null,
-    input: "",
-    pendingAttachments: [],
     typing: false,
     typingClosed: false,
     unread: false,
@@ -86,9 +82,6 @@ export type ChatAction =
   | { type: "HYDRATE_STATE"; state: ChatState }
   | { type: "SET_ACTIVE_CHAT"; chatId: string }
   | { type: "CREATE_CHAT"; chatId: string; label?: string }
-  | { type: "SET_INPUT"; input: string }
-  | { type: "SET_REPLY_TARGET"; chatId?: string; target: ReplyTarget }
-  | { type: "CLEAR_REPLY_TARGET"; chatId?: string }
   | { type: "DELETE_LINE_LOCAL"; chatId?: string; lineId: string }
   | { type: "SET_RECORDING"; recording: boolean }
   | { type: "USER_TEXT"; text: string; turnMessageId?: string }
@@ -115,17 +108,6 @@ export type ChatAction =
     }
   | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string; turnMessageId?: string }
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
-  | { type: "ADD_PENDING_ATTACHMENT"; chatId: string; localId: string; fileName: string; mimeType: string }
-  | {
-      type: "SET_PENDING_ATTACHMENT_STATUS";
-      chatId: string;
-      localId: string;
-      status: PendingAttachment["status"];
-      error?: { code: string; message: string };
-      result?: PendingAttachment["result"];
-    }
-  | { type: "REMOVE_PENDING_ATTACHMENT"; chatId: string; localId: string }
-  | { type: "CLEAR_PENDING_ATTACHMENTS" }
   | { type: "BUTTON_CLICKED"; chatId: string; lineId: string; buttonId: string }
   | { type: "CLEAR_TYPING"; chatId: string }
   | { type: "INBOUND_EVENT"; event: EventEnvelope };
@@ -215,28 +197,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         sessionsById: { ...state.sessionsById, [action.chatId]: session },
       };
     }
-    case "SET_INPUT":
-      return updateActiveSession(state, (session) => ({ ...session, input: action.input }));
-    case "SET_REPLY_TARGET":
-      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
-        touchSession({ ...session, replyTarget: action.target }),
-      );
-    case "CLEAR_REPLY_TARGET":
-      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
-        session.replyTarget ? touchSession({ ...session, replyTarget: undefined }) : session,
-      );
     case "DELETE_LINE_LOCAL":
       return updateSession(state, action.chatId ?? state.activeChatId, (session) => {
         const lines = session.lines.filter((line) => line.id !== action.lineId);
-        const replyTarget =
-          session.replyTarget?.lineId === action.lineId ? undefined : session.replyTarget;
-        return touchSession({ ...session, lines, replyTarget });
+        return touchSession({ ...session, lines });
       });
     case "SET_RECORDING":
       return { ...state, recording: action.recording };
     case "USER_TEXT":
       return updateActiveSession(state, (session) =>
-        appendLine({ ...openTyping(session), replyTarget: undefined }, {
+        appendLine(openTyping(session), {
           id: action.turnMessageId ?? newId(),
           kind: "user",
           text: action.text,
@@ -246,7 +216,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "USER_MESSAGE": {
       const { turnMessageId, text, attachments } = action;
       return updateActiveSession(state, (session) => {
-        let next: ChatSession = { ...openTyping(session), replyTarget: undefined };
+        let next: ChatSession = openTyping(session);
         if (text.trim()) {
           next = appendLine(next, {
             id: turnMessageId,
@@ -269,12 +239,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
             }),
           );
         }
-        return { ...next, pendingAttachments: [] };
+        return next;
       });
     }
     case "USER_COMMAND":
       return updateActiveSession(state, (session) =>
-        appendLine({ ...openTyping(session), replyTarget: undefined }, {
+        appendLine(openTyping(session), {
           id: newId(),
           kind: "command",
           text: action.command,
@@ -282,7 +252,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       );
     case "USER_VOICE":
       return updateActiveSession(state, (session) =>
-        appendLine({ ...openTyping(session), replyTarget: undefined }, {
+        appendLine(openTyping(session), {
           id: action.attachmentId,
           kind: "audio-out",
           role: "user",
@@ -309,45 +279,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           }),
         ),
       );
-    case "ADD_PENDING_ATTACHMENT":
-      return updateSession(state, action.chatId, (session) => ({
-        ...session,
-        pendingAttachments: [
-          ...session.pendingAttachments,
-          {
-            localId: action.localId,
-            fileName: action.fileName,
-            mimeType: action.mimeType,
-            status: "queued",
-          },
-        ],
-      }));
-    case "SET_PENDING_ATTACHMENT_STATUS":
-      return updateSession(state, action.chatId, (session) => ({
-        ...session,
-        pendingAttachments: session.pendingAttachments.map((entry) =>
-          entry.localId === action.localId
-            ? {
-                ...entry,
-                status: action.status,
-                error: action.error,
-                result: action.result,
-              }
-            : entry,
-        ),
-      }));
-    case "REMOVE_PENDING_ATTACHMENT":
-      return updateSession(state, action.chatId, (session) => ({
-        ...session,
-        pendingAttachments: session.pendingAttachments.filter(
-          (entry) => entry.localId !== action.localId,
-        ),
-      }));
-    case "CLEAR_PENDING_ATTACHMENTS":
-      return updateActiveSession(state, (session) => ({
-        ...session,
-        pendingAttachments: [],
-      }));
     case "USER_ERROR":
       return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
         appendLine(session, {

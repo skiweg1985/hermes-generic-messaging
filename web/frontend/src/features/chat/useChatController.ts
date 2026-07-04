@@ -4,6 +4,7 @@ import { uploadMedia } from "../../api/mediaClient";
 import { loadRemoteChatState, persistRemoteChatState } from "../../api/sessionClient";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
 import { useConnectionStore } from "../../hooks/useConnectionStore";
+import { useDraftStore } from "../../hooks/useDraftStore";
 import type { UpstreamDiagnostics } from "../../api/diagnosticsClient";
 import {
   chatReducer,
@@ -12,6 +13,7 @@ import {
   resolveCancelTargetId,
   type ChatAction,
 } from "./chatReducer";
+import { getDraft, type Draft, type DraftAction } from "./draftStore";
 import { loadChatState, mergeChatStates, persistChatState } from "./sessionPersistence";
 import { replyTargetFromLine, withReplyPrefix } from "./messageActions";
 import { newId } from "../../lib/uuid";
@@ -38,6 +40,7 @@ export interface ChatController {
   upstream: UpstreamDiagnostics | null;
   upstreamLoading: boolean;
   refreshDiagnostics: () => void;
+  draft: Draft;
   recording: boolean;
   recordingLevel: number;
   replyTarget?: ReplyTarget;
@@ -95,7 +98,7 @@ async function uploadPendingFile(
   file: File,
   localId: string,
   chatId: string,
-  dispatch: Dispatch<ChatAction>,
+  dispatch: Dispatch<DraftAction>,
 ): Promise<PendingAttachment["result"]> {
   dispatch({
     type: "SET_PENDING_ATTACHMENT_STATUS",
@@ -140,6 +143,8 @@ export function useChatController(): ChatController {
     conn;
   const connectedRef = useRef(false);
   connectedRef.current = connected;
+  const draftStore = useDraftStore();
+  const { dispatch: draftDispatch, draftFor } = draftStore;
   const remotePersistenceReadyRef = useRef(false);
   const remotePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingFilesRef = useRef<Map<string, File>>(new Map());
@@ -155,6 +160,7 @@ export function useChatController(): ChatController {
     state.sessionsById[state.activeChatId] ??
     Object.values(state.sessionsById)[0] ??
     createChatSession(state.activeChatId);
+  const activeDraft = getDraft(draftStore.drafts, state.activeChatId);
   const sessions = Object.values(state.sessionsById).sort((a, b) =>
     (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt),
   );
@@ -246,17 +252,20 @@ export function useChatController(): ChatController {
     return chatId;
   }, [state.sessionsById]);
 
-  const setInput = useCallback((input: string) => {
-    dispatch({ type: "SET_INPUT", input });
-  }, []);
+  const setInput = useCallback(
+    (input: string) => {
+      draftDispatch({ type: "SET_INPUT", chatId: stateRef.current.activeChatId, input });
+    },
+    [draftDispatch],
+  );
 
   const startPendingUpload = useCallback(
     (file: File, localId: string, chatId: string) => {
-      const task = uploadPendingFile(file, localId, chatId, dispatch)
+      const task = uploadPendingFile(file, localId, chatId, draftDispatch)
         .catch((err) => {
           const msg = err instanceof Error ? err.message : "upload failed";
           const [code, ...rest] = msg.split(": ");
-          dispatch({
+          draftDispatch({
             type: "SET_PENDING_ATTACHMENT_STATUS",
             chatId,
             localId,
@@ -274,7 +283,7 @@ export function useChatController(): ChatController {
       uploadPromisesRef.current.set(localId, task);
       return task;
     },
-    [],
+    [draftDispatch],
   );
 
   const addFiles = useCallback(
@@ -288,7 +297,7 @@ export function useChatController(): ChatController {
       for (const file of files) {
         const localId = newId();
         pendingFilesRef.current.set(localId, file);
-        dispatch({
+        draftDispatch({
           type: "ADD_PENDING_ATTACHMENT",
           chatId: uploadChatId,
           localId,
@@ -300,7 +309,7 @@ export function useChatController(): ChatController {
         } catch {}
       }
     },
-    [connected, startPendingUpload, state.activeChatId],
+    [connected, draftDispatch, startPendingUpload, state.activeChatId],
   );
 
   const retryUpload = useCallback(
@@ -312,9 +321,9 @@ export function useChatController(): ChatController {
         return;
       }
       let targetChatId = state.activeChatId;
-      for (const session of Object.values(state.sessionsById)) {
-        if (session.pendingAttachments.some((a) => a.localId === localId)) {
-          targetChatId = session.chatId;
+      for (const [chatId, draft] of Object.entries(draftStore.drafts)) {
+        if (draft.pendingAttachments.some((a) => a.localId === localId)) {
+          targetChatId = chatId;
           break;
         }
       }
@@ -322,19 +331,19 @@ export function useChatController(): ChatController {
         await startPendingUpload(file, localId, targetChatId);
       } catch {}
     },
-    [connected, startPendingUpload, state.activeChatId, state.sessionsById],
+    [connected, draftStore.drafts, startPendingUpload, state.activeChatId],
   );
 
   const removePending = useCallback(
     (localId: string) => {
       pendingFilesRef.current.delete(localId);
-      dispatch({
+      draftDispatch({
         type: "REMOVE_PENDING_ATTACHMENT",
         chatId: state.activeChatId,
         localId,
       });
     },
-    [state.activeChatId],
+    [draftDispatch, state.activeChatId],
   );
 
   const submit = useCallback(() => {
@@ -342,10 +351,11 @@ export function useChatController(): ChatController {
       if (!connectedRef.current) return;
 
       const activeChatId = stateRef.current.activeChatId;
-      let session = stateRef.current.sessionsById[activeChatId];
+      const session = stateRef.current.sessionsById[activeChatId];
       if (!session) return;
+      let draft = draftFor(activeChatId);
 
-      const pendingUploads = session.pendingAttachments
+      const pendingUploads = draft.pendingAttachments
         .filter((a) => a.status === "uploading" || a.status === "queued")
         .map((a) => uploadPromisesRef.current.get(a.localId))
         .filter(
@@ -356,16 +366,15 @@ export function useChatController(): ChatController {
       if (pendingUploads.length > 0) {
         await Promise.allSettled(pendingUploads);
         if (!connectedRef.current) return;
-        session = stateRef.current.sessionsById[activeChatId];
-        if (!session) return;
+        draft = draftFor(activeChatId);
       }
 
-      const raw = session.input.trim();
-      const ready = session.pendingAttachments.filter((a) => a.status === "done" && a.result);
-      const hasPendingAttachmentErrors = session.pendingAttachments.some(
+      const raw = draft.input.trim();
+      const ready = draft.pendingAttachments.filter((a) => a.status === "done" && a.result);
+      const hasPendingAttachmentErrors = draft.pendingAttachments.some(
         (a) => a.status === "error",
       );
-      const hasIncompleteAttachments = session.pendingAttachments.some(
+      const hasIncompleteAttachments = draft.pendingAttachments.some(
         (a) => a.status === "uploading" || a.status === "queued",
       );
       if (hasPendingAttachmentErrors) {
@@ -386,21 +395,20 @@ export function useChatController(): ChatController {
         if (cancelTarget) {
           client.sendCancel(cancelTarget, session.chatId, USER_ID);
         }
-        dispatch({ type: "SET_INPUT", input: "" });
+        draftDispatch({ type: "SET_INPUT", chatId: session.chatId, input: "" });
         return;
       }
 
       if (raw.startsWith("/")) {
         dispatch({ type: "USER_COMMAND", command: raw });
         client.sendCommand(raw, session.chatId, USER_ID);
-        dispatch({ type: "SET_INPUT", input: "" });
-        dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
+        draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
         pendingFilesRef.current.clear();
         return;
       }
 
       const turnMessageId = newId();
-      const outboundText = withReplyPrefix(raw, session.replyTarget);
+      const outboundText = withReplyPrefix(raw, draft.replyTarget);
       const attachments: MessageAttachment[] = ready.map((entry) => ({
         attachment_id: entry.result!.attachment_id,
         mime_type: entry.result!.mime_type,
@@ -438,11 +446,10 @@ export function useChatController(): ChatController {
         });
       }
 
-      dispatch({ type: "SET_INPUT", input: "" });
-      dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
+      draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
       pendingFilesRef.current.clear();
     })();
-  }, []);
+  }, [client, draftDispatch, draftFor]);
 
   const cancel = useCallback(() => {
     const session = state.sessionsById[state.activeChatId];
@@ -462,28 +469,32 @@ export function useChatController(): ChatController {
     [connected, state.activeChatId],
   );
 
-  const replyToLine = useCallback((line: TranscriptLine) => {
-    dispatch({
-      type: "SET_REPLY_TARGET",
-      chatId: stateRef.current.activeChatId,
-      target: replyTargetFromLine(line),
-    });
-  }, []);
+  const replyToLine = useCallback(
+    (line: TranscriptLine) => {
+      draftDispatch({
+        type: "SET_REPLY_TARGET",
+        chatId: stateRef.current.activeChatId,
+        target: replyTargetFromLine(line),
+      });
+    },
+    [draftDispatch],
+  );
 
   const clearReply = useCallback(() => {
-    dispatch({
+    draftDispatch({
       type: "CLEAR_REPLY_TARGET",
       chatId: stateRef.current.activeChatId,
     });
-  }, []);
+  }, [draftDispatch]);
 
-  const deleteLineLocal = useCallback((lineId: string) => {
-    dispatch({
-      type: "DELETE_LINE_LOCAL",
-      chatId: stateRef.current.activeChatId,
-      lineId,
-    });
-  }, []);
+  const deleteLineLocal = useCallback(
+    (lineId: string) => {
+      const chatId = stateRef.current.activeChatId;
+      dispatch({ type: "DELETE_LINE_LOCAL", chatId, lineId });
+      draftDispatch({ type: "CLEAR_REPLY_FOR_LINE", chatId, lineId });
+    },
+    [draftDispatch],
+  );
 
   const retryLine = useCallback((line: TranscriptLine) => {
     const current = stateRef.current;
@@ -606,8 +617,7 @@ export function useChatController(): ChatController {
           dispatch(notConnectedError(chatId));
           return;
         }
-        const session = stateRef.current.sessionsById[chatId];
-        const outboundText = withReplyPrefix("", session?.replyTarget);
+        const outboundText = withReplyPrefix("", draftFor(chatId).replyTarget);
 
         const mime = normalizeMimeType(blob.type || "audio/webm");
         const filename = voiceFilenameForMime(mime);
@@ -681,9 +691,10 @@ export function useChatController(): ChatController {
     upstream,
     upstreamLoading,
     refreshDiagnostics,
+    draft: activeDraft,
     recording,
     recordingLevel,
-    replyTarget: activeSession.replyTarget,
+    replyTarget: activeDraft.replyTarget,
     streaming: activeSession.streamingMessageId !== null,
     activeChatId: state.activeChatId,
     activeSession,
