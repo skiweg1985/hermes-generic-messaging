@@ -25,7 +25,7 @@
 
 ### Fixed
 
-- Web UI: Composer folgt auf iOS beim Öffnen der Tastatur dem Visual-Viewport (`--app-viewport-offset-top` = `visualViewport.offsetTop`), sodass die Shell nicht mehr aus dem oberen Bildschirmrand geschoben wird und man nicht zurückscrollen muss
+- Web UI: iOS-Flackern auf schmalen Viewports behoben, wenn der Composer ohne geöffnete Tastatur nach oben gescrollt wird — `--app-viewport-offset-top` folgt `visualViewport.offsetTop` nur noch bei fokussiertem Feld und geöffneter/öffnender Tastatur, nicht mehr dauerhaft auf Mobile (Regression aus dem Viewport-Hook-Refactor)
 - Web UI: Composer bleibt auf iOS (iPhone/iPod touch) beim Öffnen der Tastatur stabil sichtbar — die App-Shell wird auf die Visual-Viewport-Höhe zugeschnitten und der Composer ist ein normales Flex-Kind statt `position: fixed`, sodass er nicht mehr hinter der Tastatur verschwindet und erst nach Swipe neu gerendert wird
 - Web UI: Flackern des Composers auf iOS behoben — der transiente, oszillierende `visualViewport.offsetTop` wird während der Tastatur-Animation nicht mehr verfolgt und der Seiten-Scroll nur noch bei geschlossener Tastatur zurückgesetzt (kein Rückkopplungs-Kampf mit iOS mehr)
 - Web UI: Übergroßer Abstand zwischen letzter Nachricht und Composer auf Mobile behoben — der Transcript reserviert kein zusätzliches `composer-clearance`-Padding mehr, seit der Composer im Layout-Fluss liegt (verhinderte, dass die letzte Nachricht über den oberen Rand geschoben wurde)

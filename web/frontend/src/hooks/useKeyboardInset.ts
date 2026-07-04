@@ -36,13 +36,12 @@ const VAR_NAMES: ViewportVarName[] = [
  *
  * iOS behaviour encoded here:
  * - On mobile the shell is cut to the visual viewport height.
- * - `--app-viewport-offset-top` follows `visualViewport.offsetTop` on mobile.
- *   When the keyboard opens, iOS scrolls the layout viewport to reveal the
- *   focused field; a fixed shell pinned to top:0 would then be pushed out of
- *   view. Tracking `offsetTop` keeps the shell glued to the visible viewport so
- *   the composer stays in place. The scroll reset (below) is only applied on
- *   keyboard close, so there is no scroll/offset feedback loop that could
- *   flicker.
+ * - `--app-viewport-offset-top` follows `visualViewport.offsetTop` only while a
+ *   field is focused and the keyboard is open or opening. iOS also reports
+ *   transient offsetTop while the page is unfocused; applying that to the fixed
+ *   shell while `resetScroll` pins the document causes a high-frequency jitter.
+ * - `--app-visual-viewport-offset-top` always mirrors the raw offset for
+ *   diagnostics; it does not drive shell layout.
  * - `--app-keyboard-inset` stays 0: the shrunk shell already absorbs the
  *   keyboard, so no bottom inset is applied to composer/transcript.
  * - The scroll reset only fires when no input is focused.
@@ -65,15 +64,18 @@ export function deriveViewport(metrics: ViewportMetrics): DerivedViewport {
   const keyboardOpen =
     isMobileDock && editableFocused && innerHeight - visualHeight > KEYBOARD_OPEN_THRESHOLD;
 
+  const trackShellOffset =
+    isMobileDock && editableFocused && (keyboardOpen || offsetTop > 0);
+  const shellOffsetTop = trackShellOffset ? Math.max(0, Math.round(offsetTop)) : 0;
+  const rawOffsetTop = isMobileDock ? Math.max(0, Math.round(offsetTop)) : 0;
+
   return {
     vars: {
       "--app-viewport-height": `${Math.max(minHeight, Math.round(height))}px`,
       "--app-visual-viewport-height": `${Math.max(320, Math.round(visualHeight))}px`,
-      "--app-visual-viewport-offset-top": `${
-        isMobileDock ? Math.max(0, Math.round(offsetTop)) : 0
-      }px`,
-      "--app-visual-viewport-bottom": `${Math.max(320, Math.round(offsetTop + visualHeight))}px`,
-      "--app-viewport-offset-top": `${isMobileDock ? Math.max(0, Math.round(offsetTop)) : 0}px`,
+      "--app-visual-viewport-offset-top": `${rawOffsetTop}px`,
+      "--app-visual-viewport-bottom": `${Math.max(320, Math.round(shellOffsetTop + visualHeight))}px`,
+      "--app-viewport-offset-top": `${shellOffsetTop}px`,
       "--app-keyboard-inset": "0px",
     },
     resetScroll: !isMobileDock || !editableFocused,

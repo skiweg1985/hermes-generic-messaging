@@ -22,12 +22,21 @@ describe("deriveViewport", () => {
     expect(vars["--app-viewport-height"]).toBe("500px");
   });
 
-  it("follows visualViewport offsetTop on mobile so the shell tracks the visible area", () => {
+  it("follows visualViewport offsetTop on mobile only while the keyboard is open or opening", () => {
     const { vars } = deriveViewport(
       metrics({ isMobileDock: true, offsetTop: 47, visualHeight: 500, editableFocused: true }),
     );
     expect(vars["--app-viewport-offset-top"]).toBe("47px");
+    expect(vars["--app-visual-viewport-offset-top"]).toBe("47px");
     expect(vars["--app-keyboard-inset"]).toBe("0px");
+  });
+
+  it("ignores transient visualViewport offsetTop on mobile when no field is focused", () => {
+    const { vars } = deriveViewport(
+      metrics({ isMobileDock: true, offsetTop: 47, visualHeight: 800, editableFocused: false }),
+    );
+    expect(vars["--app-viewport-offset-top"]).toBe("0px");
+    expect(vars["--app-visual-viewport-offset-top"]).toBe("47px");
   });
 
   it("keeps offset-top at 0 on desktop", () => {
@@ -81,7 +90,7 @@ describe("deriveViewport", () => {
 
   it("exposes visual viewport bottom for consumers", () => {
     const { vars } = deriveViewport(
-      metrics({ isMobileDock: true, offsetTop: 47, visualHeight: 500 }),
+      metrics({ isMobileDock: true, offsetTop: 47, visualHeight: 500, editableFocused: true }),
     );
     expect(vars["--app-visual-viewport-bottom"]).toBe("547px");
   });
