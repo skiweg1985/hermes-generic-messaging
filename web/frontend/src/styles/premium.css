@@ -799,6 +799,8 @@ body {
   }
 
   .shell-root {
+    top: var(--app-viewport-offset-top, 0px);
+    bottom: auto;
     height: var(--app-viewport-height, 100dvh);
     max-height: var(--app-viewport-height, 100dvh);
     overflow: hidden;
@@ -819,16 +821,16 @@ body {
 
   .transcript {
     padding: 22px 14px
-      calc(var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + 10px);
+      calc(var(--composer-clearance, 112px) + 10px);
     scroll-padding-bottom: calc(
-      var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + 10px
+      var(--composer-clearance, 112px) + 10px
     );
     scroll-behavior: auto;
   }
 
   .transcript-jump,
   .transcript-toast {
-    bottom: calc(var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + 10px);
+    bottom: calc(var(--composer-clearance, 112px) + 10px);
   }
 
   .transcript-content {

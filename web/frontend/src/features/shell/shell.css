@@ -7,8 +7,9 @@
 
 .shell-root {
   position: fixed;
-  top: 0;
+  top: var(--app-viewport-offset-top, 0px);
   right: 0;
+  bottom: auto;
   left: 0;
   display: grid;
   grid-template-columns: var(--rail-width) minmax(0, 1fr);

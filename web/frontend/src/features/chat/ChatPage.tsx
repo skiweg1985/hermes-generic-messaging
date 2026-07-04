@@ -56,22 +56,14 @@ export function ChatPage() {
       const mobileDock = mobileDockQuery.matches;
       const editableFocused = hasEditableFocus();
       const keyboardFocused = isAppleTouchDevice && editableFocused;
+      // On mobile the shell is cut to the visual viewport (height + offsetTop),
+      // so the composer stays above the keyboard as a normal flex child instead
+      // of a position:fixed element fighting the iOS layout viewport.
       const height = mobileDock
-        ? currentHeight
+        ? visualHeight
         : keyboardFocused
           ? visualHeight
           : Math.min(currentHeight, visualHeight);
-      const visualKeyboardInset =
-        mobileDock && editableFocused && viewport
-          ? Math.max(0, currentHeight - visualHeight)
-          : 0;
-      const virtualKeyboardInset =
-        mobileDock && editableFocused && virtualKeyboard?.boundingRect.height
-          ? Math.max(0, virtualKeyboard.boundingRect.height)
-          : 0;
-      const keyboardInset = mobileDock
-        ? Math.round(Math.max(visualKeyboardInset, virtualKeyboardInset))
-        : 0;
 
       document.documentElement.style.setProperty(
         "--app-viewport-height",
@@ -89,9 +81,16 @@ export function ChatPage() {
         "--app-visual-viewport-bottom",
         `${Math.max(320, Math.round(visualOffsetTop + visualHeight))}px`,
       );
-      document.documentElement.style.setProperty("--app-viewport-offset-top", "0px");
-      document.documentElement.style.setProperty("--app-keyboard-inset", `${keyboardInset}px`);
-      if (!mobileDock || !editableFocused) resetWindowScroll();
+      document.documentElement.style.setProperty(
+        "--app-viewport-offset-top",
+        `${mobileDock ? Math.max(0, Math.round(visualOffsetTop)) : 0}px`,
+      );
+      // Shell now absorbs the keyboard by shrinking to the visual viewport, so
+      // no bottom inset is applied to the composer/transcript anymore.
+      document.documentElement.style.setProperty("--app-keyboard-inset", "0px");
+      // Keep the page pinned so the fixed shell stays anchored to the visual
+      // viewport instead of iOS sliding the whole document behind the keyboard.
+      resetWindowScroll();
     };
 
     const scheduleViewportUpdate = () => {
@@ -108,8 +107,11 @@ export function ChatPage() {
 
     const virtualKeyboard = navigator.virtualKeyboard;
     const previousVirtualKeyboardOverlay = virtualKeyboard?.overlaysContent;
+    // Let the browser resize the viewport when the keyboard opens so the shell
+    // shrinks to the visual viewport; overlaying content would keep the layout
+    // viewport full-height and hide the composer behind the keyboard.
     if (virtualKeyboard && mobileDockQuery.matches) {
-      virtualKeyboard.overlaysContent = true;
+      virtualKeyboard.overlaysContent = false;
     }
 
     scheduleViewportUpdate();

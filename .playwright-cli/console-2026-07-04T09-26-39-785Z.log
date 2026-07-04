@@ -1,0 +1,8 @@
+[ 2190533ms] ReferenceError: keyboardInset is not defined
+    at updateViewportHeight (http://127.0.0.1:5175/src/features/chat/ChatPage.tsx?t=1783159390008:87:77)
+[ 2190681ms] ReferenceError: keyboardInset is not defined
+    at updateViewportHeight (http://127.0.0.1:5175/src/features/chat/ChatPage.tsx?t=1783159390008:87:77)
+[ 2190795ms] ReferenceError: keyboardInset is not defined
+    at updateViewportHeight (http://127.0.0.1:5175/src/features/chat/ChatPage.tsx?t=1783159390008:87:77)
+[ 2191027ms] ReferenceError: keyboardInset is not defined
+    at updateViewportHeight (http://127.0.0.1:5175/src/features/chat/ChatPage.tsx?t=1783159390008:87:77)
