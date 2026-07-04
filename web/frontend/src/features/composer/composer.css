@@ -530,13 +530,26 @@
 
 @media (max-width: 720px) {
   .composer-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--app-keyboard-inset, 0px);
+    z-index: calc(var(--z-sticky) + 2);
     padding: 0 var(--s-4) var(--s-4);
     padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+    transform: translateZ(0);
+    will-change: bottom;
   }
   .composer-input {
     padding: 12px 14px 4px;
     font-size: 16px; /* avoid iOS auto-zoom */
     max-height: min(180px, 34svh);
+  }
+  .slash-popover {
+    max-height: min(
+      240px,
+      max(140px, calc(100svh - var(--composer-clearance, 112px) - var(--app-keyboard-inset, 0px) - 72px))
+    );
   }
   .composer-actions {
     padding: 4px 8px 8px;

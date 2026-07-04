@@ -29,6 +29,7 @@ export function ChatPage() {
   useEffect(() => {
     let frame = 0;
     const timers: number[] = [];
+    const mobileDockQuery = window.matchMedia("(max-width: 720px)");
 
     const isAppleTouchDevice =
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -51,20 +52,46 @@ export function ChatPage() {
       const viewport = window.visualViewport;
       const currentHeight = window.innerHeight;
       const visualHeight = viewport?.height ?? currentHeight;
-      const visualOffsetTop = viewport?.offsetTop ?? window.scrollY ?? 0;
-      const keyboardFocused = isAppleTouchDevice && hasEditableFocus();
-      const height = keyboardFocused ? visualHeight : Math.min(currentHeight, visualHeight);
+      const visualOffsetTop = viewport?.offsetTop ?? 0;
+      const mobileDock = mobileDockQuery.matches;
+      const editableFocused = hasEditableFocus();
+      const keyboardFocused = isAppleTouchDevice && editableFocused;
+      const height = mobileDock
+        ? currentHeight
+        : keyboardFocused
+          ? visualHeight
+          : Math.min(currentHeight, visualHeight);
+      const visualKeyboardInset =
+        mobileDock && editableFocused && viewport
+          ? Math.max(0, currentHeight - visualHeight)
+          : 0;
+      const virtualKeyboardInset =
+        mobileDock && editableFocused && virtualKeyboard?.boundingRect.height
+          ? Math.max(0, virtualKeyboard.boundingRect.height)
+          : 0;
+      const keyboardInset = mobileDock
+        ? Math.round(Math.max(visualKeyboardInset, virtualKeyboardInset))
+        : 0;
 
       document.documentElement.style.setProperty(
         "--app-viewport-height",
         `${Math.max(320, Math.round(height))}px`,
       );
       document.documentElement.style.setProperty(
-        "--app-viewport-offset-top",
-        `${keyboardFocused ? Math.round(visualOffsetTop) : 0}px`,
+        "--app-visual-viewport-height",
+        `${Math.max(320, Math.round(visualHeight))}px`,
       );
-      document.documentElement.style.setProperty("--app-keyboard-inset", "0px");
-      resetWindowScroll();
+      document.documentElement.style.setProperty(
+        "--app-visual-viewport-offset-top",
+        `${mobileDock ? Math.max(0, Math.round(visualOffsetTop)) : 0}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--app-visual-viewport-bottom",
+        `${Math.max(320, Math.round(visualOffsetTop + visualHeight))}px`,
+      );
+      document.documentElement.style.setProperty("--app-viewport-offset-top", "0px");
+      document.documentElement.style.setProperty("--app-keyboard-inset", `${keyboardInset}px`);
+      if (!mobileDock || !editableFocused) resetWindowScroll();
     };
 
     const scheduleViewportUpdate = () => {
@@ -80,11 +107,16 @@ export function ChatPage() {
     };
 
     const virtualKeyboard = navigator.virtualKeyboard;
+    const previousVirtualKeyboardOverlay = virtualKeyboard?.overlaysContent;
+    if (virtualKeyboard && mobileDockQuery.matches) {
+      virtualKeyboard.overlaysContent = true;
+    }
 
     scheduleViewportUpdate();
     window.visualViewport?.addEventListener("resize", scheduleViewportUpdate);
     window.visualViewport?.addEventListener("scroll", scheduleViewportUpdate, { passive: true });
     virtualKeyboard?.addEventListener("geometrychange", scheduleViewportUpdate);
+    mobileDockQuery.addEventListener("change", scheduleViewportUpdate);
     window.addEventListener("scroll", scheduleViewportUpdate, { passive: true });
     window.addEventListener("resize", scheduleViewportUpdate);
     window.addEventListener("orientationchange", scheduleViewportUpdate);
@@ -97,13 +129,20 @@ export function ChatPage() {
       window.visualViewport?.removeEventListener("resize", scheduleViewportUpdate);
       window.visualViewport?.removeEventListener("scroll", scheduleViewportUpdate);
       virtualKeyboard?.removeEventListener("geometrychange", scheduleViewportUpdate);
+      mobileDockQuery.removeEventListener("change", scheduleViewportUpdate);
       window.removeEventListener("scroll", scheduleViewportUpdate);
       window.removeEventListener("resize", scheduleViewportUpdate);
       window.removeEventListener("orientationchange", scheduleViewportUpdate);
       window.removeEventListener("focusin", scheduleViewportUpdate);
       window.removeEventListener("focusout", scheduleViewportUpdate);
+      if (virtualKeyboard && previousVirtualKeyboardOverlay !== undefined) {
+        virtualKeyboard.overlaysContent = previousVirtualKeyboardOverlay;
+      }
       document.documentElement.style.removeProperty("--app-viewport-height");
       document.documentElement.style.removeProperty("--app-viewport-offset-top");
+      document.documentElement.style.removeProperty("--app-visual-viewport-height");
+      document.documentElement.style.removeProperty("--app-visual-viewport-offset-top");
+      document.documentElement.style.removeProperty("--app-visual-viewport-bottom");
       document.documentElement.style.removeProperty("--app-keyboard-inset");
     };
   }, []);
