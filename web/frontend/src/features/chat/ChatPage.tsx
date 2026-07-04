@@ -65,9 +65,13 @@ export function ChatPage() {
           ? visualHeight
           : Math.min(currentHeight, visualHeight);
 
+      // Landscape + keyboard can shrink the visual viewport well below 320px;
+      // a lower floor on mobile keeps the composer above the keyboard instead of
+      // forcing an oversized shell that pushes it back out of view.
+      const minHeight = mobileDock ? 140 : 320;
       document.documentElement.style.setProperty(
         "--app-viewport-height",
-        `${Math.max(320, Math.round(height))}px`,
+        `${Math.max(minHeight, Math.round(height))}px`,
       );
       document.documentElement.style.setProperty(
         "--app-visual-viewport-height",
@@ -81,16 +85,17 @@ export function ChatPage() {
         "--app-visual-viewport-bottom",
         `${Math.max(320, Math.round(visualOffsetTop + visualHeight))}px`,
       );
-      document.documentElement.style.setProperty(
-        "--app-viewport-offset-top",
-        `${mobileDock ? Math.max(0, Math.round(visualOffsetTop)) : 0}px`,
-      );
-      // Shell now absorbs the keyboard by shrinking to the visual viewport, so
+      // iOS reports a transient, oscillating visualViewport.offsetTop while the
+      // keyboard animates. With the document locked (body overflow:hidden) the
+      // layout viewport does not actually scroll, so following the offset only
+      // adds position jitter/flicker. Keep the fixed shell anchored at the top.
+      document.documentElement.style.setProperty("--app-viewport-offset-top", "0px");
+      // Shell absorbs the keyboard by shrinking to the visual viewport height, so
       // no bottom inset is applied to the composer/transcript anymore.
       document.documentElement.style.setProperty("--app-keyboard-inset", "0px");
-      // Keep the page pinned so the fixed shell stays anchored to the visual
-      // viewport instead of iOS sliding the whole document behind the keyboard.
-      resetWindowScroll();
+      // Only re-pin the page when the keyboard is closed. Forcing scrollTo while
+      // an input is focused fights iOS and makes the composer flicker.
+      if (!mobileDock || !editableFocused) resetWindowScroll();
     };
 
     const scheduleViewportUpdate = () => {

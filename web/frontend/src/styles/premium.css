@@ -820,17 +820,14 @@ body {
   }
 
   .transcript {
-    padding: 22px 14px
-      calc(var(--composer-clearance, 112px) + 10px);
-    scroll-padding-bottom: calc(
-      var(--composer-clearance, 112px) + 10px
-    );
+    padding: 22px 14px 14px;
+    scroll-padding-bottom: 14px;
     scroll-behavior: auto;
   }
 
   .transcript-jump,
   .transcript-toast {
-    bottom: calc(var(--composer-clearance, 112px) + 10px);
+    bottom: 10px;
   }
 
   .transcript-content {

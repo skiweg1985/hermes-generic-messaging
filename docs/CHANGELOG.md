@@ -4,7 +4,9 @@
 
 ### Fixed
 
-- Web UI: Composer bleibt auf iOS (iPhone/iPod touch) beim Öffnen der Tastatur stabil sichtbar — die App-Shell wird auf den Visual-Viewport zugeschnitten (Höhe + `offsetTop`) und der Composer ist ein normales Flex-Kind statt `position: fixed`, sodass er nicht mehr hinter der Tastatur verschwindet und erst nach Swipe neu gerendert wird
+- Web UI: Composer bleibt auf iOS (iPhone/iPod touch) beim Öffnen der Tastatur stabil sichtbar — die App-Shell wird auf die Visual-Viewport-Höhe zugeschnitten und der Composer ist ein normales Flex-Kind statt `position: fixed`, sodass er nicht mehr hinter der Tastatur verschwindet und erst nach Swipe neu gerendert wird
+- Web UI: Flackern des Composers auf iOS behoben — der transiente, oszillierende `visualViewport.offsetTop` wird während der Tastatur-Animation nicht mehr verfolgt und der Seiten-Scroll nur noch bei geschlossener Tastatur zurückgesetzt (kein Rückkopplungs-Kampf mit iOS mehr)
+- Web UI: Übergroßer Abstand zwischen letzter Nachricht und Composer auf Mobile behoben — der Transcript reserviert kein zusätzliches `composer-clearance`-Padding mehr, seit der Composer im Layout-Fluss liegt (verhinderte, dass die letzte Nachricht über den oberen Rand geschoben wurde)
 - Plugin: `message.create` mit `attachments[]` validiert jetzt jeden Anhang (MIME/Größe) und transkribiert einzelne Audio-Anhänge per Hermes-STT — Voice-/File-Uploads aus dem Web-Composer erreichen Hermes wieder als sinnvoller `MessageEvent.text` (Regression aus dem kombinierten `message.create`-Pfad)
 - Plugin: media-only `message.create` (kein Text) bekommt einen `[file:…] name url=…` / `[audio:…]`-Fallback-Text — Agents ohne `media_urls`-Kenntnis sehen die Anhänge wieder
 - BFF: `public_media_base_url` defaultet auf die primäre LAN-IPv4, wenn weder `WEB_PUBLIC_MEDIA_BASE_URL`/`WEB_PUBLIC_HOST` noch ein nicht-loopback `BFF_HOST` gesetzt sind — entfernte Hermes-Instanzen können die vom BFF angekündigte URL wieder erreichen (vorher: hartes `127.0.0.1`)
