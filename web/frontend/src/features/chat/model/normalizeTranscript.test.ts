@@ -188,6 +188,21 @@ describe("normalizeTranscript", () => {
       status: "running",
     });
   });
+
+  it("hides finished tool notices from the visible transcript", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "t1",
+        kind: "notice",
+        noticeKind: "tool",
+        text: "read_file: done",
+        toolName: "read_file",
+        toolStatus: "success",
+        toolResult: "ok",
+      }),
+    ]);
+    expect(messages[0]!.parts).toEqual([]);
+  });
 });
 
 describe("groupMessages", () => {

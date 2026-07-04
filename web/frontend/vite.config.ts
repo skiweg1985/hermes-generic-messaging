@@ -33,8 +33,15 @@ export default defineConfig(({ mode }) => {
       port,
       https: httpsOptions,
       proxy: {
-        "/api": apiProxy,
-        "/ws": { target: wsProxy, ws: true },
+        "/api": {
+          target: apiProxy,
+          secure: false,
+        },
+        "/ws": {
+          target: wsProxy,
+          secure: false,
+          ws: true,
+        },
       },
     },
   };

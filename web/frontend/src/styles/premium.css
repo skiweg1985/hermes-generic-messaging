@@ -229,22 +229,8 @@ body {
   gap: 14px;
 }
 
-.turn-outputs-with-spine {
-  padding-left: 14px;
-}
-
 .turn-output-activity {
   margin-top: -2px;
-}
-
-.turn-spine {
-  left: 4px;
-  top: 12px;
-  bottom: auto;
-  height: 42px;
-  width: 2px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
 }
 
 .message-part-stack {
@@ -811,6 +797,7 @@ body {
   .transcript {
     padding: 22px 14px calc(var(--composer-clearance, 112px) + 10px);
     scroll-padding-bottom: calc(var(--composer-clearance, 112px) + 10px);
+    scroll-behavior: auto;
   }
 
   .transcript-content {
@@ -923,15 +910,6 @@ body {
   .transcript {
     padding-left: 10px;
     padding-right: 10px;
-  }
-
-  .turn-outputs-with-spine {
-    padding-left: 12px;
-  }
-
-  .turn-spine {
-    left: 2px;
-    height: 34px;
   }
 
   .waveform {

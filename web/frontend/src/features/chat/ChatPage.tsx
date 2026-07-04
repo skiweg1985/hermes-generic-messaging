@@ -27,21 +27,26 @@ export function ChatPage() {
 
   useEffect(() => {
     let frame = 0;
+    let scrollFrame = 0;
     const timers: number[] = [];
+
+    const lockWindowScroll = () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
     const updateViewportHeight = () => {
       const viewport = window.visualViewport;
       const height = viewport?.height ?? window.innerHeight;
-      const offsetTop = viewport?.offsetTop ?? 0;
-      window.scrollTo(0, 0);
       document.documentElement.style.setProperty(
         "--app-viewport-height",
         `${Math.max(320, Math.round(height))}px`,
       );
-      document.documentElement.style.setProperty(
-        "--app-viewport-offset-top",
-        `${Math.max(0, Math.round(offsetTop))}px`,
-      );
+      document.documentElement.style.setProperty("--app-viewport-offset-top", "0px");
+      lockWindowScroll();
     };
+
     const scheduleViewportUpdate = () => {
       cancelAnimationFrame(frame);
       while (timers.length > 0) {
@@ -53,9 +58,21 @@ export function ChatPage() {
       timers.push(window.setTimeout(updateViewportHeight, 260));
     };
 
+    const scheduleScrollLock = () => {
+      if (scrollFrame) return;
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        lockWindowScroll();
+      });
+    };
+
+    const virtualKeyboard = navigator.virtualKeyboard;
+
     scheduleViewportUpdate();
     window.visualViewport?.addEventListener("resize", scheduleViewportUpdate);
-    window.visualViewport?.addEventListener("scroll", scheduleViewportUpdate);
+    window.visualViewport?.addEventListener("scroll", scheduleScrollLock, { passive: true });
+    virtualKeyboard?.addEventListener("geometrychange", scheduleViewportUpdate);
+    window.addEventListener("scroll", scheduleScrollLock, { passive: true });
     window.addEventListener("resize", scheduleViewportUpdate);
     window.addEventListener("orientationchange", scheduleViewportUpdate);
     window.addEventListener("focusin", scheduleViewportUpdate);
@@ -63,9 +80,12 @@ export function ChatPage() {
 
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(scrollFrame);
       timers.forEach((timer) => window.clearTimeout(timer));
       window.visualViewport?.removeEventListener("resize", scheduleViewportUpdate);
-      window.visualViewport?.removeEventListener("scroll", scheduleViewportUpdate);
+      window.visualViewport?.removeEventListener("scroll", scheduleScrollLock);
+      virtualKeyboard?.removeEventListener("geometrychange", scheduleViewportUpdate);
+      window.removeEventListener("scroll", scheduleScrollLock);
       window.removeEventListener("resize", scheduleViewportUpdate);
       window.removeEventListener("orientationchange", scheduleViewportUpdate);
       window.removeEventListener("focusin", scheduleViewportUpdate);

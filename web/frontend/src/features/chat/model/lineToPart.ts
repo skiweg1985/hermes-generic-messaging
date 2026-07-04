@@ -14,6 +14,10 @@ function parseToolStatus(value?: string): ToolStatus | undefined {
   return undefined;
 }
 
+function shouldShowToolActivity(status: ToolStatus): boolean {
+  return status === "running";
+}
+
 function isUserLine(line: TranscriptLine): boolean {
   if (line.role === "user") return true;
   if (line.kind === "user" || line.kind === "command" || line.kind === "upload") return true;
@@ -54,17 +58,19 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
     }
     case "notice": {
       const kind = (line.noticeKind ?? "info").toLowerCase();
-      if (kind === "tool") {
+      if (kind === "tool" || line.toolName || line.toolStatus) {
         const structuredStatus =
           parseToolStatus(line.toolStatus) ??
           (line.toolError ? "error" : line.toolResult ? "success" : undefined);
         if (line.toolName || structuredStatus) {
           const parsed = parseActivity(line.text);
+          const status = structuredStatus ?? parsed.state;
+          if (!shouldShowToolActivity(status)) return [];
           return [
             {
               type: "tool_call",
               toolName: line.toolName ?? parsed.rawName,
-              status: structuredStatus ?? parsed.state,
+              status,
               summary: parsed.summary,
               args: line.toolArgs,
               result: line.toolResult,
@@ -76,6 +82,7 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
           ];
         }
         const parsed = parseActivity(line.text);
+        if (!shouldShowToolActivity(parsed.state)) return [];
         return [
           {
             type: "tool_call",

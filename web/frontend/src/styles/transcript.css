@@ -29,6 +29,7 @@
   padding: var(--s-8) var(--s-6) calc(var(--composer-clearance, 112px) + var(--s-4));
   scroll-padding-bottom: calc(var(--composer-clearance, 112px) + var(--s-4));
   scroll-behavior: smooth;
+  overflow-anchor: none;
 }
 
 .transcript-content {
@@ -126,23 +127,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.turn-outputs-with-spine {
-  padding-left: var(--s-5);
-}
-.turn-spine {
-  position: absolute;
-  left: 7px;
-  top: 10px;
-  bottom: 10px;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    var(--line-hairline),
-    var(--line-soft) 50%,
-    var(--line-hairline)
-  );
-}
-
 .turn-outputs-list {
   display: flex;
   flex-direction: column;

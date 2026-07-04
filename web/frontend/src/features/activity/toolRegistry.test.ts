@@ -23,6 +23,7 @@ describe("parseActivity", () => {
     expect(parsed.rawName).toBe("read_file");
     expect(parsed.meta.kind).toBe("file");
     expect(parsed.summary).toBe("src/main.py");
+    expect(parsed.state).toBe("idle");
   });
 });
 

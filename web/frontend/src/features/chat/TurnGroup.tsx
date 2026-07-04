@@ -18,9 +18,9 @@ export function TurnGroup({
 }: TurnGroupProps) {
   const outputs = turn.outputs.filter(
     (message, index, all) =>
+      message.parts.length > 0 &&
       !(isAudioLabelMessage(message) && hasAudioPart(all[index + 1])),
   );
-  const showSpine = outputs.length > 1;
 
   return (
     <div className="turn">
@@ -37,10 +37,7 @@ export function TurnGroup({
       ) : null}
 
       {outputs.length > 0 ? (
-        <div
-          className={`turn-outputs${showSpine ? " turn-outputs-with-spine" : ""}`}
-        >
-          {showSpine ? <span className="turn-spine" aria-hidden /> : null}
+        <div className="turn-outputs">
           <div className="turn-outputs-list">
             {outputs.map((message) => (
               <div

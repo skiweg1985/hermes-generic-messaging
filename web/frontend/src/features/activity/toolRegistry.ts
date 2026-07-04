@@ -254,5 +254,5 @@ function detectState(text: string): ParsedActivity["state"] {
   if (/\b(starting|running|loading|fetching|reading|writing|calling)\b/.test(t)) {
     return "running";
   }
-  return "running";
+  return "idle";
 }

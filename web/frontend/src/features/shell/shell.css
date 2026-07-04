@@ -7,7 +7,9 @@
 
 .shell-root {
   position: fixed;
-  inset: var(--app-viewport-offset-top, 0px) 0 auto 0;
+  top: 0;
+  right: 0;
+  left: 0;
   display: grid;
   grid-template-columns: var(--rail-width) minmax(0, 1fr);
   width: 100%;
@@ -17,6 +19,7 @@
   max-height: var(--app-viewport-height, 100dvh);
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--surface-canvas);
   color: var(--text-primary);
 }
@@ -254,6 +257,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--surface-canvas);
   position: relative;
   isolation: isolate;
@@ -293,6 +297,7 @@
   gap: var(--s-3);
   height: var(--topbar-height);
   min-height: var(--topbar-height);
+  flex-shrink: 0;
   padding: 0 var(--s-5);
   background: var(--surface-overlay);
   backdrop-filter: blur(18px) saturate(140%);

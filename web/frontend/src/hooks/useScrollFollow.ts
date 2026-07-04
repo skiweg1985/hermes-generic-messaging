@@ -7,6 +7,12 @@ interface UseScrollFollowResult {
   scrollToBottom: (smooth?: boolean) => void;
 }
 
+function shouldSmoothScroll(smooth: boolean) {
+  if (!smooth) return false;
+  if (typeof window === "undefined") return smooth;
+  return !window.matchMedia("(pointer: coarse)").matches;
+}
+
 /**
  * Auto-follow scroll for streaming chat content.
  * - Sticks to bottom while the user is within `threshold` px of it.
@@ -28,7 +34,7 @@ export function useScrollFollow(
     if (!el) return;
     el.scrollTo({
       top: el.scrollHeight,
-      behavior: smooth ? "smooth" : "auto",
+      behavior: shouldSmoothScroll(smooth) ? "smooth" : "auto",
     });
     pinnedRef.current = true;
     setIsPinned(true);
@@ -98,7 +104,7 @@ export function useScrollFollow(
     if (pinnedRef.current) {
       // Smooth follow when pinned.
       requestAnimationFrame(() => {
-        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        el.scrollTo({ top: el.scrollHeight, behavior: shouldSmoothScroll(true) ? "smooth" : "auto" });
       });
     } else {
       setHasNew(true);

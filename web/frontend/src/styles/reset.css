@@ -14,9 +14,11 @@ body,
 #root {
   height: 100%;
   width: 100%;
+  max-width: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 html {
@@ -27,6 +29,7 @@ html {
 }
 
 body {
+  position: relative;
   background: var(--surface-canvas);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -35,8 +38,14 @@ body {
   font-feature-settings: "cv11", "ss01", "tnum";
   overflow: hidden;            /* app shell scrolls internally */
   overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
   min-height: 100%;
   touch-action: manipulation;
+}
+
+#root {
+  isolation: isolate;
 }
 
 button {
