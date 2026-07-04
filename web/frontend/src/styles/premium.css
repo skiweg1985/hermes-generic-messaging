@@ -800,6 +800,13 @@ body {
     overflow: hidden;
   }
 
+  /* Bottom-anchor the shell to the visual viewport while the keyboard is open.
+     Top-anchoring on offsetTop lets iOS rubber-band lift the composer away. */
+  html.shell-bottom-anchored .shell-root {
+    top: auto;
+    bottom: var(--app-shell-bottom, 0px);
+  }
+
   .topbar {
     padding: 0 14px;
   }

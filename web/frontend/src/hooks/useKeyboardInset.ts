@@ -8,6 +8,7 @@ export type ViewportVarName =
   | "--app-visual-viewport-offset-top"
   | "--app-visual-viewport-bottom"
   | "--app-viewport-offset-top"
+  | "--app-shell-bottom"
   | "--app-keyboard-inset";
 
 export interface DerivedViewport {
@@ -16,6 +17,10 @@ export interface DerivedViewport {
   resetScroll: boolean;
   /** Virtual keyboard is currently displacing the visual viewport. */
   keyboardOpen: boolean;
+  /** Shell is glued to the visual viewport bottom (above the keyboard). */
+  bottomAnchored: boolean;
+  /** Pin layout scroll while the keyboard is open on mobile. */
+  pinDocumentScroll: boolean;
 }
 
 const MOBILE_MIN_HEIGHT = 140;
@@ -28,6 +33,7 @@ const VAR_NAMES: ViewportVarName[] = [
   "--app-visual-viewport-offset-top",
   "--app-visual-viewport-bottom",
   "--app-viewport-offset-top",
+  "--app-shell-bottom",
   "--app-keyboard-inset",
 ];
 
@@ -36,12 +42,12 @@ const VAR_NAMES: ViewportVarName[] = [
  *
  * iOS behaviour encoded here:
  * - On mobile the shell is cut to the visual viewport height.
- * - `--app-viewport-offset-top` follows `visualViewport.offsetTop` only while a
- *   field is focused and the keyboard is open or opening. iOS also reports
- *   transient offsetTop while the page is unfocused; applying that to the fixed
- *   shell while `resetScroll` pins the document causes a high-frequency jitter.
+ * - While the keyboard is open the shell is bottom-anchored above the keyboard
+ *   instead of top-anchored on offsetTop. iOS can drop offsetTop when the user
+ *   rubber-bands the page; top anchoring then lifts the composer away from the
+ *   keyboard, bottom anchoring keeps the dock glued to the visual viewport.
  * - `--app-visual-viewport-offset-top` always mirrors the raw offset for
- *   diagnostics; it does not drive shell layout.
+ *   diagnostics; it does not drive shell layout when bottom-anchored.
  * - `--app-keyboard-inset` stays 0: the shrunk shell already absorbs the
  *   keyboard, so no bottom inset is applied to composer/transcript.
  * - The scroll reset only fires when no input is focused.
@@ -57,29 +63,32 @@ export function deriveViewport(metrics: ViewportMetrics): DerivedViewport {
       ? visualHeight
       : Math.min(innerHeight, visualHeight);
 
-  // Landscape + keyboard can shrink the visual viewport well below 320px; a
-  // lower floor on mobile keeps the composer above the keyboard instead of an
-  // oversized shell that pushes it back out of view.
   const minHeight = isMobileDock ? MOBILE_MIN_HEIGHT : DESKTOP_MIN_HEIGHT;
   const keyboardOpen =
     isMobileDock && editableFocused && innerHeight - visualHeight > KEYBOARD_OPEN_THRESHOLD;
 
-  const trackShellOffset =
+  const bottomAnchored =
     isMobileDock && editableFocused && (keyboardOpen || offsetTop > 0);
-  const shellOffsetTop = trackShellOffset ? Math.max(0, Math.round(offsetTop)) : 0;
   const rawOffsetTop = isMobileDock ? Math.max(0, Math.round(offsetTop)) : 0;
+  const shellBottom = bottomAnchored
+    ? Math.max(0, Math.round(innerHeight - offsetTop - visualHeight))
+    : 0;
+  const shellOffsetTop = bottomAnchored || !editableFocused ? 0 : rawOffsetTop;
 
   return {
     vars: {
       "--app-viewport-height": `${Math.max(minHeight, Math.round(height))}px`,
       "--app-visual-viewport-height": `${Math.max(320, Math.round(visualHeight))}px`,
       "--app-visual-viewport-offset-top": `${rawOffsetTop}px`,
-      "--app-visual-viewport-bottom": `${Math.max(320, Math.round(shellOffsetTop + visualHeight))}px`,
+      "--app-visual-viewport-bottom": `${Math.max(320, Math.round(rawOffsetTop + visualHeight))}px`,
       "--app-viewport-offset-top": `${shellOffsetTop}px`,
+      "--app-shell-bottom": `${shellBottom}px`,
       "--app-keyboard-inset": "0px",
     },
     resetScroll: !isMobileDock || !editableFocused,
     keyboardOpen,
+    bottomAnchored,
+    pinDocumentScroll: isMobileDock && keyboardOpen,
   };
 }
 
@@ -87,7 +96,7 @@ type KeyboardListener = (open: boolean) => void;
 
 const keyboardListeners = new Set<KeyboardListener>();
 let keyboardOpenState = false;
-let bodyScrollLockActive = false;
+let bottomAnchoredState = false;
 
 function setKeyboardOpen(open: boolean) {
   if (open === keyboardOpenState) return;
@@ -95,27 +104,18 @@ function setKeyboardOpen(open: boolean) {
   keyboardListeners.forEach((listener) => listener(open));
 }
 
-/** Prevent iOS layout-viewport rubber-band while the keyboard is open. */
-function setBodyScrollLock(locked: boolean) {
-  if (typeof document === "undefined") return;
-  if (locked === bodyScrollLockActive) return;
-  bodyScrollLockActive = locked;
-  const body = document.body;
-  if (locked) {
-    body.style.position = "fixed";
-    body.style.top = "0";
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
-    return;
+function setBottomAnchored(anchored: boolean) {
+  bottomAnchoredState = anchored;
+}
+
+function shouldAllowTouchScroll(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest(".transcript")) return true;
+  const textarea = target.closest("textarea");
+  if (textarea instanceof HTMLTextAreaElement && textarea.scrollHeight > textarea.clientHeight + 1) {
+    return true;
   }
-  body.style.position = "";
-  body.style.top = "";
-  body.style.left = "";
-  body.style.right = "";
-  body.style.width = "";
-  body.style.overflow = "";
+  return false;
 }
 
 /**
@@ -132,27 +132,41 @@ export function useKeyboardInset(): void {
     if (virtualKeyboard && mobileDock) {
       virtualKeyboard.overlaysContent = false;
     }
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!keyboardOpenState && !bottomAnchoredState) return;
+      if (shouldAllowTouchScroll(event.target)) return;
+      event.preventDefault();
+    };
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+
     return () => {
+      document.removeEventListener("touchmove", onTouchMove);
       if (virtualKeyboard && previousOverlay !== undefined) {
         virtualKeyboard.overlaysContent = previousOverlay;
       }
       const rootStyle = document.documentElement.style;
       VAR_NAMES.forEach((name) => rootStyle.removeProperty(name));
-      document.documentElement.classList.remove("keyboard-open");
-      setBodyScrollLock(false);
+      document.documentElement.classList.remove("keyboard-open", "shell-bottom-anchored");
+      setBottomAnchored(false);
       setKeyboardOpen(false);
     };
   }, []);
 
   useViewportMetrics((metrics) => {
-    const { vars, resetScroll, keyboardOpen } = deriveViewport(metrics);
+    const { vars, resetScroll, keyboardOpen, bottomAnchored, pinDocumentScroll } =
+      deriveViewport(metrics);
     const rootStyle = document.documentElement.style;
     (Object.keys(vars) as ViewportVarName[]).forEach((name) => {
       rootStyle.setProperty(name, vars[name]);
     });
     document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
-    setBodyScrollLock(metrics.isMobileDock && keyboardOpen);
-    if (resetScroll && (window.scrollX !== 0 || window.scrollY !== 0)) {
+    document.documentElement.classList.toggle("shell-bottom-anchored", bottomAnchored);
+    setBottomAnchored(bottomAnchored);
+    if (
+      (resetScroll || pinDocumentScroll) &&
+      (window.scrollX !== 0 || window.scrollY !== 0)
+    ) {
       window.scrollTo(0, 0);
     }
     setKeyboardOpen(keyboardOpen);
