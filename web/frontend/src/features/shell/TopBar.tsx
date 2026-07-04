@@ -38,8 +38,8 @@ export function TopBar({
           type="button"
           className="topbar-icon-btn topbar-rail-toggle"
           onClick={onToggleRail}
-          aria-label="Open navigation"
-          title="Open navigation"
+          aria-label="Toggle navigation"
+          title="Toggle navigation"
         >
           <IconMenu size={18} />
         </button>

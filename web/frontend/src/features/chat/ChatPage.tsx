@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { Rail } from "../shell/Rail";
 import { TopBar } from "../shell/TopBar";
 import { CommandPalette } from "../shell/CommandPalette";
@@ -17,16 +17,36 @@ import "../composer/composer.css";
 import "../media/media.css";
 import "../../styles/premium.css";
 
+const DOCKED_RAIL_QUERY = "(min-width: 1081px)";
+const SIDEBAR_COLLAPSED_KEY = "hermes.sidebarCollapsed";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function ChatPage() {
   const ctrl = useChatController();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const [dropOver, setDropOver] = useState(false);
   const dragCounter = useRef(0);
   const composerRef = useRef<ComposerHandle>(null);
 
   useKeyboardInset();
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? "1" : "0");
+    } catch {
+      /* storage unavailable — collapse state stays in-memory only */
+    }
+  }, [sidebarCollapsed]);
 
   const openPalette = useCallback(() => {
     setRailOpen(false);
@@ -35,7 +55,15 @@ export function ChatPage() {
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const openPeek = useCallback(() => setPeekOpen(true), []);
   const closePeek = useCallback(() => setPeekOpen(false), []);
-  const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
+  // On docked (wide) layouts the toggle collapses/expands the sidebar in place;
+  // on narrower layouts it opens/closes the overlay drawer.
+  const toggleRail = useCallback(() => {
+    if (window.matchMedia(DOCKED_RAIL_QUERY).matches) {
+      setSidebarCollapsed((v) => !v);
+    } else {
+      setRailOpen((v) => !v);
+    }
+  }, []);
   const closeRail = useCallback(() => setRailOpen(false), []);
 
   const handleSelectSession = useCallback(
@@ -114,7 +142,7 @@ export function ChatPage() {
   };
 
   return (
-    <div className="shell-root">
+    <div className={`shell-root${sidebarCollapsed ? " shell-rail-hidden" : ""}`}>
       <Rail
         userId={ctrl.userId}
         workspaceName="Generic Messaging"

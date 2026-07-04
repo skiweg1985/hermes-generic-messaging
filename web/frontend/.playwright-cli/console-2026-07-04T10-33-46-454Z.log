@@ -1,0 +1,134 @@
+[     137ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:21550
+[     178ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts:43
+[     183ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[   50044ms] ReferenceError: useComposerClearance is not defined
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161276382:74:3)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateForwardRef (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14325:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15946:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+[   50045ms] ReferenceError: useComposerClearance is not defined
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161276382:74:3)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateForwardRef (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14325:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15946:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+[   50046ms] [ERROR] The above error occurred in the <ForwardRef(Composer2)> component:
+
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161276382:52:3)
+    at main
+    at section
+    at div
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783160973832:39:16)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14031
+[   50048ms] ReferenceError: useComposerClearance is not defined
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161276382:74:3)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateForwardRef (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14325:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15946:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:18879:28)
+[   54720ms] ReferenceError: useComposerClearance is not defined
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161281068:74:3)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateForwardRef (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14325:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15946:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+[   54728ms] ReferenceError: useComposerClearance is not defined
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161281068:74:3)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateForwardRef (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14325:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15946:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+[   54727ms] [ERROR] The above error occurred in the <ForwardRef(Composer2)> component:
+
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161281068:52:3)
+    at main
+    at section
+    at div
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783160973832:39:16)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14031
+[   54728ms] ReferenceError: useComposerClearance is not defined
+    at Composer2 (http://localhost:5173/src/features/composer/Composer.tsx?t=1783161281068:74:3)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateForwardRef (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14325:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15946:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:18879:28)
+[   59850ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts:43
+[   66441ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts:43
+[   75621ms] ReferenceError: stageMainRef is not defined
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783161302017:218:49)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+[   75621ms] ReferenceError: stageMainRef is not defined
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783161302017:218:49)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+[   75612ms] [ERROR] The above error occurred in the <ChatPage> component:
+
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783161302017:39:16)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14031
+[   75621ms] ReferenceError: stageMainRef is not defined
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783161302017:218:49)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15914:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:18879:28)
+[   79364ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts:43

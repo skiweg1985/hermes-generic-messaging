@@ -802,9 +802,9 @@
   backdrop-filter: blur(2px);
 }
 
-/* Rail toggle button in TopBar — visible only at narrow widths. */
+/* Rail toggle button in TopBar — collapses/expands the sidebar at every width. */
 .topbar-rail-toggle {
-  display: none;
+  display: grid;
 }
 
 .rail-edge-toggle {
@@ -838,14 +838,23 @@
   transform: translateY(-50%) scale(0.98);
 }
 
-/* ── Responsive: expanded rail (medium) / drawer overlay (small) ──────── */
+/* ── Sidebar behaviour ───────────────────────────────────────────────── */
 
-/* Medium widths keep the full desktop rail — expanded and left-aligned.
-   The header rail toggle stays hidden until the drawer breakpoint below. */
+/* Wide screens (desktop / laptop / large tablet landscape): the sidebar is
+   docked and expanded by default, but can be collapsed via the header toggle. */
+@media (min-width: 1081px) {
+  .shell-root.shell-rail-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell-root.shell-rail-hidden .rail {
+    display: none;
+  }
+}
 
-@media (max-width: 720px) {
+/* Tablet & phone widths: the sidebar is an on-demand overlay drawer that keeps
+   the full desktop-style expanded, left-aligned layout when opened. */
+@media (max-width: 1080px) {
   .topbar-rail-toggle {
-    display: grid;
     width: 36px;
     height: 36px;
     background: var(--accent-faint);
@@ -859,7 +868,6 @@
     display: none;
   }
 
-  /* Drawer-open: the full desktop-style rail as a slide-in overlay panel. */
   .rail.rail-drawer-open {
     display: flex;
     position: fixed;
@@ -881,6 +889,9 @@
   .rail-edge-toggle {
     display: none;
   }
+}
+
+@media (max-width: 720px) {
   .topbar {
     padding: 0 var(--s-4);
   }

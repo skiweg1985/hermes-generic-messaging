@@ -9,6 +9,7 @@
 
 ### Changed
 
+- Web UI: Sidebar zeigt in allen responsiven Größen dasselbe ausgeklappte, linksbündige Desktop-Layout. Auf Tablets (iPad Hoch-/Querformat bis 1080px) und Smartphones ist sie ein-/ausklappbar und öffnet als Overlay-Drawer; ab 1081px bleibt sie angedockt und ausgeklappt, lässt sich dort aber optional über den Header-Button einklappen (Zustand wird gespeichert)
 - Web UI: Verbindungs-/Transport-Zustand aus dem Chat-Reducer in einen eigenen `useConnectionStore` ausgelagert (besitzt WebSocket-Client, Status, Reconnect und Diagnose); `ChatState` trägt keinen `connection`-Zustand mehr
 - Web UI: Viewport-/Keyboard-Logik aus `ChatPage` in wiederverwendbare Hooks extrahiert (`useVisualViewport` als einzige Quelle der Rohwerte, `useKeyboardInset` mit reiner, getesteter Ableitungsfunktion `deriveViewport`); Composer-Dock misst seine Höhe jetzt selbst (`useComposerClearance`)
 - Web UI: Scroll-Follow ist eine explizite State-Machine (`pinned | userDetached | keyboardAdjusting | restoring`) und pinnt nach dem Öffnen der Tastatur wieder ans Ende, damit die letzte Nachricht sichtbar bleibt
