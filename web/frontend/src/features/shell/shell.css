@@ -6,8 +6,11 @@
 /* ── Shell root ───────────────────────────────────────────────────────── */
 
 .shell-root {
+  position: fixed;
+  inset: var(--app-viewport-offset-top, 0px) 0 auto 0;
   display: grid;
   grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  width: 100%;
   height: 100vh;
   height: 100dvh;
   height: var(--app-viewport-height, 100dvh);

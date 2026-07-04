@@ -26,26 +26,52 @@ export function ChatPage() {
   const stageMainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    let frame = 0;
+    const timers: number[] = [];
     const updateViewportHeight = () => {
-      const height = window.visualViewport?.height ?? window.innerHeight;
+      const viewport = window.visualViewport;
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      window.scrollTo(0, 0);
       document.documentElement.style.setProperty(
         "--app-viewport-height",
         `${Math.max(320, Math.round(height))}px`,
       );
+      document.documentElement.style.setProperty(
+        "--app-viewport-offset-top",
+        `${Math.max(0, Math.round(offsetTop))}px`,
+      );
+    };
+    const scheduleViewportUpdate = () => {
+      cancelAnimationFrame(frame);
+      while (timers.length > 0) {
+        const timer = timers.pop();
+        if (timer != null) window.clearTimeout(timer);
+      }
+      frame = requestAnimationFrame(updateViewportHeight);
+      timers.push(window.setTimeout(updateViewportHeight, 80));
+      timers.push(window.setTimeout(updateViewportHeight, 260));
     };
 
-    updateViewportHeight();
-    window.visualViewport?.addEventListener("resize", updateViewportHeight);
-    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
-    window.addEventListener("resize", updateViewportHeight);
-    window.addEventListener("orientationchange", updateViewportHeight);
+    scheduleViewportUpdate();
+    window.visualViewport?.addEventListener("resize", scheduleViewportUpdate);
+    window.visualViewport?.addEventListener("scroll", scheduleViewportUpdate);
+    window.addEventListener("resize", scheduleViewportUpdate);
+    window.addEventListener("orientationchange", scheduleViewportUpdate);
+    window.addEventListener("focusin", scheduleViewportUpdate);
+    window.addEventListener("focusout", scheduleViewportUpdate);
 
     return () => {
-      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
-      window.removeEventListener("resize", updateViewportHeight);
-      window.removeEventListener("orientationchange", updateViewportHeight);
+      cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.visualViewport?.removeEventListener("resize", scheduleViewportUpdate);
+      window.visualViewport?.removeEventListener("scroll", scheduleViewportUpdate);
+      window.removeEventListener("resize", scheduleViewportUpdate);
+      window.removeEventListener("orientationchange", scheduleViewportUpdate);
+      window.removeEventListener("focusin", scheduleViewportUpdate);
+      window.removeEventListener("focusout", scheduleViewportUpdate);
       document.documentElement.style.removeProperty("--app-viewport-height");
+      document.documentElement.style.removeProperty("--app-viewport-offset-top");
     };
   }, []);
 

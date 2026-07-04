@@ -10,6 +10,9 @@
   position: relative;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -17,7 +20,10 @@
 .transcript {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: var(--s-8) var(--s-6) calc(var(--composer-clearance, 112px) + var(--s-4));
@@ -28,10 +34,12 @@
 .transcript-content {
   width: 100%;
   max-width: var(--content-max-width);
+  min-width: 0;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--s-8);
+  overflow-x: clip;
 }
 
 .transcript-empty {
@@ -101,16 +109,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .turn-user-row {
   display: flex;
   justify-content: flex-end;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .turn-outputs {
   position: relative;
   display: grid;
+  min-width: 0;
+  max-width: 100%;
 }
 .turn-outputs-with-spine {
   padding-left: var(--s-5);
@@ -133,6 +147,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .turn-output {
@@ -164,6 +180,7 @@
   gap: var(--s-1);
   max-width: 560px;
   min-width: 0;
+  width: 100%;
 }
 
 .msg-sender-label {
@@ -178,7 +195,7 @@
 }
 
 .msg-user-bubble {
-  max-width: 560px;
+  max-width: min(560px, 100%);
   min-width: 0;
   width: fit-content;
   padding: var(--s-3) var(--s-4);
@@ -220,7 +237,7 @@
 }
 
 .msg-assistant-bubble {
-  max-width: 560px;
+  max-width: min(560px, 100%);
   width: 100%;
   padding: var(--s-3) var(--s-4);
   background: var(--surface-2);
