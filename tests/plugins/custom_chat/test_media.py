@@ -160,10 +160,17 @@ def test_transcribe_attachment_skips_non_audio():
 
 
 @pytest.mark.asyncio
-async def test_message_create_audio_attachment_transcribed(adapter, monkeypatch):
-    monkeypatch.setattr(
-        media_module, "transcribe_audio", lambda _payload, **_kw: "hello world"
-    )
+async def test_message_create_audio_attachment_materialized_for_gateway_stt(
+    adapter, monkeypatch, tmp_path
+):
+    local_audio = tmp_path / "voice.webm"
+    local_audio.write_bytes(b"voice")
+
+    def fake_materialize(attachment):
+        attachment.url = str(local_audio)
+        attachment.file_ref = str(local_audio)
+
+    monkeypatch.setattr(adapter, "_materialize_message_attachment", fake_materialize)
     received = []
 
     async def handler(event):
@@ -194,8 +201,9 @@ async def test_message_create_audio_attachment_transcribed(adapter, monkeypatch)
     )
 
     assert len(received) == 1
-    assert received[0].text == "hello world"
-    assert received[0].media_urls == ["https://example.local/v.webm"]
+    assert received[0].text == ""
+    assert received[0].message_type.value == "voice"
+    assert received[0].media_urls == [str(local_audio)]
 
 
 @pytest.mark.asyncio
@@ -311,12 +319,17 @@ async def test_message_create_text_with_attachment_keeps_text(adapter):
 
 
 @pytest.mark.asyncio
-async def test_audio_uploaded_invokes_transcription_path(adapter, monkeypatch):
-    monkeypatch.setattr(
-        adapter_module,
-        "transcribe_audio",
-        lambda _payload, **_kw: "voice note text",
-    )
+async def test_audio_uploaded_materialized_for_gateway_stt(
+    adapter, monkeypatch, tmp_path
+):
+    local_audio = tmp_path / "voice.ogg"
+    local_audio.write_bytes(b"voice")
+
+    def fake_materialize(payload):
+        payload.url = str(local_audio)
+        payload.file_ref = str(local_audio)
+
+    monkeypatch.setattr(adapter, "_materialize_message_attachment", fake_materialize)
     received = []
 
     async def handler(event):
@@ -339,7 +352,9 @@ async def test_audio_uploaded_invokes_transcription_path(adapter, monkeypatch):
         ),
     )
     assert len(received) == 1
-    assert received[0].text == "voice note text"
+    assert received[0].text == ""
+    assert received[0].message_type.value == "voice"
+    assert received[0].media_urls == [str(local_audio)]
 
 
 @pytest.mark.asyncio

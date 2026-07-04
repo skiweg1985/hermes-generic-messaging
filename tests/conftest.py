@@ -18,6 +18,7 @@ from typing import Any, List, Optional
 
 class MessageType(Enum):
     TEXT = "text"
+    VOICE = "voice"
     AUDIO = "audio"
 
 

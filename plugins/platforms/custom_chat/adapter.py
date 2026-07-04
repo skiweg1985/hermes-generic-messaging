@@ -37,8 +37,6 @@ from .media import (
     resolve_local_path,
     strip_local_paths,
     synthesize_audio_url,
-    transcribe_attachment,
-    transcribe_audio,
     validate_audio_payload,
     validate_file_payload,
     validate_message_attachment,
@@ -439,7 +437,7 @@ class CustomChatAdapter(BasePlatformAdapter):
     for attachment in attachments:
       validate_message_attachment(attachment, self.settings)
       mime_type = str(getattr(attachment, "mime_type", "") or "")
-      if not mime_type.startswith("image/"):
+      if not (mime_type.startswith("image/") or mime_type.startswith("audio/")):
         continue
       ref = self._attachment_ref(attachment)
       if not ref:
@@ -604,26 +602,17 @@ class CustomChatAdapter(BasePlatformAdapter):
 
       if envelope.type in {"audio.uploaded", "file.uploaded"}:
         validate_file_payload(payload_model, self.settings)
-        transcribed: Optional[str] = None
         if envelope.type == "audio.uploaded":
           validate_audio_payload(payload_model, self.settings)
-          transcribed = transcribe_audio(payload_model)
-        elif payload_model.mime_type.startswith("audio/"):
-          transcribed = transcribe_audio(payload_model)
-        msg_event = inbound_to_message_event(
-          envelope, payload_model, source, transcribed_text=transcribed
-        )
+        if str(payload_model.mime_type).startswith("audio/"):
+          self._materialize_message_attachment(payload_model)
+        msg_event = inbound_to_message_event(envelope, payload_model, source)
       elif envelope.type == "message.create" and getattr(
         payload_model, "attachments", None
       ):
         attachments = payload_model.attachments
         self._normalize_message_create_attachments(attachments)
-        transcribed = None
-        if not payload_model.text.strip() and len(attachments) == 1:
-          transcribed = transcribe_attachment(attachments[0])
-        msg_event = inbound_to_message_event(
-          envelope, payload_model, source, transcribed_text=transcribed
-        )
+        msg_event = inbound_to_message_event(envelope, payload_model, source)
       else:
         msg_event = inbound_to_message_event(envelope, payload_model, source)
 

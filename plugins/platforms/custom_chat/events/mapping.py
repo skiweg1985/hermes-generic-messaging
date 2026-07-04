@@ -79,6 +79,10 @@ def _resolve_message_type(MessageType: Any, mime_type: str) -> Any:
     return getattr(MessageType, "DOCUMENT", MessageType.TEXT)
 
 
+def _has_audio_media(media_types: list[str]) -> bool:
+    return any(str(mime).startswith("audio/") for mime in media_types)
+
+
 def inbound_to_message_event(
     envelope: EventEnvelope,
     payload_model: Any,
@@ -120,7 +124,14 @@ def inbound_to_message_event(
                 message_type = _resolve_message_type(MessageType, media_types[0])
         text = payload_model.text or ""
         if not text.strip() and attachments:
-            text = transcribed_text or _attachments_text_fallback(attachments)
+            if transcribed_text:
+                text = transcribed_text
+            elif not _has_audio_media(media_types):
+                text = _attachments_text_fallback(attachments)
+        if transcribed_text and _has_audio_media(media_types):
+            message_type = MessageType.TEXT
+            media_urls = []
+            media_types = []
         return _build_message_event(
             MessageEvent,
             text=text,
@@ -150,8 +161,10 @@ def inbound_to_message_event(
         media_url = payload_model.url or payload_model.file_ref
         if transcribed_text:
             text = transcribed_text
+        elif is_audio:
+            text = ""
         else:
-            label = f"[audio:{mime_type}]" if is_audio else f"[file:{mime_type}]"
+            label = f"[file:{mime_type}]"
             parts = [label]
             if filename:
                 parts.append(filename)
@@ -161,6 +174,10 @@ def inbound_to_message_event(
         media_urls = [media_url] if media_url else []
         media_types = [mime_type] if mime_type else []
         message_type = _resolve_message_type(MessageType, mime_type)
+        if transcribed_text and is_audio:
+            message_type = MessageType.TEXT
+            media_urls = []
+            media_types = []
         raw_message = {
             "mime_type": mime_type,
             "size_bytes": payload_model.size_bytes,
