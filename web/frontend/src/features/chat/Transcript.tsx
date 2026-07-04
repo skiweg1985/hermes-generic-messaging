@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AssistantButton, TranscriptLine } from "../../types/events";
 import { useScrollFollow } from "../../hooks/useScrollFollow";
 import { groupTurnsFromLines } from "./model/groupMessages";
@@ -47,6 +47,8 @@ export function Transcript({
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [actionTarget, setActionTarget] = useState<MessageActionTarget | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const openLightbox = useCallback((images: MediaImage[], index: number) => {
     setLightboxImages(images);
@@ -55,25 +57,48 @@ export function Transcript({
   }, []);
   const closeLightbox = useCallback(() => setLightboxOpen(false), []);
   const closeActions = useCallback(() => setActionTarget(null), []);
+  const showToast = useCallback((message: string) => {
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      toastTimerRef.current = null;
+      setToast(null);
+    }, 1600);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current != null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const handleAction = useCallback(
     (action: MessageActionId, target: MessageActionTarget) => {
       const { line } = target;
       if (action === "copy") {
-        void copyText(transcriptLineCopyText(line)).catch(() => {});
+        void copyText(transcriptLineCopyText(line))
+          .then(() => showToast("Copied"))
+          .catch(() => showToast("Copy failed"));
       } else if (action === "reply") {
         onReplyLine(line);
+        showToast("Reply selected");
       } else if (action === "retry") {
         onRetryLine(line);
       } else if (action === "delete") {
         onDeleteLine(line.id);
+        showToast("Removed locally");
       } else if (action === "download") {
         const url = downloadableUrlForLine(line);
         if (url) void downloadMedia(url, line.fileName);
       }
       closeActions();
     },
-    [closeActions, onDeleteLine, onReplyLine, onRetryLine],
+    [closeActions, onDeleteLine, onReplyLine, onRetryLine, showToast],
   );
 
   const isEmpty = turns.length === 0 && !typing;
@@ -115,6 +140,11 @@ export function Transcript({
             <span>New messages</span>
           </button>
         ) : null}
+        {toast ? (
+          <div className="transcript-toast motion-rise-in" role="status" aria-live="polite">
+            {toast}
+          </div>
+        ) : null}
       </div>
 
       <Lightbox
@@ -135,8 +165,12 @@ export function Transcript({
 
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for embedded browsers and stricter mobile permission states.
+    }
   }
   const el = document.createElement("textarea");
   el.value = text;

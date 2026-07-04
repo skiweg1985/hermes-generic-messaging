@@ -538,6 +538,7 @@
   .composer-input {
     padding: 12px 14px 4px;
     font-size: 16px; /* avoid iOS auto-zoom */
+    max-height: min(180px, 34svh);
   }
   .composer-actions {
     padding: 4px 8px 8px;

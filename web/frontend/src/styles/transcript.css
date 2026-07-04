@@ -91,6 +91,27 @@
   transform: translateX(-50%) scale(1.03);
 }
 
+.transcript-toast {
+  position: absolute;
+  bottom: var(--s-4);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  max-width: min(320px, calc(100% - var(--s-8)));
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-3) 92%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  z-index: var(--z-sticky);
+}
+
 .transcript-typing-float {
   position: absolute;
   bottom: var(--s-4);
