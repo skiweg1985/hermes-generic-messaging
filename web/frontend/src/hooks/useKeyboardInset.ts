@@ -87,11 +87,35 @@ type KeyboardListener = (open: boolean) => void;
 
 const keyboardListeners = new Set<KeyboardListener>();
 let keyboardOpenState = false;
+let bodyScrollLockActive = false;
 
 function setKeyboardOpen(open: boolean) {
   if (open === keyboardOpenState) return;
   keyboardOpenState = open;
   keyboardListeners.forEach((listener) => listener(open));
+}
+
+/** Prevent iOS layout-viewport rubber-band while the keyboard is open. */
+function setBodyScrollLock(locked: boolean) {
+  if (typeof document === "undefined") return;
+  if (locked === bodyScrollLockActive) return;
+  bodyScrollLockActive = locked;
+  const body = document.body;
+  if (locked) {
+    body.style.position = "fixed";
+    body.style.top = "0";
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    return;
+  }
+  body.style.position = "";
+  body.style.top = "";
+  body.style.left = "";
+  body.style.right = "";
+  body.style.width = "";
+  body.style.overflow = "";
 }
 
 /**
@@ -114,6 +138,8 @@ export function useKeyboardInset(): void {
       }
       const rootStyle = document.documentElement.style;
       VAR_NAMES.forEach((name) => rootStyle.removeProperty(name));
+      document.documentElement.classList.remove("keyboard-open");
+      setBodyScrollLock(false);
       setKeyboardOpen(false);
     };
   }, []);
@@ -124,6 +150,8 @@ export function useKeyboardInset(): void {
     (Object.keys(vars) as ViewportVarName[]).forEach((name) => {
       rootStyle.setProperty(name, vars[name]);
     });
+    document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
+    setBodyScrollLock(metrics.isMobileDock && keyboardOpen);
     if (resetScroll && (window.scrollX !== 0 || window.scrollY !== 0)) {
       window.scrollTo(0, 0);
     }

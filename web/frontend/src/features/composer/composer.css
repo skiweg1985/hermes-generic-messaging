@@ -534,6 +534,12 @@
     padding: 0 var(--s-4) var(--s-4);
     padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
   }
+
+  /* Safe-area padding is for the home indicator when the keyboard is closed.
+     With the keyboard open the visual viewport already ends above it. */
+  html.keyboard-open .composer-region {
+    padding-bottom: var(--s-4);
+  }
   .composer-input {
     padding: 12px 14px 4px;
     font-size: 16px; /* avoid iOS auto-zoom */

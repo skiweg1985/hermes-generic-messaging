@@ -868,6 +868,10 @@ body {
     padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
+  html.keyboard-open .composer-region {
+    padding-bottom: 10px;
+  }
+
   .composer {
     border-radius: 20px;
   }
