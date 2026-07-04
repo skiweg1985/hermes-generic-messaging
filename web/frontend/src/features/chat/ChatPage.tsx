@@ -29,6 +29,19 @@ export function ChatPage() {
     let frame = 0;
     let scrollFrame = 0;
     const timers: number[] = [];
+    let layoutHeight = window.innerHeight;
+    let layoutWidth = window.innerWidth;
+
+    const isAppleTouchDevice =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    const hasEditableFocus = () => {
+      const active = document.activeElement;
+      if (!active) return false;
+      const tag = active.tagName.toLowerCase();
+      return tag === "textarea" || tag === "input" || active.hasAttribute("contenteditable");
+    };
 
     const lockWindowScroll = () => {
       if (window.scrollX !== 0 || window.scrollY !== 0) {
@@ -38,12 +51,34 @@ export function ChatPage() {
 
     const updateViewportHeight = () => {
       const viewport = window.visualViewport;
-      const height = viewport?.height ?? window.innerHeight;
+      const currentWidth = window.innerWidth;
+      const currentHeight = window.innerHeight;
+      const visualHeight = viewport?.height ?? currentHeight;
+      const visualOffsetTop = viewport?.offsetTop ?? 0;
+      const keyboardLikely =
+        isAppleTouchDevice && hasEditableFocus() && visualHeight < layoutHeight - 80;
+
+      if (Math.abs(currentWidth - layoutWidth) > 8) {
+        layoutWidth = currentWidth;
+        layoutHeight = currentHeight;
+      } else if (!keyboardLikely && currentHeight > layoutHeight) {
+        layoutHeight = currentHeight;
+      }
+
+      const keyboardInset = keyboardLikely
+        ? Math.min(
+            Math.max(0, Math.round(layoutHeight - visualHeight - visualOffsetTop)),
+            Math.round(layoutHeight * 0.62),
+          )
+        : 0;
+      const height = isAppleTouchDevice ? layoutHeight : visualHeight;
+
       document.documentElement.style.setProperty(
         "--app-viewport-height",
         `${Math.max(320, Math.round(height))}px`,
       );
       document.documentElement.style.setProperty("--app-viewport-offset-top", "0px");
+      document.documentElement.style.setProperty("--app-keyboard-inset", `${keyboardInset}px`);
       lockWindowScroll();
     };
 
@@ -92,6 +127,7 @@ export function ChatPage() {
       window.removeEventListener("focusout", scheduleViewportUpdate);
       document.documentElement.style.removeProperty("--app-viewport-height");
       document.documentElement.style.removeProperty("--app-viewport-offset-top");
+      document.documentElement.style.removeProperty("--app-keyboard-inset");
     };
   }, []);
 

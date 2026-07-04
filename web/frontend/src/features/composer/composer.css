@@ -11,6 +11,8 @@
   padding: 0 var(--s-5) var(--s-5);
   padding-bottom: max(var(--s-5), env(safe-area-inset-bottom));
   pointer-events: none;
+  transform: translate3d(0, calc(var(--app-keyboard-inset, 0px) * -1), 0);
+  will-change: transform;
 }
 
 .composer-region > .composer {

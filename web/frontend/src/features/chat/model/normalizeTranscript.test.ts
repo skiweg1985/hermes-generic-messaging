@@ -203,6 +203,21 @@ describe("normalizeTranscript", () => {
     ]);
     expect(messages[0]!.parts).toEqual([]);
   });
+
+  it("shows live tool-like info notices while they are running", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "t1",
+        kind: "notice",
+        noticeKind: "info",
+        text: 'Browsing the web\n"https://duckduckgo.com/?q=test"\nRUNNING',
+      }),
+    ]);
+    expect(messages[0]!.parts[0]).toMatchObject({
+      type: "tool_call",
+      status: "running",
+    });
+  });
 });
 
 describe("groupMessages", () => {

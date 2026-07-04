@@ -8,6 +8,12 @@ describe("parseActivity", () => {
     expect(parsed.rawName).toBe("read_file");
   });
 
+  it("detects web browsing as running", () => {
+    const parsed = parseActivity('Browsing the web\n"https://duckduckgo.com/?q=test"\nRUNNING');
+    expect(parsed.state).toBe("running");
+    expect(parsed.meta.kind).toBe("web");
+  });
+
   it("detects success state", () => {
     const parsed = parseActivity("read_file: done");
     expect(parsed.state).toBe("success");

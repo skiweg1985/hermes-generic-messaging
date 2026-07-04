@@ -36,7 +36,7 @@ const REGISTRY: Array<{
   meta: Omit<ToolMeta, "icon"> & { icon: ToolMeta["icon"] };
 }> = [
   {
-    match: /^(web|browser|browse|web_search|search_web|fetch|http|webfetch|navigate)/i,
+    match: /^(web|browser|browse|browsing|web_search|search_web|searching|fetch|http|webfetch|navigate)/i,
     meta: {
       kind: "web",
       label: "Web",
@@ -251,7 +251,7 @@ function detectState(text: string): ParsedActivity["state"] {
   ) {
     return "success";
   }
-  if (/\b(starting|running|loading|fetching|reading|writing|calling)\b/.test(t)) {
+  if (/\b(starting|running|loading|fetching|browsing|searching|reading|writing|calling)\b/.test(t)) {
     return "running";
   }
   return "idle";

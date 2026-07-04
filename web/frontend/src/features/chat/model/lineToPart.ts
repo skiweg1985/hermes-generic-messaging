@@ -18,6 +18,12 @@ function shouldShowToolActivity(status: ToolStatus): boolean {
   return status === "running";
 }
 
+function isToolLikeNotice(kind: string, line: TranscriptLine): boolean {
+  if (kind === "tool" || line.toolName || line.toolStatus) return true;
+  const text = line.text.toLowerCase();
+  return /\b(running|starting|loading|fetching|browsing|searching|calling)\b/.test(text);
+}
+
 function isUserLine(line: TranscriptLine): boolean {
   if (line.role === "user") return true;
   if (line.kind === "user" || line.kind === "command" || line.kind === "upload") return true;
@@ -58,7 +64,7 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
     }
     case "notice": {
       const kind = (line.noticeKind ?? "info").toLowerCase();
-      if (kind === "tool" || line.toolName || line.toolStatus) {
+      if (isToolLikeNotice(kind, line)) {
         const structuredStatus =
           parseToolStatus(line.toolStatus) ??
           (line.toolError ? "error" : line.toolResult ? "success" : undefined);

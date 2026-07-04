@@ -198,8 +198,11 @@ body {
 }
 
 .transcript {
-  padding: 40px 28px calc(var(--composer-clearance, 128px) + 18px);
-  scroll-padding-bottom: calc(var(--composer-clearance, 128px) + 18px);
+  padding: 40px 28px
+    calc(var(--composer-clearance, 128px) + var(--app-keyboard-inset, 0px) + 18px);
+  scroll-padding-bottom: calc(
+    var(--composer-clearance, 128px) + var(--app-keyboard-inset, 0px) + 18px
+  );
   overscroll-behavior: contain;
 }
 
@@ -795,8 +798,11 @@ body {
   }
 
   .transcript {
-    padding: 22px 14px calc(var(--composer-clearance, 112px) + 10px);
-    scroll-padding-bottom: calc(var(--composer-clearance, 112px) + 10px);
+    padding: 22px 14px
+      calc(var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + 10px);
+    scroll-padding-bottom: calc(
+      var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + 10px
+    );
     scroll-behavior: auto;
   }
 

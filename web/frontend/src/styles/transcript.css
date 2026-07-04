@@ -26,8 +26,11 @@
   overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: var(--s-8) var(--s-6) calc(var(--composer-clearance, 112px) + var(--s-4));
-  scroll-padding-bottom: calc(var(--composer-clearance, 112px) + var(--s-4));
+  padding: var(--s-8) var(--s-6)
+    calc(var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + var(--s-4));
+  scroll-padding-bottom: calc(
+    var(--composer-clearance, 112px) + var(--app-keyboard-inset, 0px) + var(--s-4)
+  );
   scroll-behavior: smooth;
   overflow-anchor: none;
 }
@@ -767,8 +770,11 @@
 
 @media (max-width: 720px) {
   .transcript {
-    padding: var(--s-5) var(--s-4) calc(var(--composer-clearance, 104px) + var(--s-3));
-    scroll-padding-bottom: calc(var(--composer-clearance, 104px) + var(--s-3));
+    padding: var(--s-5) var(--s-4)
+      calc(var(--composer-clearance, 104px) + var(--app-keyboard-inset, 0px) + var(--s-3));
+    scroll-padding-bottom: calc(
+      var(--composer-clearance, 104px) + var(--app-keyboard-inset, 0px) + var(--s-3)
+    );
   }
   .transcript-content {
     gap: var(--s-6);
