@@ -2,8 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+
+- BFF: `GET /api/v1/diagnostics` prüft die Erreichbarkeit des Upstream-WebSockets (Hermes Gateway) und liefert Ziel-Host sowie Status
+- Web UI: Verbindungszustand aus dem Chat-Reducer in `useConnectionStore` ausgelagert (Browser↔BFF-WebSocket, Link-Close-Infos, Upstream-Diagnose)
+
+### Changed
+
+- Web UI: Viewport-/Keyboard-Logik aus `ChatPage` in wiederverwendbare Hooks extrahiert (`useVisualViewport` als einzige Quelle der Rohwerte, `useKeyboardInset` mit reiner, getesteter Ableitungsfunktion `deriveViewport`); Composer-Dock misst seine Höhe jetzt selbst (`useComposerClearance`)
+- Web UI: Scroll-Follow ist eine explizite State-Machine (`pinned | userDetached | keyboardAdjusting | restoring`) und pinnt nach dem Öffnen der Tastatur wieder ans Ende, damit die letzte Nachricht sichtbar bleibt
+- Web UI: Mobile-Navigation läuft über den Header-Button statt eines schwebenden Rand-Buttons, der den Chat überlagerte
+
+### Added
+
+- Web UI: Dev-Overlay für Viewport-Diagnose (`?vdebug=1`) mit Live-Werten für `innerHeight`, `visualViewport.height`, `offsetTop`, `keyboardInset`, `composer-clearance` und Composer-Höhe
+- Web UI: Layout-Invarianten-Check `npm run check:layout` (Playwright-CLI) prüft auf Mobile, dass der Composer im Viewport liegt, den Transcript nicht überlappt und die letzte Nachricht erreichbar ist; Vitest deckt `deriveViewport` ab
+
 ### Fixed
 
+- Web UI: Composer folgt auf iOS beim Öffnen der Tastatur dem Visual-Viewport (`--app-viewport-offset-top` = `visualViewport.offsetTop`), sodass die Shell nicht mehr aus dem oberen Bildschirmrand geschoben wird und man nicht zurückscrollen muss
 - Web UI: Composer bleibt auf iOS (iPhone/iPod touch) beim Öffnen der Tastatur stabil sichtbar — die App-Shell wird auf die Visual-Viewport-Höhe zugeschnitten und der Composer ist ein normales Flex-Kind statt `position: fixed`, sodass er nicht mehr hinter der Tastatur verschwindet und erst nach Swipe neu gerendert wird
 - Web UI: Flackern des Composers auf iOS behoben — der transiente, oszillierende `visualViewport.offsetTop` wird während der Tastatur-Animation nicht mehr verfolgt und der Seiten-Scroll nur noch bei geschlossener Tastatur zurückgesetzt (kein Rückkopplungs-Kampf mit iOS mehr)
 - Web UI: Übergroßer Abstand zwischen letzter Nachricht und Composer auf Mobile behoben — der Transcript reserviert kein zusätzliches `composer-clearance`-Padding mehr, seit der Composer im Layout-Fluss liegt (verhinderte, dass die letzte Nachricht über den oberen Rand geschoben wurde)

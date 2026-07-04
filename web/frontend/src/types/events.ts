@@ -203,7 +203,6 @@ export interface ChatSession {
 }
 
 export interface ChatState {
-  connection: ConnectionStatus;
   activeChatId: string;
   sessionsById: Record<string, ChatSession>;
   recording: boolean;

@@ -76,7 +76,6 @@ export const initialChatState = (
 ): ChatState => {
   const session = createChatSession(chatId, label);
   return {
-    connection: "connecting",
     activeChatId: chatId,
     sessionsById: { [chatId]: session },
     recording: false,
@@ -84,7 +83,6 @@ export const initialChatState = (
 };
 
 export type ChatAction =
-  | { type: "SET_CONNECTION"; connection: ChatState["connection"] }
   | { type: "HYDRATE_STATE"; state: ChatState }
   | { type: "SET_ACTIVE_CHAT"; chatId: string }
   | { type: "CREATE_CHAT"; chatId: string; label?: string }
@@ -197,12 +195,9 @@ function markUnread(state: ChatState, chatId: string): ChatState {
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
-    case "SET_CONNECTION":
-      return { ...state, connection: action.connection };
     case "HYDRATE_STATE":
       return {
         ...action.state,
-        connection: state.connection,
         recording: state.recording,
       };
     case "SET_ACTIVE_CHAT":

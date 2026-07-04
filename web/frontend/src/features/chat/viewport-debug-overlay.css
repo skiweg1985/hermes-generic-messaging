@@ -1,0 +1,43 @@
+.viewport-debug-overlay {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: 8px;
+  z-index: 2147483647;
+  pointer-events: none;
+  display: grid;
+  gap: 1px;
+  min-width: 168px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #e8f0ff;
+  background: rgba(8, 12, 20, 0.82);
+  border: 1px solid rgba(120, 160, 220, 0.35);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.viewport-debug-overlay-title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
+.viewport-debug-overlay-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.viewport-debug-overlay-key {
+  opacity: 0.75;
+}
+
+.viewport-debug-overlay-val {
+  font-variant-numeric: tabular-nums;
+}

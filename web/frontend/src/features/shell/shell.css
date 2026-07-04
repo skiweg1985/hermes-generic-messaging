@@ -754,9 +754,12 @@
   transform: translateY(-50%) scale(0.98);
 }
 
-/* ── Responsive: collapsed rail / drawer ─────────────────────────────── */
+/* ── Responsive: expanded rail (medium) / drawer overlay (small) ──────── */
 
-@media (max-width: 1080px) {
+/* Medium widths keep the full desktop rail — expanded and left-aligned.
+   The header rail toggle stays hidden until the drawer breakpoint below. */
+
+@media (max-width: 720px) {
   .topbar-rail-toggle {
     display: grid;
     width: 36px;
@@ -766,118 +769,24 @@
   }
 
   .shell-root {
-    grid-template-columns: var(--rail-width-collapsed) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
   .rail {
-    padding: var(--s-3) var(--s-1);
-    gap: var(--s-1);
-    align-items: center;
-  }
-  .rail-workspace,
-  .rail-primary,
-  .rail-quick-item,
-  .rail-session {
-    grid-template-columns: none !important;
-  }
-  .rail-workspace-body,
-  .rail-quick-item span:not(.dot-pulse),
-  .rail-quick-item kbd,
-  .rail-primary span,
-  .rail-primary kbd,
-  .rail-session-label,
-  .rail-session-chev,
-  .rail-footer-body,
-  .rail-group-label {
     display: none;
   }
-  .rail-primary {
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    justify-content: center;
-    place-items: center;
-  }
-  .rail-quick-item,
-  .rail-session {
-    width: 36px;
-    padding: 0;
-    place-items: center;
-    justify-content: center;
-  }
-  .rail-workspace {
-    grid-template-columns: 36px;
-    padding: 0;
-  }
-  .rail-workspace-mark {
-    width: 36px;
-    height: 36px;
-  }
-  .rail-footer {
-    grid-template-columns: 36px;
-    padding: var(--s-3) 0 0;
-    justify-content: center;
-  }
 
-  /* Drawer-open overrides: render rail as a full-width overlay panel. */
+  /* Drawer-open: the full desktop-style rail as a slide-in overlay panel. */
   .rail.rail-drawer-open {
+    display: flex;
     position: fixed;
     inset: 0 auto 0 0;
     width: min(var(--rail-width), calc(100vw - 28px));
     z-index: calc(var(--z-overlay) + 1);
-    padding: var(--s-4) var(--s-3);
-    gap: var(--s-2);
-    align-items: stretch;
     box-shadow: var(--shadow-overlay);
     animation: hermes-rail-slide-in var(--dur-base) var(--ease-standard);
   }
-  .rail.rail-drawer-open .rail-workspace,
-  .rail.rail-drawer-open .rail-primary,
-  .rail.rail-drawer-open .rail-quick-item,
-  .rail.rail-drawer-open .rail-session {
-    grid-template-columns: revert !important;
-  }
   .rail.rail-drawer-open .rail-workspace {
-    grid-template-columns: 32px 1fr !important;
-    padding: var(--s-2) var(--s-2) var(--s-3);
     padding-right: 36px;
-  }
-  .rail.rail-drawer-open .rail-workspace-mark {
-    width: 32px;
-    height: 32px;
-  }
-  .rail.rail-drawer-open .rail-primary {
-    width: 100%;
-    height: 36px;
-    padding: 0 var(--s-3);
-    grid-template-columns: 14px 1fr auto !important;
-  }
-  .rail.rail-drawer-open .rail-quick-item {
-    width: 100%;
-    height: 32px;
-    padding: 0 var(--s-3);
-    grid-template-columns: 14px 1fr auto !important;
-  }
-  .rail.rail-drawer-open .rail-session {
-    width: 100%;
-    height: 32px;
-    padding: 0 var(--s-3);
-    grid-template-columns: 1fr auto !important;
-  }
-  .rail.rail-drawer-open .rail-workspace-body,
-  .rail.rail-drawer-open .rail-quick-item span,
-  .rail.rail-drawer-open .rail-quick-item kbd,
-  .rail.rail-drawer-open .rail-primary span,
-  .rail.rail-drawer-open .rail-primary kbd,
-  .rail.rail-drawer-open .rail-session-label,
-  .rail.rail-drawer-open .rail-session-chev,
-  .rail.rail-drawer-open .rail-footer-body,
-  .rail.rail-drawer-open .rail-group-label {
-    display: revert;
-  }
-  .rail.rail-drawer-open .rail-footer {
-    grid-template-columns: 28px 1fr;
-    padding: var(--s-3) var(--s-2) var(--s-1);
-    justify-content: stretch;
   }
   .rail.rail-drawer-open .rail-drawer-close {
     display: grid;
@@ -885,23 +794,8 @@
   .rail-backdrop {
     display: block;
   }
-}
-
-@media (max-width: 720px) {
-  .shell-root {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .rail {
-    display: none;
-  }
-  .rail.rail-drawer-open {
-    display: flex;
-  }
-  .topbar-rail-toggle {
-    display: none;
-  }
   .rail-edge-toggle {
-    display: grid;
+    display: none;
   }
   .topbar {
     padding: 0 var(--s-4);

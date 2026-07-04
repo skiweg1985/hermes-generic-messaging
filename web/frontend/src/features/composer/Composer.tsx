@@ -17,6 +17,7 @@ import {
   getSlashSuggestionQuery,
 } from "../chat/slashCommandSuggest";
 import { SlashPopover } from "./SlashPopover";
+import { useComposerClearance } from "../../hooks/useComposerClearance";
 import type { PendingAttachment, ReplyTarget } from "../../types/events";
 import {
   IconArrowUp,
@@ -98,6 +99,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
+  useComposerClearance(regionRef);
   const [cursor, setCursor] = useState(0);
   const [highlight, setHighlight] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
@@ -443,7 +446,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       : "Nach oben wischen zum Fixieren";
 
   return (
-    <div className="composer-region">
+    <div className="composer-region" ref={regionRef}>
       <div
         className={`composer${disabled ? " composer-disabled" : ""}${
           recordingActive ? " composer-recording" : ""

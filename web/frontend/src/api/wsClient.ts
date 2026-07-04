@@ -4,6 +4,16 @@ import { newId } from "../lib/uuid";
 export type MessageHandler = (event: EventEnvelope) => void;
 export type StatusHandler = (status: "connecting" | "connected" | "error") => void;
 
+/** Diagnostics about the browser<->BFF link, surfaced on close/error. */
+export interface WsCloseInfo {
+  code: number;
+  reason: string;
+  wasClean: boolean;
+  retries: number;
+  at: string;
+}
+export type CloseHandler = (info: WsCloseInfo) => void;
+
 const CONNECT_TIMEOUT_MS = 10_000;
 
 interface SendContext {
@@ -24,15 +34,21 @@ export class WsClient {
   private ws: WebSocket | null = null;
   private onMessage: MessageHandler;
   private onStatus: StatusHandler;
+  private onClose?: CloseHandler;
   private retries = 0;
   private maxRetries = 3;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
 
-  constructor(onMessage: MessageHandler, onStatus: StatusHandler) {
+  constructor(onMessage: MessageHandler, onStatus: StatusHandler, onClose?: CloseHandler) {
     this.onMessage = onMessage;
     this.onStatus = onStatus;
+    this.onClose = onClose;
+  }
+
+  private nowIso(): string {
+    return nowIso();
   }
 
   private clearReconnectTimer(): void {
@@ -92,13 +108,20 @@ export class WsClient {
       this.clearConnectTimer();
       this.onStatus("error");
     };
-    socket.onclose = () => {
+    socket.onclose = (ev) => {
       this.clearConnectTimer();
       if (this.ws === socket) this.ws = null;
       if (this.intentionalClose) {
         this.intentionalClose = false;
         return;
       }
+      this.onClose?.({
+        code: ev.code,
+        reason: ev.reason,
+        wasClean: ev.wasClean,
+        retries: this.retries,
+        at: this.nowIso(),
+      });
       if (this.retries < this.maxRetries) {
         this.retries += 1;
         const delay = Math.min(1000 * 2 ** this.retries, 8000);

@@ -785,12 +785,6 @@ body {
   }
 }
 
-@media (max-width: 1080px) {
-  .rail-session-active::before {
-    display: none;
-  }
-}
-
 @media (max-width: 720px) {
   :root {
     --topbar-height: 54px;

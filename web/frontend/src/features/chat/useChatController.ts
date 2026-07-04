@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef, type Dispatch } from "react";
-import { WsClient } from "../../api/wsClient";
+import type { WsCloseInfo } from "../../api/wsClient";
 import { uploadMedia } from "../../api/mediaClient";
 import { loadRemoteChatState, persistRemoteChatState } from "../../api/sessionClient";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
+import { useConnectionStore } from "../../hooks/useConnectionStore";
+import type { UpstreamDiagnostics } from "../../api/diagnosticsClient";
 import {
   chatReducer,
   createChatSession,
@@ -32,6 +34,10 @@ export interface ChatController {
   connection: "connecting" | "connected" | "error";
   reconnecting: boolean;
   connected: boolean;
+  link: WsCloseInfo | null;
+  upstream: UpstreamDiagnostics | null;
+  upstreamLoading: boolean;
+  refreshDiagnostics: () => void;
   recording: boolean;
   recordingLevel: number;
   replyTarget?: ReplyTarget;
@@ -127,10 +133,15 @@ export function useChatController(): ChatController {
   );
   const stateRef = useRef(state);
   stateRef.current = state;
-  const wsRef = useRef<WsClient | null>(null);
+  const conn = useConnectionStore(
+    useCallback((event) => dispatch({ type: "INBOUND_EVENT", event }), []),
+  );
+  const { client, connection, connected, reconnecting, link, upstream, upstreamLoading, reconnect, refreshDiagnostics } =
+    conn;
+  const connectedRef = useRef(false);
+  connectedRef.current = connected;
   const remotePersistenceReadyRef = useRef(false);
   const remotePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasConnectedOnceRef = useRef(false);
   const pendingFilesRef = useRef<Map<string, File>>(new Map());
   const uploadPromisesRef = useRef<
     Map<string, Promise<PendingAttachment["result"]>>
@@ -147,16 +158,6 @@ export function useChatController(): ChatController {
   const sessions = Object.values(state.sessionsById).sort((a, b) =>
     (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt),
   );
-
-  useEffect(() => {
-    const client = new WsClient(
-      (event) => dispatch({ type: "INBOUND_EVENT", event }),
-      (connection) => dispatch({ type: "SET_CONNECTION", connection }),
-    );
-    wsRef.current = client;
-    client.connect();
-    return () => client.disconnect();
-  }, []);
 
   useEffect(() => {
     dispatch({ type: "SET_RECORDING", recording });
@@ -233,11 +234,6 @@ export function useChatController(): ChatController {
       timers.clear();
     };
   }, []);
-
-  const connected = state.connection === "connected";
-  if (connected) hasConnectedOnceRef.current = true;
-  const reconnecting =
-    state.connection === "connecting" && hasConnectedOnceRef.current;
 
   const setActiveChat = useCallback((chatId: string) => {
     dispatch({ type: "SET_ACTIVE_CHAT", chatId });
@@ -343,7 +339,7 @@ export function useChatController(): ChatController {
 
   const submit = useCallback(() => {
     void (async () => {
-      if (!wsRef.current || stateRef.current.connection !== "connected") return;
+      if (!connectedRef.current) return;
 
       const activeChatId = stateRef.current.activeChatId;
       let session = stateRef.current.sessionsById[activeChatId];
@@ -359,7 +355,7 @@ export function useChatController(): ChatController {
         );
       if (pendingUploads.length > 0) {
         await Promise.allSettled(pendingUploads);
-        if (!wsRef.current || stateRef.current.connection !== "connected") return;
+        if (!connectedRef.current) return;
         session = stateRef.current.sessionsById[activeChatId];
         if (!session) return;
       }
@@ -388,7 +384,7 @@ export function useChatController(): ChatController {
       if (raw === "cancel") {
         const cancelTarget = resolveCancelTargetId(session);
         if (cancelTarget) {
-          wsRef.current.sendCancel(cancelTarget, session.chatId, USER_ID);
+          client.sendCancel(cancelTarget, session.chatId, USER_ID);
         }
         dispatch({ type: "SET_INPUT", input: "" });
         return;
@@ -396,7 +392,7 @@ export function useChatController(): ChatController {
 
       if (raw.startsWith("/")) {
         dispatch({ type: "USER_COMMAND", command: raw });
-        wsRef.current.sendCommand(raw, session.chatId, USER_ID);
+        client.sendCommand(raw, session.chatId, USER_ID);
         dispatch({ type: "SET_INPUT", input: "" });
         dispatch({ type: "CLEAR_PENDING_ATTACHMENTS" });
         pendingFilesRef.current.clear();
@@ -427,7 +423,7 @@ export function useChatController(): ChatController {
         })),
       });
 
-      const delivered = wsRef.current.sendMessage(
+      const delivered = client.sendMessage(
         { messageId: turnMessageId, text: outboundText, attachments },
         session.chatId,
         USER_ID,
@@ -451,17 +447,17 @@ export function useChatController(): ChatController {
   const cancel = useCallback(() => {
     const session = state.sessionsById[state.activeChatId];
     const cancelTarget = resolveCancelTargetId(session);
-    if (cancelTarget && wsRef.current) {
-      wsRef.current.sendCancel(cancelTarget, session.chatId, USER_ID);
+    if (cancelTarget && client) {
+      client.sendCancel(cancelTarget, session.chatId, USER_ID);
     }
   }, [state.activeChatId, state.sessionsById]);
 
   const sendCommand = useCallback(
     (command: string) => {
-      if (!wsRef.current || !connected) return;
+      if (!connected) return;
       const chatId = state.activeChatId;
       dispatch({ type: "USER_COMMAND", command });
-      wsRef.current.sendCommand(command, chatId, USER_ID);
+      client.sendCommand(command, chatId, USER_ID);
     },
     [connected, state.activeChatId],
   );
@@ -492,7 +488,7 @@ export function useChatController(): ChatController {
   const retryLine = useCallback((line: TranscriptLine) => {
     const current = stateRef.current;
     const chatId = current.activeChatId;
-    if (!wsRef.current || current.connection !== "connected") {
+    if (!connectedRef.current) {
       dispatch(notConnectedError(chatId));
       return;
     }
@@ -500,7 +496,7 @@ export function useChatController(): ChatController {
     if (line.kind === "command" && line.text.trim().startsWith("/")) {
       const command = line.text.trim();
       dispatch({ type: "USER_COMMAND", command });
-      wsRef.current.sendCommand(command, chatId, USER_ID);
+      client.sendCommand(command, chatId, USER_ID);
       return;
     }
 
@@ -508,7 +504,7 @@ export function useChatController(): ChatController {
       const turnMessageId = newId();
       const text = line.text.trim();
       dispatch({ type: "USER_TEXT", text, turnMessageId });
-      const delivered = wsRef.current.sendMessage(
+      const delivered = client.sendMessage(
         { messageId: turnMessageId, text, attachments: [] },
         chatId,
         USER_ID,
@@ -526,7 +522,7 @@ export function useChatController(): ChatController {
 
     const command = "/retry";
     dispatch({ type: "USER_COMMAND", command });
-    wsRef.current.sendCommand(command, chatId, USER_ID);
+    client.sendCommand(command, chatId, USER_ID);
   }, []);
 
   const uploadFile = useCallback(
@@ -538,20 +534,20 @@ export function useChatController(): ChatController {
 
   const clickButton = useCallback(
     (line: TranscriptLine, button: AssistantButton) => {
-      if (!wsRef.current || !connected || line.clickedButtonId) return;
+      if (!connected || line.clickedButtonId) return;
       const chatId = state.activeChatId;
 
       if (line.buttonKind === "slash_pick" && line.commandBase) {
         const cmd = `${line.commandBase} ${button.id}`.trim();
         dispatch({ type: "USER_COMMAND", command: cmd });
-        wsRef.current.sendCommand(cmd, chatId, USER_ID);
+        client.sendCommand(cmd, chatId, USER_ID);
         dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
         return;
       }
 
       if (line.buttonKind === "model_picker") {
         if (button.id === "mx:noop") return;
-        wsRef.current.sendButtonClick(
+        client.sendButtonClick(
           {
             message_id: line.id,
             confirm_id: line.confirmId,
@@ -565,7 +561,7 @@ export function useChatController(): ChatController {
         return;
       }
 
-      wsRef.current.sendButtonClick(
+      client.sendButtonClick(
         {
           message_id: line.id,
           confirm_id: line.confirmId,
@@ -606,7 +602,7 @@ export function useChatController(): ChatController {
       try {
         const blob = await stopRec();
         if (!shouldSend || blob.size === 0) return;
-        if (!wsRef.current || stateRef.current.connection !== "connected") {
+        if (!connectedRef.current) {
           dispatch(notConnectedError(chatId));
           return;
         }
@@ -617,7 +613,7 @@ export function useChatController(): ChatController {
         const filename = voiceFilenameForMime(mime);
         const file = new File([blob], filename, { type: mime });
         const upload = await uploadMedia(file, filename);
-        if (!wsRef.current || stateRef.current.connection !== "connected") {
+        if (!connectedRef.current) {
           dispatch(notConnectedError(chatId));
           return;
         }
@@ -632,7 +628,7 @@ export function useChatController(): ChatController {
           size: upload.size_bytes,
           url: upload.url,
         });
-        const delivered = wsRef.current.sendMessage(
+        const delivered = client.sendMessage(
           {
             messageId: turnMessageId,
             text: outboundText,
@@ -672,15 +668,19 @@ export function useChatController(): ChatController {
     [stopRec],
   );
 
-  const reconnect = useCallback(() => {
-    wsRef.current?.reconnect();
-  }, []);
+  const reconnectNow = useCallback(() => {
+    reconnect();
+  }, [reconnect]);
 
   return {
     userId: USER_ID,
-    connection: state.connection,
+    connection,
     reconnecting,
     connected,
+    link,
+    upstream,
+    upstreamLoading,
+    refreshDiagnostics,
     recording,
     recordingLevel,
     replyTarget: activeSession.replyTarget,
@@ -704,7 +704,7 @@ export function useChatController(): ChatController {
     deleteLineLocal,
     retryLine,
     clickButton,
-    reconnect,
+    reconnect: reconnectNow,
     sendCommand,
   };
 }

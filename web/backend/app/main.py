@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import health, media, sessions
+from app.api import diagnostics, health, media, sessions
 from app.core.config import get_settings
 from app.ws.chat_proxy import proxy_chat
 
@@ -38,6 +38,7 @@ else:
     )
 
 app.include_router(health.router)
+app.include_router(diagnostics.router)
 app.include_router(media.router)
 app.include_router(sessions.router)
 
