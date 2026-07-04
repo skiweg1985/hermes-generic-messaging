@@ -27,10 +27,7 @@ export function ChatPage() {
 
   useEffect(() => {
     let frame = 0;
-    let scrollFrame = 0;
     const timers: number[] = [];
-    let layoutHeight = window.innerHeight;
-    let layoutWidth = window.innerWidth;
 
     const isAppleTouchDevice =
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -43,7 +40,7 @@ export function ChatPage() {
       return tag === "textarea" || tag === "input" || active.hasAttribute("contenteditable");
     };
 
-    const lockWindowScroll = () => {
+    const resetWindowScroll = () => {
       if (window.scrollX !== 0 || window.scrollY !== 0) {
         window.scrollTo(0, 0);
       }
@@ -51,35 +48,22 @@ export function ChatPage() {
 
     const updateViewportHeight = () => {
       const viewport = window.visualViewport;
-      const currentWidth = window.innerWidth;
       const currentHeight = window.innerHeight;
       const visualHeight = viewport?.height ?? currentHeight;
-      const visualOffsetTop = viewport?.offsetTop ?? 0;
-      const keyboardLikely =
-        isAppleTouchDevice && hasEditableFocus() && visualHeight < layoutHeight - 80;
-
-      if (Math.abs(currentWidth - layoutWidth) > 8) {
-        layoutWidth = currentWidth;
-        layoutHeight = currentHeight;
-      } else if (!keyboardLikely && currentHeight > layoutHeight) {
-        layoutHeight = currentHeight;
-      }
-
-      const keyboardInset = keyboardLikely
-        ? Math.min(
-            Math.max(0, Math.round(layoutHeight - visualHeight - visualOffsetTop)),
-            Math.round(layoutHeight * 0.62),
-          )
-        : 0;
-      const height = isAppleTouchDevice ? layoutHeight : visualHeight;
+      const visualOffsetTop = viewport?.offsetTop ?? window.scrollY ?? 0;
+      const keyboardFocused = isAppleTouchDevice && hasEditableFocus();
+      const height = keyboardFocused ? visualHeight : Math.min(currentHeight, visualHeight);
 
       document.documentElement.style.setProperty(
         "--app-viewport-height",
         `${Math.max(320, Math.round(height))}px`,
       );
-      document.documentElement.style.setProperty("--app-viewport-offset-top", "0px");
-      document.documentElement.style.setProperty("--app-keyboard-inset", `${keyboardInset}px`);
-      lockWindowScroll();
+      document.documentElement.style.setProperty(
+        "--app-viewport-offset-top",
+        `${keyboardFocused ? Math.round(visualOffsetTop) : 0}px`,
+      );
+      document.documentElement.style.setProperty("--app-keyboard-inset", "0px");
+      resetWindowScroll();
     };
 
     const scheduleViewportUpdate = () => {
@@ -91,23 +75,16 @@ export function ChatPage() {
       frame = requestAnimationFrame(updateViewportHeight);
       timers.push(window.setTimeout(updateViewportHeight, 80));
       timers.push(window.setTimeout(updateViewportHeight, 260));
-    };
-
-    const scheduleScrollLock = () => {
-      if (scrollFrame) return;
-      scrollFrame = requestAnimationFrame(() => {
-        scrollFrame = 0;
-        lockWindowScroll();
-      });
+      timers.push(window.setTimeout(updateViewportHeight, 520));
     };
 
     const virtualKeyboard = navigator.virtualKeyboard;
 
     scheduleViewportUpdate();
     window.visualViewport?.addEventListener("resize", scheduleViewportUpdate);
-    window.visualViewport?.addEventListener("scroll", scheduleScrollLock, { passive: true });
+    window.visualViewport?.addEventListener("scroll", scheduleViewportUpdate, { passive: true });
     virtualKeyboard?.addEventListener("geometrychange", scheduleViewportUpdate);
-    window.addEventListener("scroll", scheduleScrollLock, { passive: true });
+    window.addEventListener("scroll", scheduleViewportUpdate, { passive: true });
     window.addEventListener("resize", scheduleViewportUpdate);
     window.addEventListener("orientationchange", scheduleViewportUpdate);
     window.addEventListener("focusin", scheduleViewportUpdate);
@@ -115,12 +92,11 @@ export function ChatPage() {
 
     return () => {
       cancelAnimationFrame(frame);
-      cancelAnimationFrame(scrollFrame);
       timers.forEach((timer) => window.clearTimeout(timer));
       window.visualViewport?.removeEventListener("resize", scheduleViewportUpdate);
-      window.visualViewport?.removeEventListener("scroll", scheduleScrollLock);
+      window.visualViewport?.removeEventListener("scroll", scheduleViewportUpdate);
       virtualKeyboard?.removeEventListener("geometrychange", scheduleViewportUpdate);
-      window.removeEventListener("scroll", scheduleScrollLock);
+      window.removeEventListener("scroll", scheduleViewportUpdate);
       window.removeEventListener("resize", scheduleViewportUpdate);
       window.removeEventListener("orientationchange", scheduleViewportUpdate);
       window.removeEventListener("focusin", scheduleViewportUpdate);
