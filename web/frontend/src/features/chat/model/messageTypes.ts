@@ -25,6 +25,7 @@ export type MessagePart =
       durationMs?: number;
       error?: string;
       detail?: string;
+      rawText?: string;
       lineId: string;
     }
   | {

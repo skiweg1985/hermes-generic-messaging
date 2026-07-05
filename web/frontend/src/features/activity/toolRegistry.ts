@@ -66,7 +66,7 @@ const REGISTRY: Array<{
     },
   },
   {
-    match: /^(code|python|node|js|interpret|compute|eval)/i,
+    match: /^(code|python|node|js|interpret|compute|eval|execute_code)/i,
     meta: {
       kind: "code",
       label: "Compute",
@@ -117,6 +117,8 @@ const REGISTRY: Array<{
   },
 ];
 
+const SUMMARY_MAX = 260;
+
 const GENERIC: ToolMeta = {
   kind: "generic",
   label: "Tool",
@@ -138,6 +140,13 @@ export interface ParsedActivity {
   state: "running" | "success" | "error" | "idle";
 }
 
+export interface ParsedActivityTimeline {
+  /** Compact card header that summarizes the whole edited progress bubble. */
+  primary: ParsedActivity;
+  /** Per-tool rows recovered from an accumulated Hermes progress notice. */
+  entries: ParsedActivity[];
+}
+
 export function parseStructuredActivity(line: {
   text: string;
   toolName?: string;
@@ -154,8 +163,9 @@ export function parseStructuredActivity(line: {
   const meta = metaFor(rawName);
   const summary =
     parsed.summary ||
+    compact(commandFromArgs(line.toolArgs)) ||
     compact(line.toolError) ||
-    compact(line.toolResult) ||
+    compact(previewFromResult(line.toolResult)) ||
     compact(line.toolArgs) ||
     (line.toolName ? humanizeToolName(line.toolName) : "");
   const detail = structuredDetail(line) || parsed.detail;
@@ -168,6 +178,38 @@ export function parseStructuredActivity(line: {
     detail,
     state: status,
   };
+}
+
+export function parseStructuredActivityTimeline(line: {
+  text: string;
+  toolName?: string;
+  toolStatus?: ParsedActivity["state"];
+  toolArgs?: string;
+  toolResult?: string;
+  toolError?: string;
+  toolDurationMs?: number;
+}): ParsedActivityTimeline {
+  const structured = parseStructuredActivity(line);
+  const entries = parseAccumulatedProgress(line.text, line.toolStatus);
+  if (entries.length <= 1) {
+    const primary = structured ?? entries[0] ?? parseActivity(line.text);
+    return { primary, entries: structured ? [structured] : entries };
+  }
+
+  const active = [...entries].reverse().find((entry) => entry.state === "running") ?? entries.at(-1)!;
+  const failed = entries.find((entry) => entry.state === "error");
+  const state = line.toolStatus ?? failed?.state ?? active.state;
+  const rawName = active.rawName;
+  const meta = active.meta;
+  const primary: ParsedActivity = {
+    meta,
+    rawName,
+    title: state === "running" ? "Working through tools" : failed ? "Tool run failed" : "Tool run complete",
+    summary: `${entries.length} tools · ${active.summary || active.rawName}`,
+    detail: structuredDetail(line),
+    state,
+  };
+  return { primary, entries };
 }
 
 export function parseActivity(text: string): ParsedActivity {
@@ -184,16 +226,88 @@ export function parseActivity(text: string): ParsedActivity {
   const detail = lines.slice(1).join("\n").trim();
 
   const meta = metaFor(rawName);
-
+  const fencedSummary = summaryFromDetail(detail);
   const state = detectState(raw);
   return {
     meta,
     rawName: rawName || meta.label,
     title: titleFor(meta, state),
-    summary: summary || raw.split(/\r?\n/)[0]?.trim() || "",
+    summary: cleanSummary(summary || fencedSummary || raw.split(/\r?\n/)[0]?.trim() || ""),
     detail,
     state,
   };
+}
+
+function parseAccumulatedProgress(text: string, overallStatus?: ParsedActivity["state"]): ParsedActivity[] {
+  const groups = splitProgressGroups(text);
+  if (groups.length <= 1) {
+    return groups.length === 1 ? [withOverallStatus(parseActivity(groups[0]!), overallStatus, true)] : [];
+  }
+  return groups.map((group, index) => {
+    const isLast = index === groups.length - 1;
+    const parsed = parseActivity(group);
+    const state = statusForTimelineEntry(parsed.state, overallStatus, isLast);
+    return { ...parsed, title: titleFor(parsed.meta, state), state };
+  });
+}
+
+function splitProgressGroups(text: string): string[] {
+  const lines = (text ?? "").split(/\r?\n/);
+  const groups: string[] = [];
+  let current: string[] = [];
+  let inFence = false;
+
+  const flush = () => {
+    const value = current.join("\n").trim();
+    if (value) groups.push(value);
+    current = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const startsFence = trimmed.startsWith("```");
+    if (!inFence && isLikelyProgressHeader(trimmed)) {
+      flush();
+      current.push(line);
+    } else {
+      current.push(line);
+    }
+    if (startsFence) inFence = !inFence;
+  }
+  flush();
+  return groups;
+}
+
+function isLikelyProgressHeader(line: string): boolean {
+  if (!line || line.startsWith("```")) return false;
+  const stripped = stripLeadingMarker(line);
+  if (!stripped) return false;
+  // Matches Hermes progress lines such as:
+  //   💻 terminal
+  //   🔍 search_files: "foo"
+  //   text_to_speech: generating voice message
+  return /^[\w./-]+(?::|\s+-\s+|\s+→|\.\.\.|$)/.test(stripped);
+}
+
+function statusForTimelineEntry(
+  parsedState: ParsedActivity["state"],
+  overallStatus: ParsedActivity["state"] | undefined,
+  isLast: boolean,
+): ParsedActivity["state"] {
+  if (parsedState === "error") return "error";
+  if (overallStatus === "success") return "success";
+  if (overallStatus === "error") return isLast ? "error" : "success";
+  if (overallStatus === "running") return isLast ? "running" : "success";
+  return parsedState === "idle" && isLast ? "running" : parsedState;
+}
+
+function withOverallStatus(
+  parsed: ParsedActivity,
+  overallStatus: ParsedActivity["state"] | undefined,
+  isLast: boolean,
+): ParsedActivity {
+  const state = statusForTimelineEntry(parsed.state, overallStatus, isLast);
+  return { ...parsed, title: titleFor(parsed.meta, state), state };
 }
 
 function metaFor(rawName: string): ToolMeta {
@@ -218,7 +332,13 @@ function stripLeadingMarker(value: string): string {
 function compact(value?: string): string {
   const trimmed = value?.trim().replace(/\s+/g, " ") ?? "";
   if (!trimmed) return "";
-  return trimmed.length > 120 ? `${trimmed.slice(0, 119)}…` : trimmed;
+  return trimmed.length > SUMMARY_MAX ? `${trimmed.slice(0, SUMMARY_MAX - 1)}…` : trimmed;
+}
+
+function cleanSummary(value: string): string {
+  const trimmed = value.trim();
+  const unquoted = /^(["'])(.*)\1$/.exec(trimmed)?.[2] ?? trimmed;
+  return compact(unquoted.replace(/^```[\w-]*\s*/m, "").replace(/```\s*$/m, ""));
 }
 
 function humanizeToolName(value: string): string {
@@ -233,8 +353,65 @@ function structuredDetail(line: {
   const chunks: string[] = [];
   if (line.toolError?.trim()) chunks.push(`Error:\n${line.toolError.trim()}`);
   if (line.toolArgs?.trim()) chunks.push(`Args:\n${line.toolArgs.trim()}`);
-  if (line.toolResult?.trim()) chunks.push(`Result:\n${line.toolResult.trim()}`);
+  const resultPreview = previewFromResult(line.toolResult);
+  if (resultPreview) chunks.push(`Result:\n${resultPreview}`);
   return chunks.join("\n\n");
+}
+
+function commandFromArgs(value?: string): string {
+  if (!value) return "";
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object") {
+      const command = (parsed as Record<string, unknown>).command;
+      const code = (parsed as Record<string, unknown>).code;
+      const path = (parsed as Record<string, unknown>).path;
+      const pattern = (parsed as Record<string, unknown>).pattern;
+      if (typeof command === "string") return command;
+      if (typeof code === "string") return code.split(/\r?\n/)[0] ?? code;
+      if (typeof path === "string") return path;
+      if (typeof pattern === "string") return pattern;
+      const previewKeys = ["url", "ref", "filePath", "entity_id", "query", "prompt", "text"];
+      const picked = previewKeys
+        .map((key) => [key, (parsed as Record<string, unknown>)[key]] as const)
+        .filter(([, val]) => typeof val === "string" && val.trim())
+        .map(([key, val]) => `${key}=${String(val)}`);
+      if (picked.length > 0) return picked.join(" ");
+    }
+  } catch {
+    // Fall through to raw string compacting.
+  }
+  return cleanSummary(value);
+}
+
+function previewFromResult(value?: string): string {
+  if (!value) return "";
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      const status = obj.exit_code != null ? `exit ${String(obj.exit_code)}` : "";
+      const error = typeof obj.error === "string" && obj.error.trim() ? obj.error : "";
+      const output = typeof obj.output === "string" ? tailLines(obj.output, 6) : "";
+      return [status, error, output].filter(Boolean).join("\n");
+    }
+  } catch {
+    // Not JSON; use the raw text.
+  }
+  return tailLines(value, 8);
+}
+
+function summaryFromDetail(detail: string): string {
+  const withoutFence = detail
+    .replace(/^```[\w-]*\s*/m, "")
+    .replace(/```\s*$/m, "")
+    .trim();
+  return cleanSummary(withoutFence.split(/\r?\n/).find((line) => line.trim()) ?? "");
+}
+
+function tailLines(value: string, maxLines: number): string {
+  const lines = value.trim().split(/\r?\n/).filter((line) => line.trim());
+  return lines.slice(-maxLines).join("\n");
 }
 
 function detectState(text: string): ParsedActivity["state"] {
@@ -251,7 +428,7 @@ function detectState(text: string): ParsedActivity["state"] {
   ) {
     return "success";
   }
-  if (/\b(starting|running|loading|fetching|browsing|searching|reading|writing|calling)\b/.test(t)) {
+  if (/\b(starting|running|loading|fetching|browsing|searching|reading|writing|calling|generating)\b/.test(t)) {
     return "running";
   }
   return "idle";

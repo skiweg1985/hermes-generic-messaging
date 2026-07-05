@@ -15,7 +15,7 @@ function parseToolStatus(value?: string): ToolStatus | undefined {
 }
 
 function shouldShowToolActivity(status: ToolStatus): boolean {
-  return status === "running" || status === "error";
+  return status === "running" || status === "success" || status === "error";
 }
 
 function isToolLikeNotice(kind: string, line: TranscriptLine): boolean {
@@ -83,6 +83,7 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
               durationMs: line.toolDurationMs,
               error: line.toolError,
               detail: parsed.detail || line.toolArgs,
+              rawText: line.text,
               lineId: line.id,
             },
           ];
@@ -96,6 +97,7 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
             status: parsed.state,
             summary: parsed.summary,
             detail: parsed.detail,
+            rawText: line.text,
             lineId: line.id,
           },
         ];

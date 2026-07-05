@@ -752,7 +752,10 @@ body {
 
 .composer:focus-within {
   background: var(--surface-2);
-  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--accent-strong) 22%, var(--line-hairline));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 18px 48px rgba(0, 0, 0, 0.14);
 }
 
 .composer-input {
@@ -762,7 +765,7 @@ body {
 }
 
 .composer-actions {
-  padding: 5px 10px 10px;
+  padding: 6px 12px 12px;
 }
 
 .composer-icon:hover:not(:disabled),
@@ -772,6 +775,19 @@ body {
   background: var(--accent-faint);
 }
 
+.composer-icon svg,
+.composer-send svg {
+  width: 17px;
+  height: 17px;
+}
+
+.composer-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 14px;
+}
+
 .composer-icon.composer-icon-recording-locked,
 .composer-icon.composer-icon-recording-locked:hover:not(:disabled) {
   color: #ffffff;
@@ -779,8 +795,10 @@ body {
 }
 
 .composer-send {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 15px;
 }
 
 .slash-popover,
@@ -821,12 +839,27 @@ body {
 }
 
 .waveform {
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr);
   gap: 12px;
   max-width: 100%;
-  padding: 12px 14px;
+  padding: 13px 15px;
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+  --waveform-played: color-mix(in srgb, var(--text-primary) 92%, var(--accent-strong));
+  --waveform-idle: color-mix(in srgb, var(--text-primary) 28%, transparent);
+}
+
+.waveform:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--text-primary) 13%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 14px 34px rgba(0, 0, 0, 0.1);
 }
 
 .audio-card-assistant .waveform {
@@ -851,17 +884,64 @@ body {
 }
 
 .waveform-play {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.24) inset,
+    0 8px 22px color-mix(in srgb, var(--accent-strong) 32%, transparent);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.waveform-play:hover {
+  transform: translateY(-1px) scale(1.035);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.34) inset,
+    0 12px 30px color-mix(in srgb, var(--accent-strong) 38%, transparent);
+}
+
+.waveform-play:active {
+  transform: translateY(0) scale(0.94);
 }
 
 .waveform-track,
 .waveform-canvas {
-  height: 44px;
+  height: 48px;
+}
+
+.waveform-track:hover {
+  cursor: pointer;
 }
 
 .waveform-meta {
   gap: 8px;
+}
+
+.waveform-speed {
+  min-width: 36px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.waveform-speed:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--accent-faint) 72%, var(--surface-3));
+  color: var(--text-primary);
+}
+
+.waveform-speed:active {
+  transform: translateY(0) scale(0.94);
 }
 
 .waveform-kind {

@@ -24,7 +24,6 @@ import {
   IconStop,
   IconPaperclip,
   IconMic,
-  IconSlash,
   IconAlert,
   IconClose,
   IconLock,
@@ -419,6 +418,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       title="Stop generating (⌘.)"
     >
       <IconStop size={14} />
+      <span className="composer-shortcut" aria-hidden>⌘.</span>
     </button>
   ) : (
     <button
@@ -430,6 +430,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       title="Send (⏎)"
     >
       <IconArrowUp size={14} />
+      <span className="composer-shortcut" aria-hidden>⏎</span>
     </button>
   );
 
@@ -611,6 +612,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               title="Attach file"
             >
               <IconPaperclip size={14} />
+              <span className="composer-shortcut" aria-hidden>⌘U</span>
             </button>
             <button
               type="button"
@@ -629,6 +631,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               title={recordButtonTitle}
             >
               {recordLocked ? <IconStop size={14} /> : <IconMic size={14} />}
+              <span className="composer-shortcut" aria-hidden>⌥V</span>
             </button>
             <button
               type="button"
@@ -641,7 +644,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               aria-label="Slash commands"
               title="Slash commands (⌘/)"
             >
-              <IconSlash size={14} />
+              <span className="composer-slash-pill" aria-hidden>/</span>
+              <span className="composer-shortcut" aria-hidden>/</span>
             </button>
           </div>
 
@@ -655,6 +659,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 title="Cancel"
               >
                 <IconClose size={14} />
+                <span className="composer-shortcut" aria-hidden>Esc</span>
               </button>
             ) : (
               <span className="composer-hint t-meta">

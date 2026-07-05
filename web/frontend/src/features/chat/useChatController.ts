@@ -15,7 +15,7 @@ import {
 } from "./chatReducer";
 import { getDraft, type Draft, type DraftAction } from "./draftStore";
 import { loadChatState, mergeChatStates, persistChatState } from "./sessionPersistence";
-import { replyTargetFromLine, withReplyPrefix } from "./messageActions";
+import { replyTargetFromLine } from "./messageActions";
 import { newId } from "../../lib/uuid";
 import { normalizeMimeType } from "../../lib/normalizeMimeType";
 import type {
@@ -408,7 +408,7 @@ export function useChatController(): ChatController {
       }
 
       const turnMessageId = newId();
-      const outboundText = withReplyPrefix(raw, draft.replyTarget);
+      const outboundText = raw;
       const attachments: MessageAttachment[] = ready.map((entry) => ({
         attachment_id: entry.result!.attachment_id,
         mime_type: entry.result!.mime_type,
@@ -618,7 +618,7 @@ export function useChatController(): ChatController {
           return;
         }
         const replyTarget = draftFor(chatId).replyTarget;
-        const outboundText = withReplyPrefix("", replyTarget);
+        const outboundText = "";
 
         const mime = normalizeMimeType(blob.type || "audio/webm");
         const filename = voiceFilenameForMime(mime);
