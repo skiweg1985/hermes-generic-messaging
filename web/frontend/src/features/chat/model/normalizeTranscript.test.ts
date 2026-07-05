@@ -342,6 +342,7 @@ describe("normalizeTranscript", () => {
       type: "tool_call",
       toolName: "read_file",
       status: "running",
+      rawText: "read_file: main.py",
     });
   });
 
@@ -376,6 +377,36 @@ describe("normalizeTranscript", () => {
       type: "tool_call",
       status: "error",
       toolName: "text_to_speech",
+    });
+  });
+
+  it("groups consecutive tool notices into one live timeline while a later tool runs", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "t1",
+        kind: "notice",
+        noticeKind: "tool",
+        text: 'search_files: "package.json"',
+        toolName: "search_files",
+        toolStatus: "success",
+      }),
+      line({
+        id: "t2",
+        kind: "notice",
+        noticeKind: "tool",
+        text: 'terminal: "sleep 5; date"',
+        toolName: "terminal",
+        toolStatus: "running",
+      }),
+    ]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.parts[0]).toMatchObject({
+      type: "tool_call",
+      status: "running",
+      toolName: "terminal",
+    });
+    expect(messages[0]!.parts[0]).toMatchObject({
+      rawText: expect.stringContaining("search_files"),
     });
   });
 

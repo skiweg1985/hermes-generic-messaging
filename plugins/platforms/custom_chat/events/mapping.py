@@ -62,6 +62,31 @@ def _build_message_event(
         return MessageEvent(**kwargs)
 
 
+def _format_reply_context(
+    *,
+    text: str,
+    reply_to_message_id: Optional[str] = None,
+    reply_to_text: Optional[str] = None,
+) -> str:
+    """Embed reply context into MessageEvent.text so the agent always sees it.
+
+    Hermes may ignore adapter-specific reply metadata, so custom_chat makes the
+    quoted message explicit in the user-visible prompt while still passing the
+    structured fields through when supported.
+    """
+    quoted = (reply_to_text or "").strip()
+    if not quoted:
+        return text
+    body = text.strip()
+    quote_lines = "\n".join(f"> {line}" for line in quoted.splitlines())
+    header = "[Reply context]"
+    if reply_to_message_id:
+        header = f"{header} original_message_id={reply_to_message_id}"
+    if not body:
+        return f"{header}\n{quote_lines}\n\n[User message]\n"
+    return f"{header}\n{quote_lines}\n\n[User message]\n{body}"
+
+
 def _attachments_text_fallback(attachments: list[Any]) -> str:
     """Produce a Hermes-readable text for media-only `message.create` events.
 
@@ -144,6 +169,13 @@ def inbound_to_message_event(
             message_type = MessageType.TEXT
             media_urls = []
             media_types = []
+        reply_to_message_id = getattr(payload_model, "reply_to_message_id", None)
+        reply_to_text = getattr(payload_model, "reply_to_text", None)
+        text = _format_reply_context(
+            text=text,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_text=reply_to_text,
+        )
         return _build_message_event(
             MessageEvent,
             text=text,
@@ -153,8 +185,8 @@ def inbound_to_message_event(
             media_urls=media_urls or None,
             media_types=media_types or None,
             raw_message=raw_message,
-            reply_to_message_id=getattr(payload_model, "reply_to_message_id", None),
-            reply_to_text=getattr(payload_model, "reply_to_text", None),
+            reply_to_message_id=reply_to_message_id,
+            reply_to_text=reply_to_text,
         )
 
     if envelope.type == "command.create":

@@ -83,6 +83,7 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
               durationMs: line.toolDurationMs,
               error: line.toolError,
               detail: parsed.detail || line.toolArgs,
+              rawText: line.text,
               lineId: line.id,
             },
           ];
@@ -96,6 +97,7 @@ export function lineToParts(line: TranscriptLine, turnActive: boolean): MessageP
             status: parsed.state,
             summary: parsed.summary,
             detail: parsed.detail,
+            rawText: line.text,
             lineId: line.id,
           },
         ];

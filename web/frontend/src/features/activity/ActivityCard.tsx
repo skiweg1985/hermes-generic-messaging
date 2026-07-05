@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TranscriptLine } from "../../types/events";
 import { IconCheck, IconAlert, IconChevronDown } from "../shell/icons";
-import { parseActivity, parseStructuredActivity } from "./toolRegistry";
+import { parseStructuredActivityTimeline, type ParsedActivity } from "./toolRegistry";
 
 interface ActivityCardProps {
   line: TranscriptLine;
@@ -35,16 +35,45 @@ function useElapsed(running: boolean, resetKey: string): number {
   return Date.now() - startRef.current;
 }
 
-function stateLabel(state: ReturnType<typeof parseActivity>["state"]): string {
+function stateLabel(state: ParsedActivity["state"]): string {
   if (state === "running") return "running";
   if (state === "success") return "done";
   if (state === "error") return "error";
   return "idle";
 }
 
+function statusGlyph(state: ParsedActivity["state"], Icon: ParsedActivity["meta"]["icon"]) {
+  if (state === "running") return <span className="activity-card-spinner" />;
+  if (state === "success") return <IconCheck size={14} />;
+  if (state === "error") return <IconAlert size={14} />;
+  return <Icon size={14} />;
+}
+
+function TimelineEntry({ entry, active }: { entry: ParsedActivity; active: boolean }) {
+  const Icon = entry.meta.icon;
+  return (
+    <li className={`activity-timeline-entry activity-timeline-entry-${entry.state}${active ? " activity-timeline-entry-active" : ""}`}>
+      <span className="activity-timeline-rail" aria-hidden>
+        <span className="activity-timeline-dot">{statusGlyph(entry.state, Icon)}</span>
+      </span>
+      <span className="activity-timeline-copy">
+        <span className="activity-timeline-title t-body-sm">
+          {entry.meta.label}
+          <span className="activity-timeline-tool t-meta"> · {entry.rawName}</span>
+        </span>
+        {entry.summary ? (
+          <span className="activity-timeline-summary t-mono-sm" title={entry.summary}>{entry.summary}</span>
+        ) : null}
+      </span>
+      <span className="activity-timeline-state t-mono-sm">{stateLabel(entry.state)}</span>
+    </li>
+  );
+}
+
 export function ActivityCard({ line }: ActivityCardProps) {
-  const parsed =
-    parseStructuredActivity(line) ?? parseActivity(line.text);
+  const parsedTimeline = useMemo(() => parseStructuredActivityTimeline(line), [line]);
+  const parsed = parsedTimeline.primary;
+  const entries = parsedTimeline.entries;
   const [open, setOpen] = useState(false);
 
   const running = parsed.state === "running";
@@ -55,11 +84,14 @@ export function ActivityCard({ line }: ActivityCardProps) {
   const Icon = parsed.meta.icon;
   const label = stateLabel(parsed.state);
 
-  const hasDetail = parsed.detail.length > 0;
+  const hasTimeline = entries.length > 1;
+  const hasDetail = parsed.detail.length > 0 || hasTimeline;
+  const runningEntryIndex = entries.findIndex((entry) => entry.state === "running");
+  const activeTimelineIndex = runningEntryIndex >= 0 ? runningEntryIndex : entries.length - 1;
 
   return (
     <section
-      className={`activity-card ${stateClass}${open ? " activity-card-open" : ""}`}
+      className={`activity-card ${stateClass}${open ? " activity-card-open" : ""}${hasTimeline ? " activity-card-has-timeline" : ""}`}
       data-tool={parsed.meta.kind}
       aria-label={parsed.title}
       aria-live={running ? "polite" : undefined}
@@ -72,23 +104,15 @@ export function ActivityCard({ line }: ActivityCardProps) {
         disabled={!hasDetail}
       >
         <span className="activity-card-glyph" aria-hidden>
-          {running ? (
-            <span className="activity-card-spinner" />
-          ) : parsed.state === "success" ? (
-            <IconCheck size={14} />
-          ) : parsed.state === "error" ? (
-            <IconAlert size={14} />
-          ) : (
-            <Icon size={14} />
-          )}
+          {statusGlyph(parsed.state, Icon)}
         </span>
 
         <span className="activity-card-titles">
-          <span className="activity-card-title t-body-sm truncate">
+          <span className="activity-card-title t-body-sm">
             {parsed.title}
           </span>
           {parsed.summary ? (
-            <span className="activity-card-summary t-meta truncate">
+            <span className="activity-card-summary t-mono-sm" title={parsed.summary}>
               {parsed.summary}
             </span>
           ) : null}
@@ -114,9 +138,32 @@ export function ActivityCard({ line }: ActivityCardProps) {
 
       {running ? <span className="activity-card-shimmer" aria-hidden /> : null}
 
+      {hasTimeline && !open ? (
+        <ol className="activity-timeline activity-timeline-compact" aria-label="Tool activity timeline">
+          {entries.map((entry, index) => (
+            <TimelineEntry
+              key={`${entry.rawName}-${index}-${entry.summary}`}
+              entry={entry}
+              active={index === activeTimelineIndex}
+            />
+          ))}
+        </ol>
+      ) : null}
+
       {open && hasDetail ? (
         <div className="activity-card-body">
-          <pre className="activity-card-detail t-mono-sm">{parsed.detail}</pre>
+          {hasTimeline ? (
+            <ol className="activity-timeline" aria-label="Tool activity timeline details">
+              {entries.map((entry, index) => (
+                <TimelineEntry
+                  key={`${entry.rawName}-${index}-${entry.summary}`}
+                  entry={entry}
+                  active={index === activeTimelineIndex}
+                />
+              ))}
+            </ol>
+          ) : null}
+          {parsed.detail ? <pre className="activity-card-detail t-mono-sm">{parsed.detail}</pre> : null}
         </div>
       ) : null}
     </section>

@@ -37,4 +37,46 @@ describe("PartRenderer", () => {
     expect(html).toContain("audio-card-user");
     expect(html).toContain("audio-card-right");
   });
+
+  it("renders multi-tool raw progress text as a visible activity timeline", () => {
+    const message: ChatMessage = {
+      messageId: "tool-turn",
+      role: "assistant",
+      status: "streaming",
+      metadata: { turnMessageId: "tool-turn", lineIds: ["tool-line"] },
+      parts: [
+        {
+          type: "tool_call",
+          toolName: "search_files",
+          status: "running",
+          summary: '"package.json"',
+          rawText: [
+            '🔍 search_files: "package.json"',
+            "💻 terminal",
+            "```",
+            "npm run build -- --verbose",
+            "```",
+            '📖 read_file: "src/features/activity/ActivityCard.tsx"',
+          ].join("\n"),
+          lineId: "tool-line",
+        },
+      ],
+    };
+
+    const html = renderToStaticMarkup(
+      <PartRenderer
+        message={message}
+        alignRight={false}
+        turnActive={true}
+        onButtonClick={noop}
+        onMessageAction={noop}
+        onReplyLine={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("activity-timeline-entry");
+    expect(html).toContain("search_files");
+    expect(html).toContain("npm run build -- --verbose");
+    expect(html).toContain("ActivityCard.tsx");
+  });
 });

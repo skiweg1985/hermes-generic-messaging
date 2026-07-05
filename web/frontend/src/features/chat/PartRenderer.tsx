@@ -41,7 +41,7 @@ function partToLine(part: MessagePart, message: ChatMessage): TranscriptLine {
         ...base,
         kind: "notice",
         noticeKind: "tool",
-        text: part.summary ? `${part.toolName}: ${part.summary}` : part.toolName,
+        text: part.rawText ?? (part.summary ? `${part.toolName}: ${part.summary}` : part.toolName),
         toolName: part.toolName,
         toolStatus: part.status,
         toolArgs: part.args,

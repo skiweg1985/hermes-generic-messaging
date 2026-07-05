@@ -500,6 +500,17 @@ function finalizeStreamingLines(
   });
 }
 
+function finalizeRunningToolNotices(
+  lines: TranscriptLine[],
+  status: ToolStatus,
+): TranscriptLine[] {
+  return lines.map((line) => {
+    if (line.kind !== "notice" || line.noticeKind !== "tool") return line;
+    if (line.toolStatus !== "running") return line;
+    return { ...line, toolStatus: status };
+  });
+}
+
 function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatSession {
   const p = event.payload;
   switch (event.type) {
@@ -621,7 +632,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       }
       return touchSession({
         ...withoutTyping(session),
-        lines,
+        lines: finalizeRunningToolNotices(lines, interrupted ? "idle" : "success"),
         streamingMessageId: null,
         streamTurnId: null,
         typingClosed: true,
@@ -774,7 +785,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     }
     case "assistant_error": {
       return {
-        ...appendLine(session, {
+        ...appendLine({ ...session, lines: finalizeRunningToolNotices(session.lines, "error") }, {
           id: newId(),
           kind: "error",
           text: `error: ${String(p.code ?? "ERROR")} - ${String(p.message ?? "unknown")}`,

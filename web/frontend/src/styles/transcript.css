@@ -668,6 +668,13 @@
   color: var(--text-tertiary);
   font-family: var(--font-mono);
   font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .activity-card-meta {
@@ -729,6 +736,133 @@
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.activity-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-timeline-compact {
+  border-top: 1px solid var(--line-hairline);
+  padding: 2px 0 4px;
+  background: color-mix(in srgb, var(--surface-sunken) 42%, transparent);
+}
+
+.activity-card-body > .activity-timeline + .activity-card-detail {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-hairline);
+}
+
+.activity-timeline-entry {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: start;
+  min-height: 38px;
+  padding: 8px var(--s-3);
+  color: var(--text-secondary);
+}
+
+.activity-timeline-compact .activity-timeline-entry {
+  padding-block: 5px;
+}
+
+.activity-timeline-rail {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-self: stretch;
+}
+
+.activity-timeline-rail::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--line-hairline);
+}
+
+.activity-timeline-entry:first-child .activity-timeline-rail::before {
+  top: 50%;
+}
+
+.activity-timeline-entry:last-child .activity-timeline-rail::before {
+  bottom: 50%;
+}
+
+.activity-timeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-tertiary);
+}
+
+.activity-timeline-entry-running .activity-timeline-dot,
+.activity-timeline-entry-active .activity-timeline-dot {
+  background: var(--accent-faint);
+  color: var(--text-primary);
+}
+
+.activity-timeline-entry-success .activity-timeline-dot {
+  color: var(--state-success);
+}
+
+.activity-timeline-entry-error .activity-timeline-dot {
+  color: var(--state-danger);
+  background: var(--state-danger-bg);
+}
+
+.activity-timeline-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.activity-timeline-title {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.activity-timeline-tool {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.activity-timeline-summary {
+  color: var(--text-tertiary);
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.activity-card-open .activity-timeline-summary {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: block;
+}
+
+.activity-timeline-state {
+  align-self: center;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  font-size: 10px;
 }
 
 /* State-driven accents — kept extremely subtle */

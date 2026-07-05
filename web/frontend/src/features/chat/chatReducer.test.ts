@@ -561,6 +561,40 @@ describe("chatReducer", () => {
     expect(session(s).lines[0].toolError).toBe("exit 1");
   });
 
+  it("finalizes running tool notices when the assistant answer completes", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "💻 terminal: \"date\"",
+        status: "running",
+      }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", { message_id: "r1", final_text: "done" }),
+    });
+    expect(session(s).lines.find((l) => l.id === "p1")?.toolStatus).toBe("success");
+  });
+
+  it("marks running tool notices as failed when the assistant errors", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_notice", {
+        message_id: "p1",
+        kind: "tool",
+        text: "💻 terminal: \"date\"",
+        status: "running",
+      }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_error", { message_id: "r1", code: "ERR", message: "boom" }),
+    });
+    expect(session(s).lines.find((l) => l.id === "p1")?.toolStatus).toBe("error");
+  });
+
   it("creates USER_MESSAGE turn with text and attachments", () => {
     const s = chatReducer(base, {
       type: "USER_MESSAGE",

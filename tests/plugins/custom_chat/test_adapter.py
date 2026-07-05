@@ -72,7 +72,13 @@ async def test_inbound_text_preserves_reply_context(adapter: CustomChatAdapter):
     await adapter._on_ws_message(ws, data)
 
     assert len(received) == 1
-    assert received[0].text == "Yes, exactly"
+    assert received[0].text == (
+        "[Reply context] original_message_id=quoted-1\n"
+        "> Original assistant text\n"
+        "\n"
+        "[User message]\n"
+        "Yes, exactly"
+    )
     assert received[0].reply_to_message_id == "quoted-1"
     assert received[0].reply_to_text == "Original assistant text"
 
