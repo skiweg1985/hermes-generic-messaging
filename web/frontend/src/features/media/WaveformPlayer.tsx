@@ -11,6 +11,7 @@ interface WaveformPlayerProps {
 }
 
 const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -37,7 +38,7 @@ export function WaveformPlayer({
   const { peaks } = useWaveform(waveformEnabled ? url : undefined);
 
   // Measure container width to size canvas.
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const measure = () => setWidth(el.clientWidth);

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizeMimeType } from "../lib/normalizeMimeType";
 
@@ -6,6 +6,7 @@ export function useAudioRecorder() {
   const [recording, setRecording] = useState(false);
   const [level, setLevel] = useState(0);
   const mediaRef = useRef<MediaRecorder | null>(null);
+  const stopPromiseRef = useRef<Promise<Blob> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -76,28 +77,29 @@ export function useAudioRecorder() {
   }, [startLevelMeter]);
 
   const stop = useCallback((): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
+    if (stopPromiseRef.current) return stopPromiseRef.current;
+    const promise = new Promise<Blob>((resolve, reject) => {
       const recorder = mediaRef.current;
       if (!recorder) {
         reject(new Error("not recording"));
         return;
       }
+      mediaRef.current = null;
+      const cleanup = () => {
+        recorder.stream.getTracks().forEach((t) => t.stop());
+        chunksRef.current = [];
+        stopLevelMeter();
+        setRecording(false);
+        stopPromiseRef.current = null;
+      };
       recorder.onstop = () => {
         const mime = normalizeMimeType(recorder.mimeType || "audio/webm");
         const blob = new Blob(chunksRef.current, { type: mime });
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        mediaRef.current = null;
-        chunksRef.current = [];
-        stopLevelMeter();
-        setRecording(false);
+        cleanup();
         resolve(blob);
       };
       recorder.onerror = (event) => {
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        mediaRef.current = null;
-        chunksRef.current = [];
-        stopLevelMeter();
-        setRecording(false);
+        cleanup();
         reject(event.error);
       };
       if (recorder.state === "inactive") {
@@ -107,7 +109,22 @@ export function useAudioRecorder() {
       recorder.requestData();
       recorder.stop();
     });
+    stopPromiseRef.current = promise;
+    return promise;
   }, [stopLevelMeter]);
+
+  useEffect(
+    () => () => {
+      const recorder = mediaRef.current;
+      mediaRef.current = null;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stream.getTracks().forEach((track) => track.stop());
+      }
+      chunksRef.current = [];
+      stopLevelMeter();
+    },
+    [stopLevelMeter],
+  );
 
   return { recording, level, start, stop };
 }

@@ -84,8 +84,8 @@ export type ChatAction =
   | { type: "CREATE_CHAT"; chatId: string; label?: string }
   | { type: "DELETE_LINE_LOCAL"; chatId?: string; lineId: string }
   | { type: "SET_RECORDING"; recording: boolean }
-  | { type: "USER_TEXT"; text: string; turnMessageId?: string }
-  | { type: "USER_COMMAND"; command: string }
+  | { type: "USER_TEXT"; text: string; turnMessageId?: string; chatId?: string }
+  | { type: "USER_COMMAND"; command: string; chatId?: string }
   | {
       type: "USER_VOICE";
       turnMessageId: string;
@@ -93,6 +93,7 @@ export type ChatAction =
       mime: string;
       size: number;
       url: string;
+      chatId?: string;
     }
   | {
       type: "USER_MESSAGE";
@@ -105,6 +106,7 @@ export type ChatAction =
         size: number;
         url: string;
       }>;
+      chatId?: string;
     }
   | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string; turnMessageId?: string }
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
@@ -114,6 +116,10 @@ export type ChatAction =
 
 const DELTA_BUFFER_CAP = 64;
 const streamBuffers = new Map<string, Map<number, string>>();
+
+function streamBufferKey(chatId: string, messageId: string): string {
+  return `${chatId}\u0000${messageId}`;
+}
 
 function appendLine(session: ChatSession, line: TranscriptLine): ChatSession {
   const lines = session.lines.filter((l) => l.kind !== "empty");
@@ -159,13 +165,6 @@ function updateSession(
   };
 }
 
-function updateActiveSession(
-  state: ChatState,
-  updater: (session: ChatSession) => ChatSession,
-): ChatState {
-  return updateSession(state, state.activeChatId, updater);
-}
-
 function findAssistantLineIndex(lines: TranscriptLine[], messageId: string): number {
   return lines.findIndex((l) => l.id === messageId && l.kind === "assistant");
 }
@@ -205,7 +204,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "SET_RECORDING":
       return { ...state, recording: action.recording };
     case "USER_TEXT":
-      return updateActiveSession(state, (session) =>
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
         appendLine(openTyping(session), {
           id: action.turnMessageId ?? newId(),
           kind: "user",
@@ -215,7 +214,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       );
     case "USER_MESSAGE": {
       const { turnMessageId, text, attachments } = action;
-      return updateActiveSession(state, (session) => {
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) => {
         let next: ChatSession = openTyping(session);
         if (text.trim()) {
           next = appendLine(next, {
@@ -243,7 +242,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       });
     }
     case "USER_COMMAND":
-      return updateActiveSession(state, (session) =>
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
         appendLine(openTyping(session), {
           id: newId(),
           kind: "command",
@@ -251,7 +250,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         }),
       );
     case "USER_VOICE":
-      return updateActiveSession(state, (session) =>
+      return updateSession(state, action.chatId ?? state.activeChatId, (session) =>
         appendLine(openTyping(session), {
           id: action.attachmentId,
           kind: "audio-out",
@@ -342,6 +341,7 @@ function parseToolStatus(value: unknown): ToolStatus | undefined {
 function applyDeltaToLine(
   line: TranscriptLine,
   delta: string,
+  bufferKey: string,
   sequence?: number,
 ): TranscriptLine {
   if (sequence == null || !Number.isFinite(sequence)) {
@@ -357,7 +357,7 @@ function applyDeltaToLine(
 
   if (seq === last + 1) {
     let next = { ...line, text: line.text + delta, streaming: true, lastSequence: seq };
-    const buffer = streamBuffers.get(line.id);
+    const buffer = streamBuffers.get(bufferKey);
     if (buffer) {
       let cursor = seq + 1;
       while (buffer.has(cursor)) {
@@ -365,15 +365,15 @@ function applyDeltaToLine(
         buffer.delete(cursor);
         cursor += 1;
       }
-      if (buffer.size === 0) streamBuffers.delete(line.id);
+      if (buffer.size === 0) streamBuffers.delete(bufferKey);
     }
     return next;
   }
 
-  let buffer = streamBuffers.get(line.id);
+  let buffer = streamBuffers.get(bufferKey);
   if (!buffer) {
     buffer = new Map();
-    streamBuffers.set(line.id, buffer);
+    streamBuffers.set(bufferKey, buffer);
   }
   if (buffer.size < DELTA_BUFFER_CAP) {
     buffer.set(seq, delta);
@@ -383,8 +383,8 @@ function applyDeltaToLine(
   return line;
 }
 
-function flushDeltaBuffer(messageId: string, line: TranscriptLine): TranscriptLine {
-  const buffer = streamBuffers.get(messageId);
+function flushDeltaBuffer(bufferKey: string, line: TranscriptLine): TranscriptLine {
+  const buffer = streamBuffers.get(bufferKey);
   if (!buffer || buffer.size === 0) return line;
   const keys = [...buffer.keys()].sort((a, b) => a - b);
   let next = line;
@@ -399,7 +399,7 @@ function flushDeltaBuffer(messageId: string, line: TranscriptLine): TranscriptLi
     }
     buffer.delete(seq);
   }
-  streamBuffers.delete(messageId);
+  streamBuffers.delete(bufferKey);
   return next;
 }
 
@@ -503,16 +503,28 @@ function finalizeStreamingLines(
 function finalizeRunningToolNotices(
   lines: TranscriptLine[],
   status: ToolStatus,
+  turnMessageId?: string,
+  streamingMessageId?: string | null,
 ): TranscriptLine[] {
   return lines.map((line) => {
     if (line.kind !== "notice" || line.noticeKind !== "tool") return line;
     if (line.toolStatus !== "running") return line;
+    if (turnMessageId || streamingMessageId) {
+      const sameTurn =
+        !line.turnMessageId ||
+        line.turnMessageId === turnMessageId ||
+        line.id === streamingMessageId ||
+        line.id === turnMessageId ||
+        (turnMessageId ? line.id.startsWith(`${turnMessageId}-`) : false);
+      if (!sameTurn) return line;
+    }
     return { ...line, toolStatus: status };
   });
 }
 
 function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatSession {
   const p = event.payload;
+  const chatId = event.chat_id || session.chatId;
   switch (event.type) {
     case "assistant_start": {
       const messageId = String(p.message_id ?? newId());
@@ -545,6 +557,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const messageId = String(p.message_id);
       const delta = String(p.delta ?? "");
       const sequence = p.sequence != null ? Number(p.sequence) : undefined;
+      const bufferKey = streamBufferKey(chatId, messageId);
       const idx = findAssistantLineIndex(session.lines, messageId);
       if (idx < 0) {
         const line = applyDeltaToLine(
@@ -557,6 +570,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
             streaming: true,
           },
           delta,
+          bufferKey,
           sequence,
         );
         return appendLine(
@@ -564,8 +578,15 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           line,
         );
       }
+      const existing = session.lines[idx]!;
+      if (!existing.streaming && session.streamingMessageId !== messageId) {
+        streamBuffers.delete(bufferKey);
+        return session;
+      }
+      const nextLine = applyDeltaToLine(existing, delta, bufferKey, sequence);
+      if (nextLine === existing) return session;
       const lines = [...session.lines];
-      lines[idx] = applyDeltaToLine(lines[idx]!, delta, sequence);
+      lines[idx] = nextLine;
       return touchSession({ ...withoutTyping(session), lines, streamingMessageId: messageId });
     }
     case "assistant_segment": {
@@ -607,10 +628,11 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           ? String(p.reasoning_text)
           : undefined;
       const idx = findAssistantLineIndex(session.lines, messageId);
+      const bufferKey = streamBufferKey(chatId, messageId);
       let lines = session.lines;
       if (idx >= 0) {
         lines = [...lines];
-        let line = flushDeltaBuffer(messageId, lines[idx]!);
+        let line = flushDeltaBuffer(bufferKey, lines[idx]!);
         lines[idx] = {
           ...line,
           text: finalText ?? line.text,
@@ -630,12 +652,21 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           },
         ];
       }
+      const belongsToActiveStream =
+        session.streamingMessageId === messageId ||
+        session.streamTurnId === messageId ||
+        lines.some((line) => line.id === messageId && line.turnMessageId === session.streamTurnId);
       return touchSession({
-        ...withoutTyping(session),
-        lines: finalizeRunningToolNotices(lines, interrupted ? "idle" : "success"),
-        streamingMessageId: null,
-        streamTurnId: null,
-        typingClosed: true,
+        ...(belongsToActiveStream ? withoutTyping(session) : session),
+        lines: finalizeRunningToolNotices(
+          lines,
+          interrupted ? "idle" : "success",
+          belongsToActiveStream ? (session.streamTurnId ?? messageId) : messageId,
+          messageId,
+        ),
+        streamingMessageId: belongsToActiveStream ? null : session.streamingMessageId,
+        streamTurnId: belongsToActiveStream ? null : session.streamTurnId,
+        typingClosed: belongsToActiveStream ? true : session.typingClosed,
       });
     }
     case "assistant_audio": {
@@ -715,6 +746,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         toolDurationMs:
           p.duration_ms != null ? Number(p.duration_ms) : undefined,
         toolError: p.error != null ? String(p.error) : undefined,
+        turnMessageId: p.turn_message_id != null ? String(p.turn_message_id) : session.streamTurnId ?? undefined,
       };
       const upsert = noticeKind === "tool" || noticeKind === "reasoning";
       return (upsert ? upsertLine : appendLine)(withoutTyping(session), line);
@@ -774,7 +806,6 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     case "typing": {
       const state = String(p.state ?? "");
       if (state === "start") {
-        if (session.typingClosed) return session;
         return touchSession({
           ...session,
           typing: true,
@@ -784,19 +815,30 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       return touchSession({ ...session, typing: false, typingStartedAt: undefined });
     }
     case "assistant_error": {
+      const messageId = p.message_id != null ? String(p.message_id) : undefined;
+      const belongsToActiveStream =
+        !messageId || session.streamingMessageId === messageId || session.streamTurnId === messageId;
       return {
-        ...appendLine({ ...session, lines: finalizeRunningToolNotices(session.lines, "error") }, {
+        ...appendLine({
+          ...session,
+          lines: finalizeRunningToolNotices(
+            session.lines,
+            "error",
+            belongsToActiveStream ? (session.streamTurnId ?? messageId) : messageId,
+            messageId ?? null,
+          ),
+        }, {
           id: newId(),
           kind: "error",
           text: `error: ${String(p.code ?? "ERROR")} - ${String(p.message ?? "unknown")}`,
           threadId: event.thread_id,
           sessionId: event.session_id,
         }),
-        streamingMessageId: null,
-        streamTurnId: null,
-        typing: false,
-        typingStartedAt: undefined,
-        typingClosed: true,
+        streamingMessageId: belongsToActiveStream ? null : session.streamingMessageId,
+        streamTurnId: belongsToActiveStream ? null : session.streamTurnId,
+        typing: belongsToActiveStream ? false : session.typing,
+        typingStartedAt: belongsToActiveStream ? undefined : session.typingStartedAt,
+        typingClosed: belongsToActiveStream ? true : session.typingClosed,
       };
     }
     default:

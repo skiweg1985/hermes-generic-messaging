@@ -94,6 +94,14 @@ function notConnectedError(chatId: string): ChatAction {
   };
 }
 
+function contextFor(session: ChatSession) {
+  return { threadId: session.threadId, sessionId: session.sessionId };
+}
+
+function pendingFileKey(chatId: string, localId: string): string {
+  return `${chatId}\u0000${localId}`;
+}
+
 async function uploadPendingFile(
   file: File,
   localId: string,
@@ -151,6 +159,9 @@ export function useChatController(): ChatController {
   const uploadPromisesRef = useRef<
     Map<string, Promise<PendingAttachment["result"]>>
   >(new Map());
+  const submitInFlightRef = useRef<Set<string>>(new Set());
+  const pendingButtonClicksRef = useRef<Set<string>>(new Set());
+  const recordingChatIdRef = useRef<string | null>(null);
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
@@ -261,6 +272,9 @@ export function useChatController(): ChatController {
 
   const startPendingUpload = useCallback(
     (file: File, localId: string, chatId: string) => {
+      const key = pendingFileKey(chatId, localId);
+      const existing = uploadPromisesRef.current.get(key);
+      if (existing) return existing;
       const task = uploadPendingFile(file, localId, chatId, draftDispatch)
         .catch((err) => {
           const msg = err instanceof Error ? err.message : "upload failed";
@@ -278,9 +292,9 @@ export function useChatController(): ChatController {
           throw err;
         })
         .finally(() => {
-          uploadPromisesRef.current.delete(localId);
+          uploadPromisesRef.current.delete(key);
         });
-      uploadPromisesRef.current.set(localId, task);
+      uploadPromisesRef.current.set(key, task);
       return task;
     },
     [draftDispatch],
@@ -294,9 +308,10 @@ export function useChatController(): ChatController {
         return;
       }
       const uploadChatId = chatId;
+      const uploads: Array<Promise<PendingAttachment["result"]>> = [];
       for (const file of files) {
         const localId = newId();
-        pendingFilesRef.current.set(localId, file);
+        pendingFilesRef.current.set(pendingFileKey(uploadChatId, localId), file);
         draftDispatch({
           type: "ADD_PENDING_ATTACHMENT",
           chatId: uploadChatId,
@@ -304,28 +319,27 @@ export function useChatController(): ChatController {
           fileName: file.name,
           mimeType: file.type || "application/octet-stream",
         });
-        try {
-          await startPendingUpload(file, localId, uploadChatId);
-        } catch {}
+        uploads.push(startPendingUpload(file, localId, uploadChatId));
       }
+      await Promise.allSettled(uploads);
     },
     [connected, draftDispatch, startPendingUpload, state.activeChatId],
   );
 
   const retryUpload = useCallback(
     async (localId: string) => {
-      const file = pendingFilesRef.current.get(localId);
-      if (!file) return;
-      if (!connected) {
-        dispatch(notConnectedError(state.activeChatId));
-        return;
-      }
       let targetChatId = state.activeChatId;
       for (const [chatId, draft] of Object.entries(draftStore.drafts)) {
         if (draft.pendingAttachments.some((a) => a.localId === localId)) {
           targetChatId = chatId;
           break;
         }
+      }
+      const file = pendingFilesRef.current.get(pendingFileKey(targetChatId, localId));
+      if (!file) return;
+      if (!connected) {
+        dispatch(notConnectedError(state.activeChatId));
+        return;
       }
       try {
         await startPendingUpload(file, localId, targetChatId);
@@ -336,7 +350,8 @@ export function useChatController(): ChatController {
 
   const removePending = useCallback(
     (localId: string) => {
-      pendingFilesRef.current.delete(localId);
+      pendingFilesRef.current.delete(pendingFileKey(state.activeChatId, localId));
+      uploadPromisesRef.current.delete(pendingFileKey(state.activeChatId, localId));
       draftDispatch({
         type: "REMOVE_PENDING_ATTACHMENT",
         chatId: state.activeChatId,
@@ -351,24 +366,10 @@ export function useChatController(): ChatController {
       if (!connectedRef.current) return;
 
       const activeChatId = stateRef.current.activeChatId;
+      if (submitInFlightRef.current.has(activeChatId)) return;
       const session = stateRef.current.sessionsById[activeChatId];
       if (!session) return;
-      let draft = draftFor(activeChatId);
-
-      const pendingUploads = draft.pendingAttachments
-        .filter((a) => a.status === "uploading" || a.status === "queued")
-        .map((a) => uploadPromisesRef.current.get(a.localId))
-        .filter(
-          (
-            task,
-          ): task is Promise<PendingAttachment["result"]> => task !== undefined,
-        );
-      if (pendingUploads.length > 0) {
-        await Promise.allSettled(pendingUploads);
-        if (!connectedRef.current) return;
-        draft = draftFor(activeChatId);
-      }
-
+      const draft = draftFor(activeChatId);
       const raw = draft.input.trim();
       const ready = draft.pendingAttachments.filter((a) => a.status === "done" && a.result);
       const hasPendingAttachmentErrors = draft.pendingAttachments.some(
@@ -390,64 +391,90 @@ export function useChatController(): ChatController {
         return;
       }
 
-      if (raw === "cancel") {
-        const cancelTarget = resolveCancelTargetId(session);
-        if (cancelTarget) {
-          client.sendCancel(cancelTarget, session.chatId, USER_ID);
+      submitInFlightRef.current.add(activeChatId);
+      try {
+        if (raw === "cancel") {
+          const cancelTarget = resolveCancelTargetId(session);
+          if (cancelTarget) {
+            const delivered = client.sendCancel(cancelTarget, session.chatId, USER_ID, contextFor(session));
+            if (!delivered) dispatch(notConnectedError(session.chatId));
+          }
+          draftDispatch({ type: "SET_INPUT", chatId: session.chatId, input: "" });
+          return;
         }
-        draftDispatch({ type: "SET_INPUT", chatId: session.chatId, input: "" });
-        return;
-      }
 
-      if (raw.startsWith("/")) {
-        dispatch({ type: "USER_COMMAND", command: raw });
-        client.sendCommand(raw, session.chatId, USER_ID);
-        draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
-        pendingFilesRef.current.clear();
-        return;
-      }
+        if (raw.startsWith("/")) {
+          if (ready.length > 0) {
+            dispatch({
+              type: "USER_ERROR",
+              code: "COMMAND_HAS_ATTACHMENTS",
+              message: "remove attachments before sending a slash command",
+              chatId: session.chatId,
+            });
+            return;
+          }
+          dispatch({ type: "USER_COMMAND", command: raw, chatId: session.chatId });
+          const delivered = client.sendCommand(raw, session.chatId, USER_ID, contextFor(session));
+          if (!delivered) {
+            dispatch({
+              type: "USER_ERROR",
+              code: "WS_NOT_CONNECTED",
+              message: "command not delivered — reconnect and retry",
+              chatId: session.chatId,
+            });
+          }
+          draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
+          return;
+        }
 
-      const turnMessageId = newId();
-      const outboundText = raw;
-      const attachments: MessageAttachment[] = ready.map((entry) => ({
-        attachment_id: entry.result!.attachment_id,
-        mime_type: entry.result!.mime_type,
-        size_bytes: entry.result!.size_bytes,
-        url: entry.result!.url,
-        file_ref: entry.result!.url,
-        filename: entry.result!.filename,
-      }));
-
-      dispatch({
-        type: "USER_MESSAGE",
-        turnMessageId,
-        text: raw,
-        attachments: ready.map((entry) => ({
-          attachmentId: entry.result!.attachment_id,
-          filename: entry.result!.filename,
-          mime: entry.result!.mime_type,
-          size: entry.result!.size_bytes,
+        const turnMessageId = newId();
+        const outboundText = raw;
+        const attachments: MessageAttachment[] = ready.map((entry) => ({
+          attachment_id: entry.result!.attachment_id,
+          mime_type: entry.result!.mime_type,
+          size_bytes: entry.result!.size_bytes,
           url: entry.result!.url,
-        })),
-      });
+          file_ref: entry.result!.url,
+          filename: entry.result!.filename,
+        }));
 
-      const delivered = client.sendMessage(
-        { messageId: turnMessageId, text: outboundText, attachments, replyTarget: draft.replyTarget },
-        session.chatId,
-        USER_ID,
-      );
-
-      if (!delivered) {
         dispatch({
-          type: "USER_ERROR",
-          code: "WS_NOT_CONNECTED",
-          message: "message not delivered — reconnect and resend",
+          type: "USER_MESSAGE",
           chatId: session.chatId,
+          turnMessageId,
+          text: raw,
+          attachments: ready.map((entry) => ({
+            attachmentId: entry.result!.attachment_id,
+            filename: entry.result!.filename,
+            mime: entry.result!.mime_type,
+            size: entry.result!.size_bytes,
+            url: entry.result!.url,
+          })),
         });
-      }
 
-      draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
-      pendingFilesRef.current.clear();
+        const delivered = client.sendMessage(
+          { messageId: turnMessageId, text: outboundText, attachments, replyTarget: draft.replyTarget },
+          session.chatId,
+          USER_ID,
+          contextFor(session),
+        );
+
+        if (!delivered) {
+          dispatch({
+            type: "USER_ERROR",
+            code: "WS_NOT_CONNECTED",
+            message: "message not delivered — reconnect and resend",
+            chatId: session.chatId,
+          });
+        }
+
+        draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
+        for (const entry of ready) {
+          pendingFilesRef.current.delete(pendingFileKey(session.chatId, entry.localId));
+        }
+      } finally {
+        submitInFlightRef.current.delete(activeChatId);
+      }
     })();
   }, [client, draftDispatch, draftFor]);
 
@@ -455,7 +482,8 @@ export function useChatController(): ChatController {
     const session = state.sessionsById[state.activeChatId];
     const cancelTarget = resolveCancelTargetId(session);
     if (cancelTarget && client) {
-      client.sendCancel(cancelTarget, session.chatId, USER_ID);
+      const delivered = client.sendCancel(cancelTarget, session.chatId, USER_ID, contextFor(session));
+      if (!delivered) dispatch(notConnectedError(session.chatId));
     }
   }, [state.activeChatId, state.sessionsById]);
 
@@ -463,10 +491,19 @@ export function useChatController(): ChatController {
     (command: string) => {
       if (!connected) return;
       const chatId = state.activeChatId;
-      dispatch({ type: "USER_COMMAND", command });
-      client.sendCommand(command, chatId, USER_ID);
+      const session = state.sessionsById[chatId];
+      dispatch({ type: "USER_COMMAND", command, chatId });
+      const delivered = client.sendCommand(command, chatId, USER_ID, session ? contextFor(session) : {});
+      if (!delivered) {
+        dispatch({
+          type: "USER_ERROR",
+          code: "WS_NOT_CONNECTED",
+          message: "command not delivered — reconnect and retry",
+          chatId,
+        });
+      }
     },
-    [connected, state.activeChatId],
+    [client, connected, state.activeChatId, state.sessionsById],
   );
 
   const replyToLine = useCallback(
@@ -506,19 +543,23 @@ export function useChatController(): ChatController {
 
     if (line.kind === "command" && line.text.trim().startsWith("/")) {
       const command = line.text.trim();
-      dispatch({ type: "USER_COMMAND", command });
-      client.sendCommand(command, chatId, USER_ID);
+      const session = current.sessionsById[chatId];
+      dispatch({ type: "USER_COMMAND", command, chatId });
+      const delivered = client.sendCommand(command, chatId, USER_ID, session ? contextFor(session) : {});
+      if (!delivered) dispatch(notConnectedError(chatId));
       return;
     }
 
     if (line.kind === "user" && line.text.trim()) {
       const turnMessageId = newId();
       const text = line.text.trim();
-      dispatch({ type: "USER_TEXT", text, turnMessageId });
+      const session = current.sessionsById[chatId];
+      dispatch({ type: "USER_TEXT", text, turnMessageId, chatId });
       const delivered = client.sendMessage(
         { messageId: turnMessageId, text, attachments: [] },
         chatId,
         USER_ID,
+        session ? contextFor(session) : {},
       );
       if (!delivered) {
         dispatch({
@@ -532,8 +573,10 @@ export function useChatController(): ChatController {
     }
 
     const command = "/retry";
-    dispatch({ type: "USER_COMMAND", command });
-    client.sendCommand(command, chatId, USER_ID);
+    const session = current.sessionsById[chatId];
+    dispatch({ type: "USER_COMMAND", command, chatId });
+    const delivered = client.sendCommand(command, chatId, USER_ID, session ? contextFor(session) : {});
+    if (!delivered) dispatch(notConnectedError(chatId));
   }, []);
 
   const uploadFile = useCallback(
@@ -545,20 +588,30 @@ export function useChatController(): ChatController {
 
   const clickButton = useCallback(
     (line: TranscriptLine, button: AssistantButton) => {
-      if (!connected || line.clickedButtonId) return;
       const chatId = state.activeChatId;
+      const clickKey = `${chatId}:${line.id}:${button.id}`;
+      if (!connected || line.clickedButtonId || pendingButtonClicksRef.current.has(clickKey)) return;
+      pendingButtonClicksRef.current.add(clickKey);
 
       if (line.buttonKind === "slash_pick" && line.commandBase) {
         const cmd = `${line.commandBase} ${button.id}`.trim();
-        dispatch({ type: "USER_COMMAND", command: cmd });
-        client.sendCommand(cmd, chatId, USER_ID);
+        dispatch({ type: "USER_COMMAND", command: cmd, chatId });
+        const delivered = client.sendCommand(cmd, chatId, USER_ID, { threadId: line.threadId, sessionId: line.sessionId });
+        if (!delivered) {
+          pendingButtonClicksRef.current.delete(clickKey);
+          dispatch(notConnectedError(chatId));
+          return;
+        }
         dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
         return;
       }
 
       if (line.buttonKind === "model_picker") {
-        if (button.id === "mx:noop") return;
-        client.sendButtonClick(
+        if (button.id === "mx:noop") {
+          pendingButtonClicksRef.current.delete(clickKey);
+          return;
+        }
+        const delivered = client.sendButtonClick(
           {
             message_id: line.id,
             confirm_id: line.confirmId,
@@ -569,10 +622,16 @@ export function useChatController(): ChatController {
           USER_ID,
           { threadId: line.threadId, sessionId: line.sessionId },
         );
+        if (!delivered) {
+          pendingButtonClicksRef.current.delete(clickKey);
+          dispatch(notConnectedError(chatId));
+          return;
+        }
+        dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
         return;
       }
 
-      client.sendButtonClick(
+      const delivered = client.sendButtonClick(
         {
           message_id: line.id,
           confirm_id: line.confirmId,
@@ -583,24 +642,32 @@ export function useChatController(): ChatController {
         USER_ID,
         { threadId: line.threadId, sessionId: line.sessionId },
       );
+      if (!delivered) {
+        pendingButtonClicksRef.current.delete(clickKey);
+        dispatch(notConnectedError(chatId));
+        return;
+      }
       dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
     },
-    [connected, state.activeChatId],
+    [client, connected, state.activeChatId],
   );
 
   const startRecording = useCallback(async () => {
+    const chatId = state.activeChatId;
     if (!connected) {
-      dispatch(notConnectedError(state.activeChatId));
+      dispatch(notConnectedError(chatId));
       return;
     }
     try {
+      recordingChatIdRef.current = chatId;
       await startRec();
     } catch (err) {
+      recordingChatIdRef.current = null;
       dispatch({
         type: "USER_ERROR",
         code: "MIC_DENIED",
         message: "microphone access denied",
-        chatId: state.activeChatId,
+        chatId,
       });
       throw err;
     }
@@ -609,9 +676,10 @@ export function useChatController(): ChatController {
   const stopRecording = useCallback(
     async (options: { send?: boolean } = { send: true }) => {
       const shouldSend = options.send !== false;
-      const chatId = stateRef.current.activeChatId;
+      const chatId = recordingChatIdRef.current ?? stateRef.current.activeChatId;
       try {
         const blob = await stopRec();
+        recordingChatIdRef.current = null;
         if (!shouldSend || blob.size === 0) return;
         if (!connectedRef.current) {
           dispatch(notConnectedError(chatId));
@@ -633,6 +701,7 @@ export function useChatController(): ChatController {
         const attachmentId = newId();
         dispatch({
           type: "USER_VOICE",
+          chatId,
           turnMessageId,
           attachmentId,
           mime: upload.mime_type,
@@ -657,6 +726,7 @@ export function useChatController(): ChatController {
           },
           chatId,
           USER_ID,
+          contextFor(stateRef.current.sessionsById[chatId] ?? createChatSession(chatId)),
         );
 
         if (!delivered) {
@@ -670,6 +740,7 @@ export function useChatController(): ChatController {
           draftDispatch({ type: "CLEAR_REPLY_TARGET", chatId });
         }
       } catch {
+        recordingChatIdRef.current = null;
         if (!shouldSend) return;
         dispatch({
           type: "USER_ERROR",

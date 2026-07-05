@@ -24,6 +24,7 @@ export function useWaveform(url: string | undefined): UseWaveformResult {
     setLoading(true);
     setFailed(false);
     setPeaks(null);
+    const controller = new AbortController();
 
     const audioCtx =
       typeof window !== "undefined" &&
@@ -39,7 +40,7 @@ export function useWaveform(url: string | undefined): UseWaveformResult {
 
     (async () => {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) throw new Error("fetch failed");
         const buf = await response.arrayBuffer();
         const decoded = await audioCtx.decodeAudioData(buf);
@@ -69,6 +70,8 @@ export function useWaveform(url: string | undefined): UseWaveformResult {
 
     return () => {
       cancelled = true;
+      controller.abort();
+      audioCtx.close().catch(() => undefined);
     };
   }, [url]);
 

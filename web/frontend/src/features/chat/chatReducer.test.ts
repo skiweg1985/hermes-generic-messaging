@@ -294,7 +294,7 @@ describe("chatReducer", () => {
     expect(session(s).typingStartedAt).toBeUndefined();
   });
 
-  it("ignores late typing after a completed answer until the next user turn", () => {
+  it("allows server typing events after a completed answer", () => {
     let s = chatReducer(base, {
       type: "INBOUND_EVENT",
       event: ev("assistant_done", { message_id: "r1", final_text: "done" }),
@@ -303,14 +303,43 @@ describe("chatReducer", () => {
       type: "INBOUND_EVENT",
       event: ev("typing", { state: "start" }),
     });
-    expect(session(s).typing).toBe(false);
+    expect(session(s).typing).toBe(true);
+  });
 
-    s = chatReducer(s, { type: "USER_TEXT", text: "next" });
+  it("routes async local user messages to their captured chat", () => {
+    let s = chatReducer(base, { type: "CREATE_CHAT", chatId: "c2", label: "two" });
+    s = chatReducer(s, { type: "SET_ACTIVE_CHAT", chatId: "c2" });
+    s = chatReducer(s, {
+      type: "USER_MESSAGE",
+      chatId: "c1",
+      turnMessageId: "u1",
+      text: "hello c1",
+      attachments: [],
+    });
+    expect(session(s, "c1").lines[0].text).toBe("hello c1");
+    expect(session(s, "c2").lines).toHaveLength(0);
+  });
+
+  it("ignores late assistant deltas after done", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
     s = chatReducer(s, {
       type: "INBOUND_EVENT",
-      event: ev("typing", { state: "start" }),
+      event: ev("assistant_delta", { message_id: "r1", sequence: 1, delta: "Hello" }),
     });
-    expect(session(s).typing).toBe(true);
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", { message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 2, delta: " late" }),
+    });
+    expect(session(s).lines[0].text).toBe("Hello");
+    expect(session(s).lines[0].streaming).toBe(false);
+    expect(session(s).streamingMessageId).toBeNull();
   });
 
   it("routes unknown chat_id events into an auto-created unread session", () => {

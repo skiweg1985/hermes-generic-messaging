@@ -3,6 +3,8 @@ import type { ChatSession, ChatState, TranscriptLine } from "../../types/events"
 const STORAGE_KEY = "custom-chat-web:sessions:v1";
 const LEGACY_DEMO_CHAT_ID = "workspace:demo";
 export const MAX_TRANSCRIPT_LINES = 200;
+const MAX_LINE_TEXT_CHARS = 16_000;
+const MAX_TOOL_FIELD_CHARS = 4_000;
 
 export interface StoredState {
   version: 1;
@@ -75,7 +77,12 @@ export function mergeChatStates(current: ChatState, incoming: ChatState): ChatSt
   const sessionsById = { ...incoming.sessionsById };
   for (const [chatId, session] of Object.entries(current.sessionsById)) {
     const remote = sessionsById[chatId];
-    if (!remote || sessionTimestamp(session) >= sessionTimestamp(remote)) {
+    const hasLiveLocalState =
+      session.streamingMessageId !== null ||
+      session.streamTurnId !== null ||
+      session.typing ||
+      session.lines.some((line) => line.streaming);
+    if (!remote || hasLiveLocalState || sessionTimestamp(session) >= sessionTimestamp(remote)) {
       sessionsById[chatId] = session;
     }
   }
@@ -108,11 +115,27 @@ function trimSession(session: ChatSession): ChatSession {
 }
 
 function trimLine(line: TranscriptLine): TranscriptLine {
-  const next = { ...line, streaming: false };
+  const next = {
+    ...line,
+    text: truncateStoredText(line.text, MAX_LINE_TEXT_CHARS),
+    caption: line.caption ? truncateStoredText(line.caption, MAX_LINE_TEXT_CHARS) : line.caption,
+    reasoningText: line.reasoningText
+      ? truncateStoredText(line.reasoningText, MAX_LINE_TEXT_CHARS)
+      : line.reasoningText,
+    toolArgs: line.toolArgs ? truncateStoredText(line.toolArgs, MAX_TOOL_FIELD_CHARS) : line.toolArgs,
+    toolResult: line.toolResult ? truncateStoredText(line.toolResult, MAX_TOOL_FIELD_CHARS) : line.toolResult,
+    toolError: line.toolError ? truncateStoredText(line.toolError, MAX_TOOL_FIELD_CHARS) : line.toolError,
+    streaming: false,
+  };
   if (next.toolStatus === "running") {
     return { ...next, toolStatus: "idle" };
   }
   return next;
+}
+
+function truncateStoredText(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}\n[truncated for local persistence]`;
 }
 
 function isStoredSession(value: unknown): value is ChatSession {
