@@ -127,7 +127,7 @@ export function WaveformPlayer({
               peaks={peaks}
               progress={progress}
               width={width}
-              height={44}
+              height={48}
               onSeek={seekRatio}
             />
           ) : null}
@@ -169,7 +169,7 @@ export function WaveformPlayer({
 
 function PlayGlyph() {
   return (
-    <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden focusable="false">
+    <svg width={14} height={14} viewBox="0 0 12 12" aria-hidden focusable="false">
       <path d="M3 1.5v9l8-4.5z" fill="currentColor" />
     </svg>
   );
@@ -177,7 +177,7 @@ function PlayGlyph() {
 
 function PauseGlyph() {
   return (
-    <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden focusable="false">
+    <svg width={14} height={14} viewBox="0 0 12 12" aria-hidden focusable="false">
       <rect x="3" y="2" width="2.4" height="8" rx="0.6" fill="currentColor" />
       <rect x="6.6" y="2" width="2.4" height="8" rx="0.6" fill="currentColor" />
     </svg>
