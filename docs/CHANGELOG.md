@@ -9,6 +9,7 @@
 
 ### Changed
 
+- Documentation: Informationsarchitektur, Einstieg, Plugin-Guide, Web-App-Guide und Schnittstellenreferenz als nutzerorientierte Produktdokumentation überarbeitet; historische Pläne klar als Archivmaterial markiert.
 - Web UI: Sidebar zeigt in allen responsiven Größen dasselbe ausgeklappte, linksbündige Desktop-Layout. Auf Tablets (iPad Hoch-/Querformat bis 1080px) und Smartphones ist sie ein-/ausklappbar und öffnet als Overlay-Drawer; ab 1081px bleibt sie angedockt und ausgeklappt, lässt sich dort aber optional über den Header-Button einklappen (Zustand wird gespeichert)
 - Web UI: Composer-Entwürfe (Eingabetext, Reply-Ziel, Upload-Warteschlange) in einen eigenen `useDraftStore` pro Chat ausgelagert; der Chat-Reducer und `ChatSession` enthalten nur noch Transcript-/Streaming-/Typing-Domäne. Eingabetext wird separat lokal persistiert
 - Web UI: Verbindungs-/Transport-Zustand aus dem Chat-Reducer in einen eigenen `useConnectionStore` ausgelagert (besitzt WebSocket-Client, Status, Reconnect und Diagnose); `ChatState` trägt keinen `connection`-Zustand mehr

@@ -1,4 +1,8 @@
-# Worklog
+# 🗂️ Worklog
+
+> **Status:** Historisches Arbeitsprotokoll. Dieses Dokument ist hilfreich, um
+> Entscheidungen und Deployments nachzuvollziehen. Für aktuelle Betriebs- und
+> Entwicklerdokumentation nutze `README.md` und `docs/README.md`.
 
 ## 2026-05-24 – cursor – Config-Vereinfachung BFF/Plugin
 

@@ -1,73 +1,206 @@
-# custom_chat Web App
+# 🖥️ Web-App betreiben
 
-Browser UI and FastAPI BFF for Event Schema v1. Hermes must run the `custom_chat` plugin separately.
+Die Web-App ist die mitgelieferte Browser-Oberfläche für `custom_chat`. Sie ist
+für Menschen gedacht, die Hermes im Browser nutzen möchten, und für Teams, die
+einen Referenz-Client für eigene Integrationen brauchen.
 
-## Architecture
+Die Web-App besteht aus zwei Teilen:
 
-- **Frontend** (`web/frontend`): React terminal UI → WebSocket `/ws/chat`
-- **BFF** (`web/backend`): proxies WS to the adapter; hosts media uploads and session persistence
-- **Plugin** (`plugins/platforms/custom_chat`): Hermes gateway WebSocket (default port 8765)
+- **FastAPI-BFF**: verbindet den Browser mit dem `custom_chat` Plugin, speichert
+  Uploads, liefert Diagnoseinformationen und hält leichten Sitzungszustand.
+- **React-Frontend**: zeigt Chats, Medien, Streaming-Antworten, Freigaben,
+  Sitzungen und Diagnose im Browser an.
 
-## Environment (BFF)
+## 🧭 Wie die Web-App arbeitet
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `CUSTOM_CHAT_TARGET` | — | Hermes plugin target: host, `host:port`, or `ws://` URL (preferred) |
-| `CUSTOM_CHAT_WS_URL` | `ws://127.0.0.1:8765` | Legacy upstream WebSocket URL (used when `CUSTOM_CHAT_TARGET` is unset) |
-| `CUSTOM_CHAT_BEARER_TOKEN` | — | Bearer token for upstream |
-| `WEB_CHAT_ID` | `workspace:demo` | Default `chat_id` in enriched events |
-| `WEB_USER_ID` | `user-demo` | Default `user_id` |
-| `WEB_MEDIA_UPLOAD_DIR` | `./data/uploads` | Stored uploaded media files |
-| `WEB_SESSION_STORE_PATH` | `./data/chat_sessions.json` | Server-side browser session store used by `/api/v1/sessions` |
-| `WEB_MAX_UPLOAD_BYTES` | `20971520` | Max upload size for the BFF media API |
-| `WEB_ALLOWED_UPLOAD_MIME_TYPES` | see schema | Allowed MIME types for BFF uploads |
-| `WEB_MAX_AUDIO_BYTES` | — | Legacy alias read only when `WEB_MAX_UPLOAD_BYTES` is unset |
-| `WEB_FRONTEND_DIST_DIR` | `../frontend/dist` | Built React app served by the BFF in production |
-| `WEB_PUBLIC_MEDIA_BASE_URL` | auto | Public browser-facing base URL in media upload responses |
-| `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` | `WEB_PUBLIC_MEDIA_BASE_URL` | Media base URL announced to Hermes in `client.register`; use when Hermes needs a different URL than browsers |
-| `CUSTOM_CHAT_INTERNAL_MEDIA_BASE_URL` | `WEB_PUBLIC_MEDIA_BASE_URL` | Legacy alias for `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` |
-| `WEB_PUBLIC_HOST` | auto | Host part when auto-detecting public media URL |
-| `WEB_PUBLIC_PORT` | `8000` | Port part when auto-detecting public media URL |
-| `WEB_CORS_ORIGINS` | localhost:5173 | Comma-separated CORS origins |
-| `WEB_CORS_REFLECT_ORIGIN` | `false` | When `true`, allow any `http(s)` Origin (dev/LAN) |
+```text
+Browser
+  |  /ws/chat, /api/v1/*
+  v
+FastAPI-BFF
+  |  Event Schema v1 über WebSocket
+  v
+custom_chat Plugin
+  |
+  v
+Hermes Gateway
+```
 
-Copy `web/.env.example` to `web/.env` and set `CUSTOM_CHAT_TARGET` plus `CUSTOM_CHAT_BEARER_TOKEN`.
+Der Browser spricht nicht direkt mit Hermes. Das BFF übernimmt diese Aufgabe,
+weil es Token, Medien-URLs, Uploads und Diagnose zentral behandeln kann.
 
-Upload limits are enforced twice: the BFF (`WEB_MAX_UPLOAD_BYTES`,
-`WEB_ALLOWED_UPLOAD_MIME_TYPES`) and the plugin when it validates inbound
-`audio.uploaded` / `file.uploaded` (`CUSTOM_CHAT_MAX_UPLOAD_BYTES`,
-`CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES`). Keep both in sync for production.
+## ✅ Voraussetzungen
 
-On connect, the BFF sends `client.register` with `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` (or `CUSTOM_CHAT_INTERNAL_MEDIA_BASE_URL`, or the auto-detected public media URL). The plugin uses that URL for outbound file uploads, so `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` on Hermes is optional when the web BFF is connected.
+- Das `custom_chat` Plugin läuft im Hermes Gateway.
+- Der WebSocket-Port des Plugins ist vom BFF aus erreichbar.
+- `CUSTOM_CHAT_BEARER_TOKEN` ist im Plugin und im BFF gleich gesetzt.
+- Python 3.10 oder neuer ist installiert.
+- Node.js und npm sind für das Frontend verfügbar.
 
-When Hermes runs in Docker and the BFF on the host, set `WEB_PUBLIC_MEDIA_BASE_URL` to a URL the adapter container can reach (e.g. `http://host.docker.internal:8000`).
+## 🚀 Lokal starten
 
-When Hermes runs on a different machine on the LAN, set `CUSTOM_CHAT_TARGET` to the Hermes host and start the BFF with `BFF_HOST=0.0.0.0 ./scripts/dev.sh` so it binds beyond loopback. The BFF auto-detects a LAN IP for media URLs unless you set `WEB_PUBLIC_MEDIA_BASE_URL` explicitly.
-
-## Run locally
+Erstelle zuerst die BFF-Konfiguration:
 
 ```bash
-# Repo root
+cd web
+cp .env.example .env
+```
+
+Bearbeite `web/.env`:
+
+```bash
+CUSTOM_CHAT_TARGET=127.0.0.1:8765
+CUSTOM_CHAT_BEARER_TOKEN=ein-langer-zufaelliger-token
+```
+
+Installiere die Python-Abhängigkeiten aus dem Repository-Root:
+
+```bash
+cd ..
 pip install -e ".[dev,web]"
+```
 
-# Terminal 1 — Hermes with custom_chat enabled (see docs/custom_chat.md for config.yaml)
+Starte das BFF:
 
-# Terminal 2 — BFF
+```bash
 cd web/backend
 uvicorn app.main:app --reload --port 8000
+```
 
-# Terminal 3 — Frontend
+Starte in einem zweiten Terminal das Frontend:
+
+```bash
 cd web/frontend
 npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:5173
+Öffne anschließend <http://127.0.0.1:5173>.
 
-## Run production on one HTTPS port
+## ⚙️ BFF-Konfiguration
 
-Build the frontend and start the BFF with TLS. The BFF serves `web/frontend/dist`
-at `/`, keeps `/api/v1/*` for API calls, and keeps `/ws/chat` for streaming.
+Die wichtigsten Einstellungen stehen in `web/.env`.
+
+| Variable | Standard | Wann relevant? |
+|----------|----------|----------------|
+| `CUSTOM_CHAT_TARGET` | leer | Ziel des Plugins, z. B. `127.0.0.1:8765` oder `ws://host:8765` |
+| `CUSTOM_CHAT_WS_URL` | `ws://127.0.0.1:8765` | Legacy-Fallback, wenn `CUSTOM_CHAT_TARGET` fehlt |
+| `CUSTOM_CHAT_BEARER_TOKEN` | leer | Token für die Verbindung zum Plugin |
+| `WEB_CHAT_ID` | `workspace:demo` | Fallback-Chat, wenn ein Client keine `chat_id` sendet |
+| `WEB_USER_ID` | `user-demo` | Fallback-Benutzer, wenn ein Client keine `user_id` sendet |
+| `WEB_MEDIA_UPLOAD_DIR` | `./data/uploads` | Speicherort für Uploads |
+| `WEB_SESSION_STORE_PATH` | `./data/chat_sessions.json` | Speicherort für UI-Sitzungen |
+| `WEB_MAX_UPLOAD_BYTES` | `20971520` | Maximale Upload-Größe |
+| `WEB_ALLOWED_UPLOAD_MIME_TYPES` | Schema-Standard | Erlaubte MIME-Typen |
+| `WEB_PUBLIC_MEDIA_BASE_URL` | automatisch | URL, die Browser für Medien erhalten |
+| `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` | öffentliche Medien-URL | URL, die dem Plugin per `client.register` gemeldet wird |
+| `WEB_CORS_ORIGINS` | lokale Vite-Origins | Erlaubte Browser-Origins |
+| `WEB_CORS_REFLECT_ORIGIN` | `false` | Erlaubt in Entwicklung alle HTTP(S)-Origins |
+
+**Tipp:** Verwende für neue Installationen `CUSTOM_CHAT_TARGET`. Es ist
+lesbarer als mehrere einzelne Host-/Port-Variablen.
+
+## 🌐 Medien-URLs richtig setzen
+
+Medien sind der häufigste Stolperstein in verteilten Setups. Drei Systeme müssen
+dabei dieselbe Datei erreichen können:
+
+1. der Browser, um Medien anzuzeigen oder herunterzuladen
+2. das BFF, um Uploads zu speichern
+3. Hermes beziehungsweise das Plugin, um ausgehende lokale Dateien hochzuladen
+
+Für lokale Entwicklung reicht meist die automatische Erkennung. In Docker- oder
+LAN-Setups solltest du die URL bewusst setzen.
+
+### Beispiel: Hermes in Docker, BFF auf dem Host
+
+```bash
+WEB_PUBLIC_MEDIA_BASE_URL=http://127.0.0.1:8000
+WEB_CUSTOM_CHAT_MEDIA_BASE_URL=http://host.docker.internal:8000
+```
+
+Der Browser nutzt die lokale Host-URL. Das Plugin im Container nutzt die
+Container-erreichbare Host-Adresse.
+
+### Beispiel: Hermes auf einem anderen LAN-Host
+
+```bash
+CUSTOM_CHAT_TARGET=192.168.177.149:8765
+WEB_PUBLIC_MEDIA_BASE_URL=http://192.168.177.20:8000
+```
+
+Starte das BFF dann auf einer erreichbaren Adresse:
+
+```bash
+BFF_HOST=0.0.0.0 ./scripts/dev.sh
+```
+
+## 💬 Chats und Sitzungen
+
+Die Web-App unterstützt mehrere parallele Chats. Jeder Chat hat eine eigene
+`chat_id`, zum Beispiel `workspace:<uuid>`.
+
+Die Oberfläche speichert:
+
+- die aktive Sitzung
+- Chat-Titel
+- die letzten Transcript-Zeilen
+- Streaming- und Typing-Zustand nur als Laufzeitstatus
+
+Der Zustand liegt im Browser in `localStorage` und wird zusätzlich über
+`/api/v1/sessions` im BFF gespiegelt. Das ist praktisch für lokale Wiederaufnahme,
+aber kein dauerhaftes Archiv des Hermes-Verlaufs.
+
+Das BFF begrenzt den Session-Speicher auf 80 Sitzungen und 200 Transcript-Zeilen
+pro Sitzung. Dadurch bleibt der Speicher kontrollierbar, auch wenn viele Chats
+angelegt werden.
+
+## 🧰 Funktionen in der Oberfläche
+
+| Funktion | Was Benutzer sehen |
+|----------|--------------------|
+| Streaming | Antworten erscheinen fortlaufend statt erst am Ende |
+| Slash Commands | Befehle wie `/model` oder `/reset` können direkt eingegeben werden |
+| Freigaben | Aktionen wie `/reload-mcp` erscheinen als Button-Karte |
+| Medien | Bilder, Dateien, Audio und Videos werden passend dargestellt |
+| Mehrere Chats | Chats sind in der Seitenleiste getrennt |
+| Diagnose | Verbindungszustand von Browser, BFF und Plugin ist sichtbar |
+| Sicheres Markdown | Antworten können Listen, Tabellen, Code und Links enthalten |
+
+## 🔍 Diagnose
+
+Das BFF stellt eine Diagnose-Route bereit:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/diagnostics
+```
+
+Eine gesunde Antwort sieht sinngemäß so aus:
+
+```json
+{
+  "bff": "ok",
+  "upstream": {
+    "target": "127.0.0.1:8765",
+    "status": "ok"
+  }
+}
+```
+
+Mögliche Upstream-Statuswerte:
+
+| Status | Bedeutung |
+|--------|-----------|
+| `ok` | BFF erreicht das Plugin |
+| `unreachable` | Host oder Port ist nicht erreichbar |
+| `unauthorized` | Token fehlt oder ist falsch |
+| `closed` | Plugin hat die Verbindung geschlossen |
+| `error` | Unerwarteter WebSocket-Fehler |
+
+## 🏭 Produktion auf einem HTTPS-Port
+
+Für einfache Deployments kann das BFF das gebaute Frontend direkt ausliefern.
+Dadurch laufen UI, API und WebSocket über denselben Host und Port.
 
 ```bash
 cd web/frontend
@@ -82,61 +215,55 @@ uvicorn app.main:app \
   --ssl-keyfile /path/to/key.pem
 ```
 
-## UI features
+Das BFF bedient dann:
 
-- Text chat with streaming (`assistant_start` / `assistant_delta` / `assistant_done`)
-- Slash commands (`/model`, …) via `command.create`
-- Cancel active stream: `Ctrl+C` or type `cancel`
-- Audio file attach (`:attach file`) and microphone (`:record start` / `stop`)
-- Playback of `assistant_audio` responses
-- Interactive approvals and confirmations via `assistant_buttons` -> `button.click`
-- Slash-command option menus (`slash_pick`): button grid under assistant messages; click auto-sends full command (e.g. `/model gpt-4`)
-- System/info bubbles via `assistant_notice`
-- Image cards via `assistant_image`
-- Typing indicator via `typing` (`start` / `stop`)
-- Interrupted stream display when `assistant_done.payload.interrupted` is `true`
-- Tool and reasoning text in the assistant stream (Telegram/Discord text parity); segment boundaries via `assistant_segment`; tool status via `assistant_notice` (`kind: tool`)
-- Multiple local browser chat sessions, separated by `chat_id`
-- Safe Markdown rendering for assistant text, notices, and button bodies
+- `/` für das Frontend
+- `/api/v1/*` für REST-Endpunkte
+- `/ws/chat` für den Chat-WebSocket
 
-## Multi-chat behavior
+In größeren Umgebungen ist ein Reverse Proxy vor dem BFF sinnvoll. Er kann TLS,
+Zugriffsschutz, Logging und Rate Limits zentral übernehmen.
 
-The browser keeps one WebSocket connection and routes messages by `chat_id`.
-New chats use `workspace:<uuid>` IDs. Inbound events for an unknown `chat_id`
-automatically create a new tab and mark it unread.
+## 🔌 API der Web-App
 
-Sessions, the active chat, and the most recent transcript lines are persisted in
-`localStorage` and mirrored through the BFF session API at `/api/v1/sessions`.
-The server store is a JSON file at `WEB_SESSION_STORE_PATH`; it keeps up to 80
-sessions and 200 transcript lines per session. This is lightweight UI state, not
-a durable Hermes conversation archive.
+| Methode | Pfad | Zweck |
+|---------|------|-------|
+| `GET` | `/api/v1/health` | einfacher Liveness-Check |
+| `GET` | `/api/v1/diagnostics` | prüft BFF und Verbindung zum Plugin |
+| `POST` | `/api/v1/media/upload` | speichert einen Medien-Upload |
+| `GET` | `/api/v1/media/{file_id}` | liefert einen gespeicherten Upload aus |
+| `GET` | `/api/v1/sessions` | lädt den UI-Sitzungszustand |
+| `PUT` | `/api/v1/sessions` | speichert und merged UI-Sitzungen |
+| `WS` | `/ws/chat` | Chat-Verbindung zwischen Browser und BFF |
 
-`thread_id` and `session_id` are preserved when present on rendered interactive
-events and are sent back with `button.click`. Conversation separation is still
-based on `chat_id`.
+Die detaillierten Event-Formate stehen in der
+[Schnittstellenreferenz](interface_contract.md).
 
-## Markdown safety
+## 🛠️ Fehlerbehebung
 
-Assistant text, notices, image captions, and interactive button bodies render as
-GFM Markdown with line breaks, lists, tables, code, and links. Raw HTML is not
-enabled, and rendered content is sanitized before display. Links are limited to
-safe protocols (`http`, `https`, `mailto`) and open in a new tab.
+| Symptom | Ursache | Lösung |
+|---------|---------|--------|
+| Browser zeigt keine Verbindung | BFF läuft nicht oder Vite-Proxy zeigt falsch | BFF-URL und Vite-Proxy prüfen |
+| Diagnose meldet `unreachable` | Plugin-Port nicht erreichbar | `CUSTOM_CHAT_TARGET`, Firewall und Plugin-Start prüfen |
+| Diagnose meldet `unauthorized` | Token stimmt nicht | `CUSTOM_CHAT_BEARER_TOKEN` in BFF und Plugin angleichen |
+| Upload funktioniert, aber Hermes kann Datei nicht lesen | Medien-URL ist aus Hermes-Sicht falsch | `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` setzen |
+| Medien laden im Browser nicht | öffentliche Medien-URL ist falsch | `WEB_PUBLIC_MEDIA_BASE_URL` prüfen |
+| Sitzungen verschwinden | Session-Store nicht beschreibbar oder leerer Chat | `WEB_SESSION_STORE_PATH` und Dateirechte prüfen |
+| CORS-Fehler im Browser | Origin nicht erlaubt | `WEB_CORS_ORIGINS` oder im Dev-Betrieb `WEB_CORS_REFLECT_ORIGIN=true` setzen |
 
-## API
+## ✅ Betriebs-Checkliste
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/health` | Liveness |
-| GET | `/api/v1/diagnostics` | BFF liveness plus a BFF→upstream reachability probe (`bff`, `upstream.status`, `upstream.target`). The target is `host:port` only; credentials are never returned. |
-| GET | `/api/v1/sessions` | Load persisted browser chat-session state |
-| PUT | `/api/v1/sessions` | Save/merge persisted browser chat-session state |
-| POST | `/api/v1/media/upload` | Multipart media upload |
-| GET | `/api/v1/media/{file_id}` | Serve uploaded file |
-| WS | `/ws/chat` | Event proxy to adapter, including `button.click` |
+- [ ] `custom_chat` Plugin läuft und ist vom BFF erreichbar.
+- [ ] BFF und Plugin verwenden denselben Bearer Token.
+- [ ] Medien-URLs sind aus Browser- und Hermes-Sicht erreichbar.
+- [ ] Upload-Limits im BFF und im Plugin passen zusammen.
+- [ ] `WEB_SESSION_STORE_PATH` liegt auf persistentem Speicher.
+- [ ] In Produktion laufen UI/API/WebSocket über TLS.
+- [ ] Reverse Proxy oder Firewall begrenzt den Zugriff auf gewünschte Clients.
 
-## Tests
+## 📸 Empfohlene Screenshots
 
-```bash
-python -m pytest tests/plugins/custom_chat tests/web -q
-cd web/frontend && npm test
-```
+- Seitenleiste mit mehreren Chats und aktivem Chat
+- Diagnoseansicht mit erfolgreichem Upstream-Status
+- Medien-Upload mit Bild- oder Datei-Vorschau
+- Button-Freigabe für eine Hermes-Aktion

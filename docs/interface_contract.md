@@ -1,154 +1,60 @@
-# Interface Contract — custom_chat Stack
+# 🔗 Schnittstellenreferenz
 
-Dieses Dokument beschreibt verbindlich alle Schnittstellen und Datenmodelle zwischen den drei
-Schichten des custom_chat-Stacks.
+Diese Referenz beschreibt die Schnittstellen zwischen Web-App, `custom_chat`
+Plugin und Hermes Gateway. Sie richtet sich an Entwickler, die einen eigenen
+Client bauen, das BFF erweitern oder Integrationsprobleme analysieren möchten.
 
-```
-Frontend (React/Vite)
-    ↕  WebSocket  /ws/chat
-    ↕  REST       /api/v1/…
-BFF (FastAPI)
-    ↕  WebSocket  ws://host:8765
-Plugin (custom_chat adapter)
-    ↕  Python API  BasePlatformAdapter
+Für Installation und Betrieb lies zuerst:
+
+- [custom_chat Plugin betreiben](custom_chat.md)
+- [Web-App betreiben](web-app.md)
+
+## 🧭 Architektur in einem Bild
+
+```text
+Frontend oder eigener Client
+  |  WebSocket /ws/chat
+  |  REST /api/v1/*
+  v
+FastAPI-BFF
+  |  WebSocket ws://host:8765
+  v
+custom_chat Plugin
+  |
+  v
 Hermes Gateway
 ```
 
----
+Das BFF ist optional. Ein eigener Client kann auch direkt mit dem Plugin sprechen,
+muss dann aber Authentifizierung, Medien-URLs und Event-Erzeugung selbst korrekt
+umsetzen.
 
-## 1  Frontend ↔ BFF
+## 🧱 Grundprinzipien
 
-### 1.1  WebSocket `/ws/chat`
+- Alle Chat-Nachrichten verwenden **Event Schema v1**.
+- `chat_id` trennt Unterhaltungen. Verwende für neue Chats stabile IDs wie
+  `workspace:<uuid>`.
+- `event_id` muss pro Event eindeutig sein. Das Plugin dedupliziert wiederholte
+  IDs innerhalb eines kurzen Zeitfensters.
+- Medien müssen über HTTP(S)-URLs erreichbar sein. Lokale Dateipfade sind für
+  Browser und entfernte Hermes-Hosts nicht nutzbar.
+- Der WebSocket zum Plugin kann mit einem Bearer Token geschützt werden.
 
-Der BFF öffnet eine WebSocket-Verbindung. Alle Nachrichten sind JSON-codiert. Das Frontend sendet
-**Inbound-Events** und empfängt **Outbound-Events** (→ Abschnitt 2).
-
-#### Verbindungsaufbau
-
-Das Frontend stellt eine WebSocket-Verbindung zu `ws(s)://<bff-host>/ws/chat` her. Die
-Verbindung wird sofort akzeptiert. Der BFF schickt daraufhin **selbstständig** das erste Event
-an den Upstream-Plugin-WebSocket:
-
-```json
-{
-  "schema_version": "v1",
-  "event_id": "<uuid4>",
-  "timestamp": "<ISO-UTC>",
-  "platform": "custom_chat",
-  "chat_id": "<WEB_CHAT_ID>",
-  "user_id": "<WEB_USER_ID>",
-  "type": "client.register",
-  "payload": {
-    "public_media_base_url": "<WEB_PUBLIC_MEDIA_BASE_URL>",
-    "client_kind": "web_bff"
-  }
-}
-```
-
-Das Frontend selbst schickt dieses Event **nicht** — es wird vom BFF erzeugt.
-
-#### Relay-Verhalten
-
-Der BFF ergänzt alle Inbound-Events vom Frontend um fehlende Pflichtfelder:
-
-| Feld           | Verhalten                                              |
-|----------------|--------------------------------------------------------|
-| `schema_version` | `"v1"` (falls fehlend)                               |
-| `platform`     | `"custom_chat"` (falls fehlend)                        |
-| `chat_id`      | Wert aus `WEB_CHAT_ID` (falls fehlend)                 |
-| `user_id`      | Wert aus `WEB_USER_ID` (falls fehlend)                 |
-| `timestamp`    | aktueller UTC-Zeitstempel ISO 8601 (falls fehlend)     |
-| `event_id`     | neue UUID4 (falls fehlend)                             |
-
-Events mit `type == "client.register"` werden unverändert weitergeleitet (kein Enrichment).
-
-Outbound-Events vom Plugin werden **unverändert** an das Frontend weitergeleitet.
-
-#### Fehlerbehandlung
-
-| Situation                          | BFF-Verhalten                                            |
-|------------------------------------|----------------------------------------------------------|
-| Upstream-Plugin nicht erreichbar   | WS-Close `1011 upstream unavailable`                     |
-| Upstream trennt die Verbindung     | WS-Close `1011 upstream closed`                          |
-| Frontend trennt                    | stille Aufräumung                                        |
-| Ungültiges JSON vom Frontend       | Event wird verworfen (kein Close)                        |
-
----
-
-### 1.2  REST-API
+## 🌐 REST-Endpunkte des BFF
 
 Basis-URL: `http(s)://<bff-host>`
 
-#### `GET /api/v1/health`
+| Methode | Pfad | Zweck |
+|---------|------|-------|
+| `GET` | `/api/v1/health` | einfacher Liveness-Check |
+| `GET` | `/api/v1/diagnostics` | prüft BFF und Verbindung zum Plugin |
+| `POST` | `/api/v1/media/upload` | speichert einen Medien-Upload |
+| `GET` | `/api/v1/media/{file_id}` | liefert einen gespeicherten Upload aus |
+| `GET` | `/api/v1/sessions` | lädt UI-Sitzungen |
+| `PUT` | `/api/v1/sessions` | speichert und merged UI-Sitzungen |
 
-Liveness-Check.
+### Diagnose
 
-**Response 200**
-```json
-{ "status": "ok" }
-```
-
----
-
-#### `POST /api/v1/media/upload`
-
-Datei hochladen. Multipart-Form, Feld `file`.
-
-**Request**
-```
-POST /api/v1/media/upload
-Content-Type: multipart/form-data
-
-file: <binary>
-```
-
-**Response 200**
-```json
-{
-  "file_id": "<uuid>",
-  "url":      "http://<public_media_base_url>/api/v1/media/<uuid>",
-  "mime_type": "image/jpeg",
-  "size_bytes": 204800
-}
-```
-
-**Fehlercodes (HTTP)**
-
-| HTTP-Status | `code`                   | Bedingung                            |
-|-------------|--------------------------|--------------------------------------|
-| 415         | `UNSUPPORTED_MEDIA_TYPE` | MIME-Typ nicht in Allowlist          |
-| 413         | `PAYLOAD_TOO_LARGE`      | Datei > `WEB_MAX_UPLOAD_BYTES`       |
-
-Fehler-Body (FastAPI-Standard mit `detail`-Wrapper):
-
-```json
-{
-  "detail": {
-    "code": "UNSUPPORTED_MEDIA_TYPE",
-    "message": "mime type not allowed: …"
-  }
-}
-```
-
-Clients lesen `detail.code` und `detail.message` (z. B. `mediaClient.ts`).
-
----
-
-#### `GET /api/v1/media/{file_id}`
-
-Hochgeladene Datei abrufen.
-
-**Response 200** — Binärdaten mit korrekt gesetztem `Content-Type`.
-
-**Response 404** — Datei unbekannt.
-
----
-
-#### `GET /api/v1/diagnostics`
-
-BFF-Liveness plus kurzer BFF→Plugin-WebSocket-Probe.
-
-**Response 200**
 ```json
 {
   "bff": "ok",
@@ -160,678 +66,390 @@ BFF-Liveness plus kurzer BFF→Plugin-WebSocket-Probe.
 ```
 
 `upstream.status` ist `ok`, `unreachable`, `unauthorized`, `closed` oder `error`.
-`target` enthält nur `host:port`, keine Credentials.
+Das Ziel enthält nur `host:port`; Tokens werden nie zurückgegeben.
 
----
+### Medien-Upload
 
-#### `GET /api/v1/sessions`
+Uploads verwenden Multipart-Form mit dem Feld `file`.
 
-Lädt den leichten Browser-Session-State aus `WEB_SESSION_STORE_PATH`.
+```http
+POST /api/v1/media/upload
+Content-Type: multipart/form-data
+```
 
-**Response 200**
+Antwort:
+
 ```json
 {
-  "version": 1,
-  "activeChatId": "workspace:abc",
-  "sessions": []
+  "file_id": "4dfc...",
+  "url": "http://127.0.0.1:8000/api/v1/media/4dfc...",
+  "mime_type": "image/jpeg",
+  "size_bytes": 204800
 }
 ```
 
----
+Fehler werden im FastAPI-Format zurückgegeben:
 
-#### `PUT /api/v1/sessions`
-
-Speichert und merged Browser-Session-State. Der Store begrenzt auf 80 Sessions
-und 200 Transcript-Zeilen pro Session; leere Platzhalter-Sessions werden nicht
-persistiert.
-
----
-
-### 1.3  BFF-Konfiguration (Env-Variablen)
-
-| Variable                       | Standard                   | Beschreibung                                  |
-|-------------------------------|----------------------------|-----------------------------------------------|
-| `CUSTOM_CHAT_TARGET`           | –                          | `host:port` des Plugin-WS (empfohlen)         |
-| `CUSTOM_CHAT_WS_URL`           | `ws://127.0.0.1:8765`      | Fallback (legacy), wenn TARGET nicht gesetzt  |
-| `CUSTOM_CHAT_BEARER_TOKEN`     | –                          | Bearer-Token für Plugin-WS-Auth               |
-| `WEB_CHAT_ID`                  | `workspace:demo`           | chat_id für outgehendes Enrichment            |
-| `WEB_USER_ID`                  | `user-demo`                | user_id für outgehendes Enrichment            |
-| `WEB_PUBLIC_MEDIA_BASE_URL`    | `http://127.0.0.1:8000`    | Öffentliche Basis-URL für Media-Links         |
-| `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` | `WEB_PUBLIC_MEDIA_BASE_URL` | Media-Basis-URL, die per `client.register` an Hermes gemeldet wird |
-| `CUSTOM_CHAT_INTERNAL_MEDIA_BASE_URL` | `WEB_PUBLIC_MEDIA_BASE_URL` | Legacy-Alias für `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` |
-| `WEB_PUBLIC_HOST`              | –                          | Alternativ zu PUBLIC_MEDIA_BASE_URL           |
-| `WEB_PUBLIC_PORT`              | –                          | Alternativ zu PUBLIC_MEDIA_BASE_URL           |
-| `WEB_MEDIA_UPLOAD_DIR`         | `./data/uploads`           | Speicherort für Uploads                       |
-| `WEB_SESSION_STORE_PATH`       | `./data/chat_sessions.json` | JSON-Speicher für `/api/v1/sessions`         |
-| `WEB_MAX_UPLOAD_BYTES`         | `20971520` (20 MB)         | Maximale Upload-Größe                         |
-| `WEB_ALLOWED_UPLOAD_MIME_TYPES`| (schema default list)      | Komma-separierte MIME-Allowlist               |
-| `WEB_CORS_ORIGINS`             | `http://127.0.0.1:5173,…`  | Erlaubte CORS-Origins                         |
-| `WEB_CORS_REFLECT_ORIGIN`      | `false`                    | Origin-Wildcard (`1`/`true`/`yes`)            |
-
----
-
-## 2  BFF ↔ Plugin (Event Schema v1)
-
-Kommunikation über WebSocket (`ws://host:8765`). Alle Nachrichten sind JSON.
-
-### 2.1  Event-Umschlag (`EventEnvelope`)
-
-Jedes Event — Inbound wie Outbound — teilt denselben Umschlag:
-
-```typescript
-interface EventEnvelope {
-  schema_version: "v1";
-  event_id:       string;          // UUID4
-  timestamp:      string;          // ISO 8601 UTC
-  platform:       "custom_chat";
-  chat_id:        string;          // z. B. "workspace:demo"
-  user_id:        string;          // z. B. "user-demo"
-  thread_id?:     string;
-  session_id?:    string;
-  type:           InboundType | OutboundType;
-  payload:        Record<string, unknown>;
-}
-```
-
-### 2.2  Inbound-Events (BFF → Plugin)
-
-#### `client.register`
-
-Wird einmalig nach Verbindungsaufbau vom BFF geschickt. Kein chat_id/user_id-Enrichment.
-
-```typescript
-interface ClientRegisterPayload {
-  public_media_base_url: string;   // http(s)-URL ohne trailing slash
-  client_kind: "web_bff";
-}
-```
-
----
-
-#### `message.create`
-
-Neue Textnachricht, optional mit Anhängen.
-
-```typescript
-interface MessageCreatePayload {
-  message_id:      string;
-  text:            string;               // darf leer sein, wenn attachments gesetzt
-  attachments?:    MessageAttachment[];
-  idempotency_key?: string;
-}
-
-interface MessageAttachment {
-  attachment_id: string;
-  mime_type:     string;
-  size_bytes:    number;
-  url?:          string;       // public HTTP-URL
-  file_ref?:     string;       // lokale Referenz (Hermes-Seite)
-  filename?:     string;
-  // Invariante: url ODER file_ref muss gesetzt sein
-}
-```
-
----
-
-#### `command.create`
-
-Slash-Kommando vom Nutzer.
-
-```typescript
-interface CommandCreatePayload {
-  message_id: string;
-  command:    string;   // beginnt mit "/"
-}
-```
-
----
-
-#### `audio.uploaded`
-
-Sprachaufnahme. Wird vom Plugin an Hermes Whisper-STT weitergeleitet.
-
-```typescript
-interface AudioUploadedPayload {
-  message_id: string;
-  mime_type:  string;
-  size_bytes: number;
-  url?:       string;
-  file_ref?:  string;
-}
-```
-
----
-
-#### `file.uploaded`
-
-Allgemeiner Dateianhang (Bild, Dokument, …).
-
-```typescript
-interface FileUploadedPayload {
-  message_id: string;
-  filename:   string;
-  mime_type:  string;
-  size_bytes: number;
-  url?:       string;
-  file_ref?:  string;
-}
-```
-
----
-
-#### `message.cancel`
-
-Unterbricht den laufenden Stream für `target_message_id`.
-
-```typescript
-interface MessageCancelPayload {
-  target_message_id: string;
-}
-```
-
----
-
-#### `button.click`
-
-Nutzer hat einen interaktiven Button gedrückt (`slash_confirm`, `model_picker`).
-
-```typescript
-interface ButtonClickPayload {
-  message_id:  string;
-  confirm_id?: string;       // gesetzt bei slash_confirm
-  button_id:   string;
-  choice?:     string;
-  extra?:      Record<string, unknown>;
-}
-```
-
-**`slash_pick`:** Bei `assistant_buttons` mit `kind: "slash_pick"` sendet das Web-Frontend
-beim Klick **kein** `button.click`, sondern sofort `command.create` mit dem vollen Slash-Befehl
-aus dem Button-Label (z. B. `/model gpt-4`). Siehe auch [`custom_chat.md`](custom_chat.md).
-
----
-
-### 2.3  Outbound-Events (Plugin → BFF)
-
-#### `typing`
-
-Tipp-Indikator. `send_typing` / `stop_typing` im Adapter setzen `state`. Das Frontend zeigt
-die Bubble bis `typingClosed`, ein explizites `stop` oder ein abschließendes Assistant-Event.
-
-```typescript
+```json
 {
-  type: "typing";
-  payload: {
-    state: "start" | "stop";
-  };
+  "detail": {
+    "code": "UNSUPPORTED_MEDIA_TYPE",
+    "message": "mime type not allowed: application/octet-stream"
+  }
 }
 ```
 
----
+## 💬 WebSocket-Verbindung
 
-#### `assistant_start`
+### Browser oder Client zum BFF
 
-Beginn eines neuen Streaming-Blocks.
+Die Web-App verbindet sich mit:
 
-```typescript
-{
-  type: "assistant_start";
-  payload: {
-    message_id:      string;   // ID der Transkript-Zeile
-    turn_message_id: string;   // ID des übergeordneten Turns
-  };
-}
+```text
+ws(s)://<bff-host>/ws/chat
 ```
 
----
+Das BFF akzeptiert die Verbindung und öffnet danach die Upstream-Verbindung zum
+Plugin. Direkt nach dem Upstream-Connect sendet das BFF automatisch
+`client.register`. Der Browser muss dieses Event nicht selbst senden.
 
-#### `assistant_delta`
+### BFF oder eigener Client zum Plugin
 
-Inkrementeller Text-Chunk während des Streams.
+Direkte Plugin-Verbindungen verwenden:
 
-```typescript
-{
-  type: "assistant_delta";
-  payload: {
-    message_id: string;
-    sequence:   number;   // monoton steigend pro Turn
-    delta:      string;   // inkrementelles Textstück
-  };
-}
+```text
+ws://<plugin-host>:8765
 ```
 
----
+Wenn `CUSTOM_CHAT_BEARER_TOKEN` gesetzt ist, muss der Client senden:
 
-#### `assistant_done`
-
-Abschluss des Turns. Enthält vollständigen Endtext.
-
-```typescript
-{
-  type: "assistant_done";
-  payload: {
-    message_id:      string;
-    final_text:      string;
-    turn_message_id: string;
-    reasoning_text?: string;   // Thinking-Block (Extended Thinking)
-    segments?:       number;   // Anzahl Segmente, wenn > 1
-    interrupted?:    boolean;  // true bei message.cancel / /stop
-  };
-}
-```
-
----
-
-#### `assistant_segment`
-
-Segment-Grenze innerhalb eines Turns (z. B. nach einem Tool-Call).
-
-```typescript
-{
-  type: "assistant_segment";
-  payload: {
-    message_id:         string;   // Turn-ID
-    segment_message_id: string;   // ID des neuen Segments
-    label?:             string;   // z. B. "🔧 read_file"
-  };
-}
-```
-
----
-
-#### `assistant_error`
-
-Fehler-Event (Validierung, Rate-Limit, interne Fehler).
-
-```typescript
-{
-  type: "assistant_error";
-  payload: {
-    message_id: string;
-    code:       ErrorCode;
-    message:    string;
-  };
-}
-
-type ErrorCode =
-  | "BAD_REQUEST"
-  | "UNAUTHORIZED"
-  | "FORBIDDEN"
-  | "RATE_LIMITED"
-  | "UNSUPPORTED_MEDIA_TYPE"
-  | "PAYLOAD_TOO_LARGE"
-  | "STREAM_TIMEOUT"
-  | "INTERNAL_ERROR";
-```
-
----
-
-#### `assistant_buttons`
-
-Interaktives Button-Set. Das `kind`-Feld im Payload bestimmt die UI-Variante.
-
-```typescript
-interface ButtonSpec {
-  id:    string;
-  label: string;
-  style: "primary" | "secondary" | "danger";
-}
-
-// kind: "slash_confirm"
-interface SlashConfirmPayload {
-  message_id: string;
-  confirm_id: string;
-  title:      string;
-  body:       string;
-  kind:       "slash_confirm";
-  buttons:    ButtonSpec[];
-}
-
-// kind: "model_picker"
-interface ModelPickerPayload {
-  message_id: string;
-  pick_id:    string;
-  title:      string;
-  body:       string;
-  kind:       "model_picker";
-  buttons:    ButtonSpec[];
-  page_info?: string;
-}
-
-// kind: "slash_pick"
-interface SlashPickPayload {
-  message_id: string;
-  pick_id:    string;
-  command:    string;   // beginnt mit "/"
-  title:      string;
-  body:       string;
-  kind:       "slash_pick";
-  buttons:    ButtonSpec[];
-}
-```
-
----
-
-#### `assistant_notice`
-
-System-, Tool- oder Reasoning-Bubble.
-
-```typescript
-{
-  type: "assistant_notice";
-  payload: {
-    message_id:  string;
-    text:        string;
-    kind:        "info" | "tool" | "reasoning" | "warning" | "error";
-    tool_name?:  string;
-    status?:     string;   // z. B. "running" | "success" | "error"
-    args?:       unknown;
-    result?:     unknown;
-    duration_ms?: number;
-    error?:      string;
-  };
-}
-```
-
----
-
-#### `assistant_image`
-
-Bild-Attachment vom Agenten.
-
-```typescript
-{
-  type: "assistant_image";
-  payload: {
-    message_id: string;
-    url:        string;
-    mime_type:  string;   // aus Metadata, URL-Guessing oder Fallback image/png
-    caption?:   string;
-  };
-}
-```
-
----
-
-#### `assistant_file`
-
-Datei-Attachment vom Agenten.
-
-```typescript
-{
-  type: "assistant_file";
-  payload: {
-    message_id: string;
-    filename:   string;
-    url:        string;
-    mime_type:  string;
-    size_bytes?: number;
-  };
-}
-```
-
----
-
-#### `assistant_audio`
-
-Sprach-Antwort (TTS).
-
-```typescript
-{
-  type: "assistant_audio";
-  payload: {
-    message_id: string;
-    mime_type:  string;
-    url:        string;
-  };
-}
-```
-
----
-
-#### `session_meta`
-
-Hermes-Session-Metadaten (Titel-Update). Wird an **alle** verbundenen Clients gebroadcasted.
-
-```typescript
-{
-  type: "session_meta";
-  payload: {
-    title?: string;
-    extra?: Record<string, unknown>;
-  };
-  // Routing über Envelope: chat_id + session_id
-}
-```
-
----
-
-### 2.4  Streaming-Sequenz (Normal-Fall)
-
-```
-BFF → Plugin:   message.create { message_id: "m1", text: "…" }
-Plugin → BFF:   typing { state: "start" }
-Plugin → BFF:   assistant_start { message_id: "r1", turn_message_id: "r1" }
-Plugin → BFF:   assistant_delta { message_id: "r1", sequence: 1, delta: "Hallo" }
-Plugin → BFF:   assistant_delta { message_id: "r1", sequence: 2, delta: " Welt" }
-Plugin → BFF:   assistant_done  { message_id: "r1", final_text: "Hallo Welt", turn_message_id: "r1" }
-```
-
-#### Mit Tool-Call (Segment)
-
-```
-assistant_start { message_id: "r1", turn_message_id: "r1" }
-assistant_delta { message_id: "r1", … }
-assistant_notice { message_id: "n1", kind: "tool", tool_name: "read_file", status: "running" }
-assistant_segment { message_id: "r1", segment_message_id: "r1-s1", label: "🔧 read_file" }
-assistant_start { message_id: "r1-s1", turn_message_id: "r1" }
-assistant_delta { message_id: "r1-s1", … }
-assistant_done  { message_id: "r1-s1", final_text: "…", turn_message_id: "r1", segments: 2 }
-```
-
-#### Abbruch (message.cancel)
-
-```
-BFF → Plugin:   message.cancel { target_message_id: "r1" }
-Plugin → BFF:   assistant_done { message_id: "r1", final_text: "", interrupted: true }
-                 oder kein Event (je nach Timing)
-```
-
----
-
-### 2.5  Auth (Plugin-WebSocket)
-
-Der BFF sendet bei gesetztem `CUSTOM_CHAT_BEARER_TOKEN`:
-
-```
+```http
 Authorization: Bearer <token>
 ```
 
-Das Plugin lehnt Verbindungen ohne gültiges Token mit WebSocket-Close **4401**
-(`reason: unauthorized`) ab — kein HTTP-Status auf der WS-Ebene.
+Bei ungültigem Token schließt das Plugin die Verbindung mit WebSocket-Code `4401`.
 
----
+## 📦 Event-Umschlag
 
-### 2.6  Duplikat- und Rate-Schutz (Plugin-Seite)
+Alle Events haben denselben Umschlag:
 
-| Mechanismus              | Default-Konfiguration   |
-|--------------------------|-------------------------|
-| Deduplizierung per event_id | TTL: 60 s (`CUSTOM_CHAT_DEDUPE_TTL_SECONDS`) |
-| Rate-Limit               | 60 Nachrichten/Minute (`CUSTOM_CHAT_RATE_LIMIT_PER_MINUTE`) pro `chat_id:user_id` |
-
----
-
-## 3  Plugin ↔ Hermes Core
-
-Das Plugin implementiert die `BasePlatformAdapter`-Abstraktion aus
-`gateway.platforms.base` und registriert sich über `ctx.register_platform()`.
-
-Referenz: [Hermes Platform Adapter Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/adding-platform-adapters)
-
-### 3.1  Pflichtmethoden (`BasePlatformAdapter`)
-
-```python
-class BasePlatformAdapter:
-    async def connect(self) -> bool: ...
-    async def disconnect(self) -> None: ...
-    async def send(
-        self,
-        chat_id: str,
-        content: str,
-        reply_to: Optional[str] = None,
-        metadata: Optional[dict] = None,
-    ) -> SendResult: ...
+```json
+{
+  "schema_version": "v1",
+  "event_id": "00000000-0000-4000-8000-000000000001",
+  "timestamp": "2026-05-23T10:49:09Z",
+  "platform": "custom_chat",
+  "chat_id": "workspace:conversation",
+  "user_id": "user-demo",
+  "thread_id": null,
+  "session_id": null,
+  "type": "message.create",
+  "payload": {}
+}
 ```
 
----
+| Feld | Bedeutung |
+|------|-----------|
+| `schema_version` | immer `v1` |
+| `event_id` | eindeutige ID für Deduplizierung und Nachvollziehbarkeit |
+| `timestamp` | UTC-Zeitpunkt als ISO-8601-String |
+| `platform` | immer `custom_chat` |
+| `chat_id` | Unterhaltung, in der das Event gilt |
+| `user_id` | Benutzer oder technischer Absender |
+| `thread_id` | optionaler Thread-Kontext |
+| `session_id` | optionale Sitzungsmetadaten |
+| `type` | Event-Typ |
+| `payload` | typabhängige Nutzdaten |
 
-### 3.2  Optionale Methoden (Hermes ruft diese auf, falls vorhanden)
+Wenn Events über das BFF laufen, ergänzt das BFF fehlende Pflichtfelder. Direkte
+Clients sollten vollständige Events senden.
 
-| Methode                          | Zweck                                                    |
-|----------------------------------|----------------------------------------------------------|
-| `send_typing(chat_id, metadata)` | Tipp-Indikator starten                                   |
-| `stop_typing(chat_id, metadata)` | Tipp-Indikator stoppen                                   |
-| `send_draft(chat_id, draft_id, content, metadata)` | Inkrementeller Streaming-Chunk        |
-| `supports_draft_streaming(chat_type, metadata) → bool` | Ob Draft-Streaming aktiviert ist |
-| `edit_message(chat_id, message_id, new_content, metadata)` | In-Place-Update (Tool-Progress) |
-| `send_image(chat_id, url, metadata)` | Bild senden                                        |
-| `send_file(chat_id, url, filename, metadata)` | Datei senden                            |
-| `get_chat_info(chat_id) → dict`  | Chat-Metadaten zurückgeben                               |
-| `interrupt_session_activity(session_key, chat_id)` | `/stop`-Signal verarbeiten          |
-| `send_private_notice(chat_id, text, metadata)` | Interne Hinweis-Bubble               |
-| `send_slash_confirm(chat_id, confirm_id, title, body, buttons, metadata)` | Confirm-Dialog |
-| `send_slash_options(chat_id, pick_id, command, title, body, buttons, metadata)` | Options-Picker |
-| `send_model_picker(chat_id, providers, current_model, current_provider, session_key, on_model_selected, metadata)` | Modell-Auswahl |
-| `send_session_meta(chat_id, title, session_id, thread_id)` | Session-Titel an Frontend  |
+## ⬇️ Inbound-Events zum Plugin
 
----
+### `message.create`
 
-### 3.3  `SendResult`
+Normale Benutzer-Nachricht. Text darf leer sein, wenn Anhänge vorhanden sind.
 
-```python
-@dataclass
-class SendResult:
-    success:                  bool
-    message_id:               Optional[str] = None
-    error:                    Optional[str] = None
-    raw_response:             Any = None
-    retryable:                bool = False
-    continuation_message_ids: tuple = ()
+```json
+{
+  "message_id": "msg-1",
+  "text": "Bitte fasse diese Datei zusammen.",
+  "attachments": [
+    {
+      "attachment_id": "att-1",
+      "filename": "report.pdf",
+      "mime_type": "application/pdf",
+      "size_bytes": 120000,
+      "url": "https://example.local/report.pdf"
+    }
+  ]
+}
 ```
 
----
+### `command.create`
 
-### 3.4  `MessageEvent` (Inbound → Hermes)
+Expliziter Slash Command. Die Web-App sendet Slash Commands normalerweise so:
 
-Das Plugin baut aus dem Inbound-Envelope ein `MessageEvent` und ruft
-`self.handle_message(event)` auf:
-
-```python
-class MessageEvent:
-    text:          str
-    message_type:  MessageType   # TEXT | IMAGE | AUDIO | VIDEO | FILE | STICKER
-    source:        SessionSource
-    message_id:    Optional[str]
-    raw_message:   Optional[str | dict]  # Envelope oder Attachment-Metadaten (dict bevorzugt)
-    media_urls:    list[str]       # HTTP-URLs von Anhängen
-    media_types:   list[str]       # MIME-Typen zu media_urls
+```json
+{
+  "message_id": "msg-2",
+  "command": "/model"
+}
 ```
 
-Bild-Anhänge: `MessageType.PHOTO` wenn vorhanden, sonst `MessageType.IMAGE` (Hermes-Konvention).
+Textnachrichten, die mit `/` beginnen, werden ebenfalls als Befehle behandelt.
 
-#### `SessionSource`
+### `audio.uploaded`
 
-```python
-@dataclass
-class SessionSource:
-    platform:   Platform   # Platform("custom_chat")
-    chat_id:    str
-    chat_name:  Optional[str]
-    chat_type:  str        # "dm"
-    user_id:    Optional[str]
-    user_name:  Optional[str]
-    thread_id:  Optional[str]
-    message_id: Optional[str]
+Sprachaufnahme oder Audio-Datei:
+
+```json
+{
+  "message_id": "voice-1",
+  "mime_type": "audio/webm",
+  "size_bytes": 4096,
+  "url": "https://example.local/voice.webm"
+}
 ```
 
----
+### `file.uploaded`
 
-### 3.5  `register(ctx)` — Plugin-Einstiegspunkt
+Allgemeiner Datei-Upload:
 
-```python
-def register(ctx) -> None:
-    ctx.register_platform(
-        name="custom_chat",
-        label="Custom Chat",
-        adapter_factory=lambda cfg: CustomChatAdapter(cfg),
-        check_fn=check_requirements,  # prüft CUSTOM_CHAT_BEARER_TOKEN (gesetzt)
-        validate_config=validate_config,
-        env_enablement_fn=_env_enablement,
-        apply_yaml_config_fn=_apply_yaml_config,
-        cron_deliver_env_var="CUSTOM_CHAT_HOME_CHANNEL",
-        allowed_users_env="CUSTOM_CHAT_ALLOWED_USERS",
-        allow_all_env="CUSTOM_CHAT_ALLOW_ALL_USERS",
-        platform_hint="…",
-        emoji="💬",
-    )
+```json
+{
+  "message_id": "file-1",
+  "filename": "notes.txt",
+  "mime_type": "text/plain",
+  "size_bytes": 1024,
+  "url": "https://example.local/notes.txt"
+}
 ```
 
-`check_requirements()` verlangt ein gesetztes `CUSTOM_CHAT_BEARER_TOKEN`. WS-Host/Port werden
-über `CUSTOM_CHAT_WS_HOST` / `CUSTOM_CHAT_WS_PORT` (oder YAML) konfiguriert, nicht als
-`required_env` an `register_platform`.
+### `message.cancel`
 
----
+Bricht eine laufende Antwort ab:
 
-### 3.6  Plugin-Konfiguration (Env-Variablen)
-
-| Variable                          | Standard          | Beschreibung                                    |
-|-----------------------------------|-------------------|-------------------------------------------------|
-| `CUSTOM_CHAT_WS_HOST`             | `0.0.0.0`         | Bind-Adresse des Plugin-WS-Servers              |
-| `CUSTOM_CHAT_WS_PORT`             | `8765`            | Port des Plugin-WS-Servers                      |
-| `CUSTOM_CHAT_BEARER_TOKEN`        | –                 | Auth-Token (leer = kein Auth)                   |
-| `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | –               | Öffentliche Media-URL (Fallback, falls kein client.register) |
-| `CUSTOM_CHAT_HOME_CHANNEL`        | –                 | Default-Chat für Cron-Delivery                  |
-| `CUSTOM_CHAT_HOME_CHANNEL_NAME`   | `"Home"`          | Anzeige-Name des Home-Channels                  |
-| `CUSTOM_CHAT_ALLOWED_USERS`       | –                 | Komma-separierte User-IDs (Allowlist)           |
-| `CUSTOM_CHAT_ALLOW_ALL_USERS`     | –                 | `"true"` erlaubt alle User                      |
-| `CUSTOM_CHAT_MAX_UPLOAD_BYTES`    | `20971520`        | Max. Größe für eingehende Anhänge               |
-| `CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES` | schema default list | Komma-separierte MIME-Allowlist für Anhänge |
-| `CUSTOM_CHAT_DEDUPE_TTL_SECONDS`  | `60`              | Deduplizierungs-TTL in Sekunden                 |
-| `CUSTOM_CHAT_RATE_LIMIT_PER_MINUTE` | `60`            | Max. Nachrichten/Minute pro User                |
-| `CUSTOM_CHAT_TTS_RESPONSE_FORMAT` | –                 | Optionales Hermes-TTS-Format für `audio_response` |
-| `CUSTOM_CHAT_TTS_TIMEOUT_SECONDS` | `120`             | Max. Wartezeit für Hermes-TTS                   |
-
----
-
-## 4  Zugelassene MIME-Typen
-
-### Audio (STT-Aufnahmen)
-
-```
-audio/ogg  audio/mpeg  audio/wav  audio/webm  audio/mp4
+```json
+{
+  "target_message_id": "turn-1"
+}
 ```
 
-### Uploads (Dateien und Bilder)
+Nutze nach Möglichkeit die `turn_message_id`, nicht eine Segment-ID.
 
+### `button.click`
+
+Antwort auf eine interaktive Karte:
+
+```json
+{
+  "message_id": "confirm-1",
+  "confirm_id": "confirm-1",
+  "button_id": "once",
+  "choice": "once",
+  "extra": {}
+}
 ```
-image/png  image/jpeg  image/webp  image/gif
-audio/ogg  audio/mpeg  audio/wav  audio/webm  audio/mp4
-application/pdf  text/plain  text/csv
-application/vnd.openxmlformats-officedocument.wordprocessingml.document
-application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+### `client.register`
+
+Das BFF sendet dieses Event einmal pro Upstream-Verbindung:
+
+```json
+{
+  "public_media_base_url": "http://127.0.0.1:8000",
+  "client_kind": "web_bff"
+}
 ```
 
----
+Dadurch weiß das Plugin, wohin es lokale Hermes-Dateien hochladen kann.
 
-## 5  Invarianten & Regeln
+## ⬆️ Outbound-Events vom Plugin
 
-1. **event_id** — UUID4, global eindeutig; das Plugin dedupliziert eingehende IDs (`CUSTOM_CHAT_DEDUPE_TTL_SECONDS`, Default 60 s).
-2. **message_id** — Jedes Event-Paar `assistant_start` / `assistant_done` teilt dieselbe `message_id`.
-3. **turn_message_id** — Konstant für einen gesamten Turn (auch über Segmente hinweg).
-4. **sequence** — Monoton steigend pro `message_id`; Lücken sind zulässig, Rücksprünge nicht.
-5. **session_meta** — Wird immer an alle verbundenen Clients gebroadcasted, nicht gefiltert.
-6. **client.register** — Darf nur einmal pro WS-Verbindung gesendet werden; das Plugin überschreibt `_registered_media_base_url`.
-7. **text oder attachments** — `message.create` verlangt mindestens ein nicht-leeres Feld.
-8. **url oder file_ref** — `MessageAttachment`, `AudioUploadedPayload`, `FileUploadedPayload` verlangen mindestens eines der beiden Felder.
-9. **Bearer-Token** — Fehlt `Authorization: Bearer <token>` bei gesetztem Token, schließt das Plugin die WS-Verbindung mit Code 4401.
-10. **Sicherheit** — Keine Secrets in Events oder Logs; Media-URLs zeigen auf den öffentlichen BFF-Endpunkt, nicht auf interne Pfade.
+### Streaming-Antwort
+
+Eine normale Streaming-Antwort besteht aus Start, Textstücken und Abschluss:
+
+```json
+{ "message_id": "line-1", "turn_message_id": "turn-1" }
+```
+
+```json
+{ "message_id": "line-1", "sequence": 1, "delta": "Hallo" }
+```
+
+```json
+{
+  "message_id": "line-1",
+  "turn_message_id": "turn-1",
+  "final_text": "Hallo!",
+  "interrupted": false
+}
+```
+
+Die zugehörigen Event-Typen heißen `assistant_start`, `assistant_delta` und
+`assistant_done`.
+
+### `assistant_segment`
+
+Markiert eine neue Antwort-Zeile innerhalb desselben Turns, etwa nach einem
+Tool-Aufruf:
+
+```json
+{
+  "message_id": "turn-1",
+  "segment_message_id": "turn-1-s1",
+  "label": "read_file"
+}
+```
+
+### `assistant_notice`
+
+Hinweis-, Tool- oder Reasoning-Karte:
+
+```json
+{
+  "message_id": "notice-1",
+  "kind": "tool",
+  "text": "Running read_file",
+  "tool_name": "read_file",
+  "status": "running"
+}
+```
+
+`kind` ist `info`, `tool`, `reasoning`, `warning` oder `error`.
+
+### `assistant_buttons`
+
+Interaktive Karte für Freigaben oder Auswahlmenüs:
+
+```json
+{
+  "message_id": "confirm-1",
+  "confirm_id": "confirm-1",
+  "title": "Reload MCP",
+  "body": "MCP neu laden?",
+  "kind": "slash_confirm",
+  "buttons": [
+    {"id": "once", "label": "Approve Once", "style": "primary"},
+    {"id": "cancel", "label": "Cancel", "style": "danger"}
+  ]
+}
+```
+
+`kind` ist `slash_confirm`, `slash_pick` oder `model_picker`.
+
+### Medien-Events
+
+Das Plugin kann Medien als eigene Events senden:
+
+| Event | Zweck |
+|-------|-------|
+| `assistant_image` | Bild mit optionaler Bildunterschrift |
+| `assistant_file` | Datei mit Name, MIME-Typ und URL |
+| `assistant_audio` | Audio- oder TTS-Antwort |
+
+Beispiel:
+
+```json
+{
+  "message_id": "image-1",
+  "url": "https://example.local/image.png",
+  "mime_type": "image/png",
+  "caption": "Diagramm"
+}
+```
+
+### `typing`
+
+Zeigt an, dass Hermes gerade arbeitet:
+
+```json
+{ "state": "start" }
+```
+
+`state` ist `start` oder `stop`.
+
+### `session_meta`
+
+Überträgt Metadaten wie automatisch vergebene Chat-Titel:
+
+```json
+{
+  "title": "Release-Plan Q3",
+  "extra": {}
+}
+```
+
+Das Routing erfolgt über den Event-Umschlag, insbesondere `chat_id`.
+
+### `assistant_error`
+
+Fehler werden als normales Event gesendet:
+
+```json
+{
+  "message_id": "err-1",
+  "code": "BAD_REQUEST",
+  "message": "text or attachments required"
+}
+```
+
+Mögliche Codes:
+
+| Code | Bedeutung |
+|------|-----------|
+| `BAD_REQUEST` | Event oder Payload ist ungültig |
+| `UNAUTHORIZED` | Authentifizierung fehlt oder ist falsch |
+| `FORBIDDEN` | Benutzer ist nicht erlaubt |
+| `RATE_LIMITED` | Rate Limit erreicht |
+| `UNSUPPORTED_MEDIA_TYPE` | MIME-Typ ist nicht erlaubt |
+| `PAYLOAD_TOO_LARGE` | Upload ist zu groß |
+| `STREAM_TIMEOUT` | Antwort oder TTS hat zu lange gedauert |
+| `INTERNAL_ERROR` | unerwarteter Fehler |
+
+## 🧩 Konfigurationen, die das Protokoll beeinflussen
+
+### Plugin
+
+| Variable | Wirkung |
+|----------|---------|
+| `CUSTOM_CHAT_BEARER_TOKEN` | schützt den Plugin-WebSocket |
+| `CUSTOM_CHAT_ALLOWED_USERS` | beschränkt erlaubte Benutzer |
+| `CUSTOM_CHAT_ALLOW_ALL_USERS` | deaktiviert Benutzerbeschränkung bewusst |
+| `CUSTOM_CHAT_MAX_UPLOAD_BYTES` | begrenzt eingehende Anhänge |
+| `CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES` | begrenzt MIME-Typen |
+| `CUSTOM_CHAT_DEDUPE_TTL_SECONDS` | Deduplizierungsfenster für `event_id` |
+| `CUSTOM_CHAT_RATE_LIMIT_PER_MINUTE` | Nachrichtenlimit pro Chat/Benutzer |
+| `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | Fallback für ausgehende Medien |
+
+### BFF
+
+| Variable | Wirkung |
+|----------|---------|
+| `CUSTOM_CHAT_TARGET` | Plugin-Ziel |
+| `CUSTOM_CHAT_BEARER_TOKEN` | Token für das Plugin |
+| `WEB_PUBLIC_MEDIA_BASE_URL` | Medien-URL für Browser |
+| `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` | Medien-URL, die dem Plugin gemeldet wird |
+| `WEB_SESSION_STORE_PATH` | Speicherort für UI-Sitzungen |
+| `WEB_CORS_ORIGINS` | erlaubte Browser-Origins |
+
+## ✅ Client-Checkliste
+
+Wenn du einen eigenen Client baust:
+
+- [ ] Sende pro Event eine neue `event_id`.
+- [ ] Verwende stabile `chat_id`s für getrennte Unterhaltungen.
+- [ ] Sende den Bearer Token beim WebSocket-Upgrade.
+- [ ] Lade Medien zuerst hoch und sende dann HTTP(S)-URLs.
+- [ ] Behandle `assistant_delta.sequence` monoton und ignoriere alte Deltas.
+- [ ] Brich laufende Antworten mit `turn_message_id` ab.
+- [ ] Reagiere auf `assistant_buttons`, wenn du Freigaben unterstützen willst.
+- [ ] Zeige `assistant_error` sichtbar an, statt es nur zu loggen.
+
+## 📸 Empfohlene Screenshots
+
+- Entwicklerkonsole mit WebSocket-Frames für `assistant_start` und `assistant_done`
+- Diagnoseantwort von `/api/v1/diagnostics`
+- Beispiel einer Button-Freigabe im Browser

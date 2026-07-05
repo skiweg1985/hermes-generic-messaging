@@ -1,61 +1,67 @@
-# Path discovery
+# 🗺️ Repository-Wegweiser
 
-Concrete paths for the Universal Hermes Platform Adapter in this repository.
+Dieses Dokument ist ein historisch entstandener Wegweiser durch das Repository.
+Für den laufenden Betrieb sind [README.md](../../README.md),
+[docs/custom_chat.md](../custom_chat.md) und [docs/web-app.md](../web-app.md)
+wichtiger. Für Entwicklung und Fehlersuche hilft diese Übersicht weiterhin.
 
-## Plugin layout
+## Plugin
 
-| Role | Path |
-|------|------|
-| Platform adapter | `plugins/platforms/custom_chat/adapter.py` |
-| Plugin metadata | `plugins/platforms/custom_chat/plugin.yaml` |
-| Config / defaults | `plugins/platforms/custom_chat/config.py` |
-| WebSocket transport | `plugins/platforms/custom_chat/transport/ws_server.py` |
-| Event schema / mapping | `plugins/platforms/custom_chat/events/` |
-| Streaming helper | `plugins/platforms/custom_chat/streaming.py` |
-| Media (STT/TTS) | `plugins/platforms/custom_chat/media.py` |
-| State (dedupe/cancel) | `plugins/platforms/custom_chat/state.py` |
-| Tests | `tests/plugins/custom_chat/` |
-| Contract doc | `docs/plans/universal-platform-adapter-v1.md` |
-| Full stack interface contract | `docs/interface_contract.md` |
-| Multi-chat UI plan | `docs/plans/multi-chat-sessions-web-ui.md` |
-| Operator docs | `docs/custom_chat.md` |
-| Example events | `docs/examples/custom-chat-events-v1.json` |
+| Bereich | Pfad |
+|---------|------|
+| Adapter | `plugins/platforms/custom_chat/adapter.py` |
+| Plugin-Metadaten | `plugins/platforms/custom_chat/plugin.yaml` |
+| Konfigurations-Reexport | `plugins/platforms/custom_chat/config.py` |
+| WebSocket-Transport | `plugins/platforms/custom_chat/transport/ws_server.py` |
+| Event-Mapping | `plugins/platforms/custom_chat/events/` |
+| Streaming-Helfer | `plugins/platforms/custom_chat/streaming.py` |
+| Medien-Helfer | `plugins/platforms/custom_chat/media.py` |
+| Deduplizierung und Cancel-State | `plugins/platforms/custom_chat/state.py` |
+| Plugin-Tests | `tests/plugins/custom_chat/` |
 
-## Shared schema
+## Gemeinsames Schema
 
-| Role | Path |
-|------|------|
-| Event Schema v1 models | `packages/custom_chat_schema/` |
+| Bereich | Pfad |
+|---------|------|
+| Event- und Payload-Modelle | `packages/custom_chat_schema/schema.py` |
+| Plugin-Einstellungen | `packages/custom_chat_schema/settings.py` |
+| MIME-Helfer | `packages/custom_chat_schema/mime.py` |
 
-## Web app
+## Web-App
 
-| Role | Path |
-|------|------|
-| FastAPI BFF | `web/backend/app/` |
-| React UI | `web/frontend/src/` |
-| Web operator docs | `docs/web-app.md` |
-| Web tests | `tests/web/` |
-| Dev compose (optional) | `web/docker-compose.yml` |
+| Bereich | Pfad |
+|---------|------|
+| FastAPI-App | `web/backend/app/` |
+| WebSocket-Proxy | `web/backend/app/ws/chat_proxy.py` |
+| REST-Endpunkte | `web/backend/app/api/` |
+| Session-Speicher | `web/backend/app/services/session_store.py` |
+| Medien-Speicher | `web/backend/app/services/media_store.py` |
+| React-App | `web/frontend/src/` |
+| Frontend-Tests | `web/frontend/src/**/*.test.ts*` |
+| Web-BFF-Tests | `tests/web/` |
 
-## Hermes Agent reference (runtime dependency, not edited here)
+## Dokumentation
 
-| Role | Path in [hermes-agent](https://github.com/NousResearch/hermes-agent) |
-|------|----------------------------------------------------------------------|
-| Base adapter | `gateway/platforms/base.py` |
-| Config types | `gateway/config.py` |
-| Plugin loader | `plugins/platforms/*/adapter.py` + `register(ctx)` |
+| Zweck | Datei |
+|-------|-------|
+| Einstieg | `README.md` |
+| Dokumentationsübersicht | `docs/README.md` |
+| Plugin-Betrieb | `docs/custom_chat.md` |
+| Web-App-Betrieb | `docs/web-app.md` |
+| Schnittstellenreferenz | `docs/interface_contract.md` |
+| Beispiel-Events | `docs/examples/custom-chat-events-v1.json` |
+| Historische Pläne | `docs/plans/` |
 
-## Tooling
+## Nützliche Befehle
 
 ```bash
-pip install -e ".[dev,web]"
 python -m pytest tests/plugins/custom_chat tests/web -q
 cd web/frontend && npm test
 ```
 
-Optional integration against a local hermes-agent clone:
+Für Layout-Prüfungen der Web-App:
 
 ```bash
-export HERMES_AGENT_PATH=../hermes-agent
-python -m pytest tests/ -q
+cd web/frontend
+npm run check:layout
 ```

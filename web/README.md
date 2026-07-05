@@ -1,24 +1,30 @@
-# custom_chat Web App
+# 🖥️ Web-App Kurzstart
 
-FastAPI BFF and terminal-style React UI for Event Schema v1.
+Diese Datei ist der schnelle Einstieg für die Web-App im Verzeichnis `web/`.
+Die ausführliche Betriebsdokumentation steht in
+[docs/web-app.md](../docs/web-app.md).
 
-## Backend
+## Backend starten
 
 ```bash
 cd web
 cp .env.example .env
-# edit CUSTOM_CHAT_BEARER_TOKEN
+# CUSTOM_CHAT_TARGET und CUSTOM_CHAT_BEARER_TOKEN eintragen
 
 cd ..
 pip install -e ".[dev,web]"
+
 cd web/backend
 uvicorn app.main:app --reload --port 8000
+```
 
-# App logs (upstream errors etc.), less access-log noise:
+Für ruhigere Logs:
+
+```bash
 uvicorn app.main:app --reload --port 8000 --log-config log_config.yaml --no-access-log
 ```
 
-## Frontend
+## Frontend starten
 
 ```bash
 cd web/frontend
@@ -26,6 +32,14 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:5173 — Vite proxies `/api` and `/ws` to the BFF.
+Öffne danach <http://127.0.0.1:5173>. Vite leitet `/api` und `/ws` an das BFF
+weiter.
 
-See [docs/web-app.md](../docs/web-app.md).
+## Diagnose
+
+```bash
+curl http://127.0.0.1:8000/api/v1/diagnostics
+```
+
+Wenn `upstream.status` nicht `ok` ist, prüfe zuerst `CUSTOM_CHAT_TARGET`, den
+Bearer Token und ob das `custom_chat` Plugin im Hermes Gateway läuft.
