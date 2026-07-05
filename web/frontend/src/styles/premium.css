@@ -1117,7 +1117,7 @@ body {
   }
 
   html.keyboard-open .composer-region {
-    padding-bottom: 10px;
+    padding-bottom: 0;
   }
 
   .composer {
@@ -1252,6 +1252,11 @@ body {
     background: transparent;
   }
 
+  html.keyboard-open .composer-region {
+    bottom: -4px;
+    padding-top: 4px;
+  }
+
   .composer-region::before {
     content: "";
     position: absolute;
@@ -1271,6 +1276,16 @@ body {
     -webkit-backdrop-filter: blur(8px) saturate(120%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 42%, #000 100%);
     mask-image: linear-gradient(180deg, transparent 0%, #000 42%, #000 100%);
+  }
+
+  html.keyboard-open .composer-region::before {
+    height: calc(100% + 4px);
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(248, 250, 252, 0.08) 74%,
+      rgba(248, 250, 252, 0.18) 100%
+    );
   }
 
   .composer-region > .composer {
