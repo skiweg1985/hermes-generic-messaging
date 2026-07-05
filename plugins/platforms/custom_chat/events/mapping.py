@@ -26,6 +26,8 @@ def _build_message_event(
     raw_message: Optional[dict] = None,
     media_urls: Optional[list[str]] = None,
     media_types: Optional[list[str]] = None,
+    reply_to_message_id: Optional[str] = None,
+    reply_to_text: Optional[str] = None,
 ) -> Any:
     """Construct a MessageEvent, tolerating older Hermes signatures."""
     kwargs: dict[str, Any] = {
@@ -40,12 +42,22 @@ def _build_message_event(
         kwargs["media_urls"] = media_urls
     if media_types is not None:
         kwargs["media_types"] = media_types
+    if reply_to_message_id:
+        kwargs["reply_to_message_id"] = reply_to_message_id
+    if reply_to_text:
+        kwargs["reply_to_text"] = reply_to_text
     try:
         return MessageEvent(**kwargs)
     except TypeError:
         # Fallback for test stubs / older signatures that lack the extra
         # fields. Drop optional keys and retry.
-        for opt_key in ("raw_message", "media_urls", "media_types"):
+        for opt_key in (
+            "raw_message",
+            "media_urls",
+            "media_types",
+            "reply_to_message_id",
+            "reply_to_text",
+        ):
             kwargs.pop(opt_key, None)
         return MessageEvent(**kwargs)
 
@@ -141,6 +153,8 @@ def inbound_to_message_event(
             media_urls=media_urls or None,
             media_types=media_types or None,
             raw_message=raw_message,
+            reply_to_message_id=getattr(payload_model, "reply_to_message_id", None),
+            reply_to_text=getattr(payload_model, "reply_to_text", None),
         )
 
     if envelope.type == "command.create":

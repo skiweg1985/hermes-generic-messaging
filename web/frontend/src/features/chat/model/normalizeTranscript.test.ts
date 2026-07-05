@@ -82,6 +82,162 @@ describe("normalizeTranscript", () => {
     expect(messages[0]!.parts[0]).toMatchObject({ type: "audio" });
   });
 
+  it("keeps user voice transcripts as assistant output below the user voice", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "voice-1",
+        kind: "audio-out",
+        role: "user",
+        text: "user> [voice]",
+        turnMessageId: "turn-voice",
+        audioUrl: "https://example.local/voice.webm",
+      }),
+      line({
+        id: "transcript-1",
+        kind: "assistant",
+        text: '🎙️ "Hast du einen Skill?"',
+        turnMessageId: "transcript-1",
+      }),
+      line({ id: "a1", kind: "assistant", text: "Ja, habe ich." }),
+    ]);
+    const turns = groupMessages(messages);
+
+    expect(messages).toHaveLength(3);
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.user?.role).toBe("user");
+    expect(turns[0]!.user?.parts.map((p) => p.type)).toEqual(["audio"]);
+    expect(turns[0]!.outputs[0]!.parts[0]).toMatchObject({
+      type: "text",
+      text: '🎙️ "Hast du einen Skill?"',
+    });
+  });
+
+  it("does not treat assistant turnMessageId=id lines as user anchors before user voice", () => {
+    const messages = normalizeTranscript([
+      line({
+        id: "assistant-self-turn",
+        kind: "assistant",
+        text: "Assistant vorher",
+        turnMessageId: "assistant-self-turn",
+      }),
+      line({
+        id: "voice-line",
+        kind: "audio-out",
+        role: "user",
+        text: "user> [voice]",
+        turnMessageId: "voice-turn",
+        audioUrl: "https://example.local/user.mp4",
+        mimeType: "audio/mp4",
+      }),
+      line({ id: "transcript", kind: "assistant", text: '🎙️ "test"', turnMessageId: "transcript" }),
+    ]);
+    const turns = groupMessages(messages);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]!.user).toBeNull();
+    expect(turns[0]!.outputs[0]!.messageId).toBe("assistant-self-turn");
+    expect(turns[0]!.outputs[0]!.parts).toMatchObject([{ type: "text", text: "Assistant vorher" }]);
+    expect(turns[1]!.user?.messageId).toBe("voice-turn");
+    expect(turns[1]!.user?.parts).toMatchObject([{ type: "audio", url: "https://example.local/user.mp4" }]);
+    expect(turns[1]!.outputs[0]!.parts[0]).toMatchObject({ type: "text", text: '🎙️ "test"' });
+  });
+
+  it("does not let assistant TTS audio absorb later user voice into assistant outputs", () => {
+    const messages = normalizeTranscript([
+      line({ id: "text-user", kind: "user", text: "Blabla", turnMessageId: "text-turn" }),
+      line({ id: "assistant-text", kind: "assistant", text: "Blabla angekommen" }),
+      line({
+        id: "assistant-tts",
+        kind: "audio-out",
+        role: "assistant",
+        text: "",
+        turnMessageId: "assistant-audio-turn",
+        audioUrl: "https://example.local/assistant.mp3",
+        mimeType: "audio/mpeg",
+        fileName: "audio.mpeg",
+      }),
+      line({
+        id: "voice-line",
+        kind: "audio-out",
+        role: "user",
+        text: "user> [voice]",
+        turnMessageId: "voice-turn",
+        audioUrl: "https://example.local/user.mp4",
+        mimeType: "audio/mp4",
+      }),
+      line({ id: "transcript", kind: "assistant", text: '🎙️ "test"' }),
+    ]);
+    const turns = groupMessages(messages);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]!.user?.messageId).toBe("text-turn");
+    expect(turns[0]!.outputs.some((output) => output.parts.some((part) => part.type === "audio"))).toBe(true);
+    expect(turns[1]!.user?.messageId).toBe("voice-turn");
+    expect(turns[1]!.user?.role).toBe("user");
+    expect(turns[1]!.user?.parts).toMatchObject([{ type: "audio", url: "https://example.local/user.mp4" }]);
+    expect(turns[1]!.outputs[0]!.parts[0]).toMatchObject({ type: "text", text: '🎙️ "test"' });
+  });
+
+  it("does not attach a later user voice to the previous text user turn", () => {
+    const messages = normalizeTranscript([
+      line({ id: "text-user", kind: "user", text: "Blabla", turnMessageId: "text-turn" }),
+      line({ id: "assistant-before", kind: "assistant", text: "Blabla angekommen" }),
+      line({
+        id: "voice-line",
+        kind: "audio-out",
+        role: "user",
+        text: "user> [voice]",
+        turnMessageId: "voice-turn",
+        audioUrl: "https://example.local/voice.mp4",
+        mimeType: "audio/mp4",
+      }),
+      line({ id: "transcript", kind: "assistant", text: '🎙️ "test"' }),
+    ]);
+    const turns = groupMessages(messages);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]!.user?.messageId).toBe("text-turn");
+    expect(turns[0]!.user?.parts).toMatchObject([{ type: "text", text: "Blabla" }]);
+    expect(turns[0]!.outputs[0]!.parts[0]).toMatchObject({ type: "text", text: "Blabla angekommen" });
+    expect(turns[0]!.outputs.some((output) => output.parts.some((part) => part.type === "audio"))).toBe(false);
+    expect(turns[1]!.user?.messageId).toBe("voice-turn");
+    expect(turns[1]!.user?.parts).toMatchObject([{ type: "audio", url: "https://example.local/voice.mp4" }]);
+    expect(turns[1]!.outputs[0]!.parts[0]).toMatchObject({ type: "text", text: '🎙️ "test"' });
+  });
+
+  it("starts a new right-aligned user turn for voice recorded after assistant output", () => {
+    const messages = normalizeTranscript([
+      line({ id: "assistant-before", kind: "assistant", text: "Vorherige Antwort" }),
+      line({
+        id: "voice-after-assistant",
+        kind: "audio-out",
+        role: "user",
+        text: "user> [voice]",
+        turnMessageId: "turn-after-assistant",
+        audioUrl: "https://example.local/voice-after.mp4",
+        mimeType: "audio/mp4",
+      }),
+      line({
+        id: "transcript-after-assistant",
+        kind: "assistant",
+        text: '🎙️ "Dies ist ein Test."',
+      }),
+    ]);
+    const turns = groupMessages(messages);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]!.user).toBeNull();
+    expect(turns[1]!.user?.messageId).toBe("turn-after-assistant");
+    expect(turns[1]!.user?.role).toBe("user");
+    expect(turns[1]!.user?.parts).toMatchObject([
+      { type: "audio", url: "https://example.local/voice-after.mp4" },
+    ]);
+    expect(turns[1]!.outputs[0]!.parts[0]).toMatchObject({
+      type: "text",
+      text: '🎙️ "Dies ist ein Test."',
+    });
+  });
+
   it("does not expose assistant audio filenames as captions", () => {
     const messages = normalizeTranscript([
       line({
@@ -250,4 +406,5 @@ describe("groupMessages", () => {
     expect(turns[0]!.user?.parts[0]).toMatchObject({ type: "text", text: "hi" });
     expect(turns[0]!.outputs).toHaveLength(1);
   });
+
 });

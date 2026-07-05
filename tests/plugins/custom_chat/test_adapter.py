@@ -50,6 +50,34 @@ async def test_inbound_text_mapped_and_handle_message_called(adapter: CustomChat
 
 
 @pytest.mark.asyncio
+async def test_inbound_text_preserves_reply_context(adapter: CustomChatAdapter):
+    received = []
+
+    async def handler(event):
+        received.append(event)
+
+    adapter._message_handler = handler
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+
+    data = sample_inbound(
+        "message.create",
+        {
+            "message_id": "in-reply",
+            "text": "Yes, exactly",
+            "reply_to_message_id": "quoted-1",
+            "reply_to_text": "Original assistant text",
+        },
+    )
+    await adapter._on_ws_message(ws, data)
+
+    assert len(received) == 1
+    assert received[0].text == "Yes, exactly"
+    assert received[0].reply_to_message_id == "quoted-1"
+    assert received[0].reply_to_text == "Original assistant text"
+
+
+@pytest.mark.asyncio
 async def test_outbound_assistant_done_fallback(adapter: CustomChatAdapter, parse_sent_events):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

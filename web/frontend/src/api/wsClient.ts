@@ -1,4 +1,4 @@
-import type { ButtonClickPayload, EventEnvelope, MessageAttachment } from "../types/events";
+import type { ButtonClickPayload, EventEnvelope, MessageAttachment, ReplyTarget } from "../types/events";
 import { newId } from "../lib/uuid";
 
 export type MessageHandler = (event: EventEnvelope) => void;
@@ -171,6 +171,7 @@ export class WsClient {
       messageId: string;
       text: string;
       attachments?: MessageAttachment[];
+      replyTarget?: ReplyTarget;
     },
     chatId: string,
     userId: string,
@@ -182,6 +183,10 @@ export class WsClient {
     };
     if (params.attachments && params.attachments.length > 0) {
       payload.attachments = params.attachments;
+    }
+    if (params.replyTarget) {
+      payload.reply_to_message_id = params.replyTarget.lineId;
+      payload.reply_to_text = params.replyTarget.quotedText || params.replyTarget.preview;
     }
     return this.send({
       schema_version: "v1",

@@ -1,5 +1,5 @@
 import type { ConnectionStatus } from "../../types/events";
-import { IconPanel, IconMenu } from "./icons";
+import { IconPanel, IconSidebarToggle } from "./icons";
 
 interface TopBarProps {
   title: string;
@@ -41,7 +41,7 @@ export function TopBar({
           aria-label="Toggle navigation"
           title="Toggle navigation"
         >
-          <IconMenu size={18} />
+          <IconSidebarToggle size={19} />
         </button>
         <div
           className={`topbar-dot topbar-dot-${connection}${streaming ? " topbar-dot-streaming" : ""}`}

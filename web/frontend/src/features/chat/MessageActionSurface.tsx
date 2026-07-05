@@ -18,6 +18,7 @@ const VERTICAL_CANCEL_RATIO = 1.25;
 interface MessageActionSurfaceProps {
   line: TranscriptLine;
   children: ReactNode;
+  alignRight?: boolean;
   onOpen: (target: MessageActionTarget) => void;
   onReply: (line: TranscriptLine) => void;
 }
@@ -39,6 +40,7 @@ function clampSwipe(delta: number): number {
 export function MessageActionSurface({
   line,
   children,
+  alignRight = false,
   onOpen,
   onReply,
 }: MessageActionSurfaceProps) {
@@ -141,7 +143,9 @@ export function MessageActionSurface({
   return (
     <div
       ref={surfaceRef}
-      className={`message-action-surface${swiping ? " message-action-surface-swiping" : ""}${
+      className={`message-action-surface${alignRight ? " message-action-surface-right" : ""}${
+        swiping ? " message-action-surface-swiping" : ""
+      }${
         swipeX > 0 ? " message-action-surface-reply" : swipeX < 0 ? " message-action-surface-actions" : ""
       }`}
       style={style}

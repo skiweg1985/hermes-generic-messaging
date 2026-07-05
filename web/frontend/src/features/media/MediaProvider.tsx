@@ -13,6 +13,7 @@ interface MediaContextValue {
   images: MediaImage[];
   registerImage: (image: MediaImage) => void;
   openAt: (id: string) => void;
+  openImage: (image: MediaImage) => void;
 }
 
 const MediaContext = createContext<MediaContextValue | null>(null);
@@ -58,9 +59,21 @@ export function MediaProvider({ children, registryKey, onOpenLightbox }: MediaPr
     [onOpenLightbox],
   );
 
+  const openImage = useCallback(
+    (image: MediaImage) => {
+      const existingIndex = images.findIndex((p) => p.id === image.id);
+      const next = existingIndex >= 0 ? [...images] : [...images, image];
+      const index = existingIndex >= 0 ? existingIndex : next.length - 1;
+      next[index] = image;
+      setImages(next);
+      onOpenLightbox(next, index);
+    },
+    [images, onOpenLightbox],
+  );
+
   const value = useMemo<MediaContextValue>(
-    () => ({ images, registerImage, openAt }),
-    [images, registerImage, openAt],
+    () => ({ images, registerImage, openAt, openImage }),
+    [images, registerImage, openAt, openImage],
   );
 
   return <MediaContext.Provider value={value}>{children}</MediaContext.Provider>;

@@ -114,6 +114,19 @@ def test_message_create_with_attachments():
     assert msg.attachments[0].attachment_id == "a1"
 
 
+def test_message_create_with_reply_context():
+    msg = MessageCreatePayload.model_validate(
+        {
+            "message_id": "m-reply",
+            "text": "answering this",
+            "reply_to_message_id": "quoted-1",
+            "reply_to_text": "quoted body",
+        }
+    )
+    assert msg.reply_to_message_id == "quoted-1"
+    assert msg.reply_to_text == "quoted body"
+
+
 def test_message_create_requires_text_or_attachments():
     with pytest.raises(ValidationError):
         MessageCreatePayload(message_id="m1", text="")

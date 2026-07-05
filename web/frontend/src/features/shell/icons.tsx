@@ -274,6 +274,17 @@ export function IconCommand({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconSidebarToggle({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <rect x="4" y="5" width="16" height="14" rx="3.2" />
+      <path d="M9.5 5v14" />
+      <path d="M13.5 9h3M13.5 12h2.4M13.5 15h3" opacity="0.78" />
+      <path d="M7 9.2h.1M7 12h.1M7 14.8h.1" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
 export function IconMenu({ size, ...rest }: IconProps) {
   return (
     <svg {...base(size)} {...rest}>

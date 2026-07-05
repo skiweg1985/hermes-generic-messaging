@@ -52,6 +52,8 @@ export interface MessageCreatePayload {
   text: string;
   attachments?: MessageAttachment[];
   idempotency_key?: string;
+  reply_to_message_id?: string;
+  reply_to_text?: string;
 }
 
 export interface CommandCreatePayload {

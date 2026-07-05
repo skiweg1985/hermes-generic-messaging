@@ -117,6 +117,8 @@ class MessageCreatePayload(BaseModel):
     text: str = ""
     attachments: list[MessageAttachment] = Field(default_factory=list)
     idempotency_key: Optional[str] = None
+    reply_to_message_id: Optional[str] = None
+    reply_to_text: Optional[str] = None
 
     @model_validator(mode="after")
     def text_or_attachments(self) -> "MessageCreatePayload":

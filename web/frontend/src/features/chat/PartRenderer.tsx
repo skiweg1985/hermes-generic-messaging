@@ -143,8 +143,13 @@ export function PartRenderer({
   onMessageAction,
   onReplyLine,
 }: PartRendererProps) {
-  const withActions = (line: TranscriptLine, node: ReactNode) => (
-    <MessageActionSurface line={line} onOpen={onMessageAction} onReply={onReplyLine}>
+  const withActions = (line: TranscriptLine, node: ReactNode, actionAlignRight = false) => (
+    <MessageActionSurface
+      line={line}
+      alignRight={actionAlignRight}
+      onOpen={onMessageAction}
+      onReply={onReplyLine}
+    >
       {node}
     </MessageActionSurface>
   );
@@ -154,6 +159,7 @@ export function PartRenderer({
       {message.parts.map((part, index) => {
         const line = partToLine(part, message);
         const key = `${message.messageId}-${part.type}-${index}`;
+        const partAlignRight = alignRight || line.role === "user";
 
         switch (part.type) {
           case "text":
@@ -164,8 +170,8 @@ export function PartRenderer({
                 text: part.text,
               } as TranscriptLine;
               return (
-                <div key={key}>
-                  {withActions(userLine, <MessageUser line={userLine} />)}
+                <div key={key} className={partAlignRight ? "turn-user-row" : undefined}>
+                  {withActions(userLine, <MessageUser line={userLine} />, partAlignRight)}
                 </div>
               );
             }
@@ -191,20 +197,20 @@ export function PartRenderer({
             );
           case "image":
             return (
-              <div key={key} className={alignRight ? "turn-user-row" : undefined}>
-                {withActions(line, <ImageCard line={line} alignRight={alignRight} />)}
+              <div key={key} className={partAlignRight ? "turn-user-row" : undefined}>
+                {withActions(line, <ImageCard line={line} alignRight={partAlignRight} />, partAlignRight)}
               </div>
             );
           case "video":
             return (
-              <div key={key} className={alignRight ? "turn-user-row" : undefined}>
-                {withActions(line, <VideoCard line={line} alignRight={alignRight} />)}
+              <div key={key} className={partAlignRight ? "turn-user-row" : undefined}>
+                {withActions(line, <VideoCard line={line} alignRight={partAlignRight} />, partAlignRight)}
               </div>
             );
           case "file":
             return (
-              <div key={key} className={alignRight ? "turn-user-row" : undefined}>
-                {withActions(line, <FileCard line={line} alignRight={alignRight} />)}
+              <div key={key} className={partAlignRight ? "turn-user-row" : undefined}>
+                {withActions(line, <FileCard line={line} alignRight={partAlignRight} />, partAlignRight)}
               </div>
             );
           case "audio":
@@ -216,8 +222,8 @@ export function PartRenderer({
                     <MessageAssistant line={{ ...line, kind: "assistant", text: part.caption }} />,
                   )
                 ) : null}
-                <div className={alignRight ? "turn-user-row" : undefined}>
-                  {withActions(line, <AudioCard line={line} alignRight={alignRight} />)}
+                <div className={partAlignRight ? "turn-user-row" : undefined}>
+                  {withActions(line, <AudioCard line={line} alignRight={partAlignRight} />, partAlignRight)}
                 </div>
               </Fragment>
             );

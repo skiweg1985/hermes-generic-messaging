@@ -432,7 +432,7 @@ export function useChatController(): ChatController {
       });
 
       const delivered = client.sendMessage(
-        { messageId: turnMessageId, text: outboundText, attachments },
+        { messageId: turnMessageId, text: outboundText, attachments, replyTarget: draft.replyTarget },
         session.chatId,
         USER_ID,
       );
@@ -617,7 +617,8 @@ export function useChatController(): ChatController {
           dispatch(notConnectedError(chatId));
           return;
         }
-        const outboundText = withReplyPrefix("", draftFor(chatId).replyTarget);
+        const replyTarget = draftFor(chatId).replyTarget;
+        const outboundText = withReplyPrefix("", replyTarget);
 
         const mime = normalizeMimeType(blob.type || "audio/webm");
         const filename = voiceFilenameForMime(mime);
@@ -642,6 +643,7 @@ export function useChatController(): ChatController {
           {
             messageId: turnMessageId,
             text: outboundText,
+            replyTarget,
             attachments: [
               {
                 attachment_id: attachmentId,
@@ -664,6 +666,8 @@ export function useChatController(): ChatController {
             message: "voice message not delivered - reconnect and resend",
             chatId,
           });
+        } else if (replyTarget) {
+          draftDispatch({ type: "CLEAR_REPLY_TARGET", chatId });
         }
       } catch {
         if (!shouldSend) return;

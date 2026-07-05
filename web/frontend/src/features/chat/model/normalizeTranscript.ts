@@ -5,7 +5,7 @@ import { lineMessageRole, lineMessageStatus, lineToParts } from "./lineToPart";
 function isUserAnchor(line: TranscriptLine): boolean {
   const kind = line.kind;
   if (kind === "user" || kind === "command") return true;
-  if (line.turnMessageId && line.turnMessageId === line.id) return true;
+  if (line.role === "user" && line.turnMessageId && line.turnMessageId === line.id) return true;
   if (kind === "upload" && !line.turnMessageId) return true;
   return false;
 }
@@ -13,13 +13,8 @@ function isUserAnchor(line: TranscriptLine): boolean {
 function isUserAttachment(line: TranscriptLine): boolean {
   if (!line.turnMessageId || line.turnMessageId === line.id) return false;
   const kind = line.kind;
-  return (
-    line.role === "user" ||
-    kind === "upload" ||
-    kind === "image" ||
-    kind === "audio-out" ||
-    kind === "video"
-  );
+  if (line.role === "user") return true;
+  return kind === "upload";
 }
 
 function buildMessage(lines: TranscriptLine[], turnActive: boolean): ChatMessage {

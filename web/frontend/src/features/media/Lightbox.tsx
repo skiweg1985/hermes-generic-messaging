@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { downloadMedia } from "../../lib/downloadMedia";
 import type { MediaImage } from "./MediaProvider";
 import { IconClose, IconArrowUp, IconDownload } from "../shell/icons";
+import { usePinchZoom } from "./usePinchZoom";
 
 interface LightboxProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface LightboxProps {
 
 export function Lightbox({ open, images, index, onClose, onIndexChange }: LightboxProps) {
   const current = images[index];
+  const zoom = usePinchZoom(open ? current?.id ?? "open" : "closed");
 
   const next = useCallback(() => {
     if (images.length <= 1) return;
@@ -118,13 +120,25 @@ export function Lightbox({ open, images, index, onClose, onIndexChange }: Lightb
         </>
       ) : null}
 
-      <div className="lightbox-stage" onMouseDown={(e) => e.stopPropagation()}>
-        <img
-          key={current.id}
-          src={current.url}
-          alt={current.alt ?? current.caption ?? "image"}
-          className="lightbox-image motion-scale-in"
-        />
+      <div
+        ref={zoom.stageRef}
+        className={`lightbox-stage${zoom.zoomed ? " lightbox-stage-zoomed" : ""}`}
+        onMouseDown={(e) => e.stopPropagation()}
+        {...zoom.eventHandlers}
+      >
+        <div
+          ref={zoom.contentRef}
+          className="lightbox-zoom-content"
+          style={zoom.transformStyle}
+        >
+          <img
+            key={current.id}
+            src={current.url}
+            alt={current.alt ?? current.caption ?? "image"}
+            className="lightbox-image motion-scale-in"
+            draggable={false}
+          />
+        </div>
         {current.caption ? (
           <div className="lightbox-caption t-body-sm">{current.caption}</div>
         ) : null}

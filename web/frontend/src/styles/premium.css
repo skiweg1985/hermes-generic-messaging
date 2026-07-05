@@ -191,6 +191,10 @@ body {
   border-radius: 10px;
 }
 
+.topbar-rail-toggle {
+  border-radius: 14px;
+}
+
 .connection-banner {
   min-height: 30px;
   background: var(--surface-overlay);
@@ -249,6 +253,21 @@ body {
   touch-action: pan-y;
   --message-swipe-x: 0px;
   --message-swipe-progress: 0;
+}
+
+.turn-user-row > .message-action-surface,
+.message-action-surface-right {
+  width: fit-content;
+  max-width: min(72ch, 76vw);
+  margin-left: auto;
+  margin-right: 0;
+  justify-self: end;
+  align-self: flex-end;
+}
+
+.turn-user-row > .message-action-surface .message-action-surface-content,
+.message-action-surface-right .message-action-surface-content {
+  justify-self: end;
 }
 
 .message-action-surface-content {
@@ -421,12 +440,20 @@ body {
   max-width: min(72ch, 76vw);
 }
 
+.turn-user .message-part-stack {
+  align-items: flex-end;
+}
+
 .msg-user-bubble {
   padding: 10px 14px;
   border-radius: 18px 18px 7px 18px;
-  background: color-mix(in srgb, var(--surface-4) 62%, var(--surface-2) 38%);
-  border: 1px solid color-mix(in srgb, var(--line-soft) 68%, transparent);
-  box-shadow: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
+    color-mix(in srgb, var(--surface-4) 82%, var(--surface-2) 18%);
+  border: 1px solid color-mix(in srgb, var(--line-soft) 82%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.36) inset,
+    0 8px 22px rgba(0, 0, 0, 0.06);
   line-height: 1.48;
 }
 
@@ -806,8 +833,21 @@ body {
   background: color-mix(in srgb, var(--surface-2) 90%, var(--surface-canvas) 10%);
 }
 
+.audio-card-user,
+.turn-user .audio-card,
+.turn-user-row .audio-card {
+  margin-left: auto;
+  margin-right: 0;
+}
+
 .audio-card-user .waveform {
-  background: color-mix(in srgb, var(--surface-4) 62%, var(--surface-2) 38%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
+    color-mix(in srgb, var(--surface-4) 88%, var(--surface-2) 12%);
+  border: 1px solid color-mix(in srgb, var(--line-soft) 88%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.42) inset,
+    0 10px 26px rgba(0, 0, 0, 0.08);
 }
 
 .waveform-play {
@@ -1059,4 +1099,80 @@ body {
   .waveform-canvas {
     height: 40px;
   }
+}
+
+/* ── User ownership hardening ───────────────────────────────────────────
+   Keep this block LAST in premium.css. It intentionally wins the cascade for
+   user-authored text/audio, including voice transcripts that may initially
+   arrive as assistant-shaped lines before normalization catches them. */
+.turn-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.turn-user > .message-part-stack,
+.turn-user .message-part-stack,
+.turn-user-row {
+  width: 100%;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.turn-user .message-action-surface,
+.turn-user-row > .message-action-surface,
+.message-action-surface-right {
+  width: fit-content;
+  max-width: min(72ch, 76vw);
+  margin-left: auto;
+  margin-right: 0;
+  justify-self: end;
+}
+
+.turn-user .message-action-surface-content,
+.turn-user-row > .message-action-surface .message-action-surface-content,
+.message-action-surface-right .message-action-surface-content {
+  justify-self: end;
+}
+
+.turn-user .msg-user,
+.turn-user .msg-user-stack {
+  width: fit-content;
+  max-width: min(72ch, 76vw);
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.turn-user .msg-user-bubble,
+.msg-user-bubble {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0)),
+    color-mix(in srgb, var(--surface-4) 92%, var(--surface-2) 8%);
+  border-color: color-mix(in srgb, var(--line-soft) 92%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.48) inset,
+    0 10px 26px rgba(0, 0, 0, 0.08);
+}
+
+.turn-user .audio-card,
+.audio-card-user,
+.audio-card-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.turn-user .audio-card .waveform,
+.audio-card-user .waveform {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0)),
+    color-mix(in srgb, var(--surface-4) 92%, var(--surface-2) 8%);
+  border-color: color-mix(in srgb, var(--line-soft) 92%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.48) inset,
+    0 10px 26px rgba(0, 0, 0, 0.08);
 }
