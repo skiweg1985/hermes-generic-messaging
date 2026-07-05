@@ -1181,14 +1181,14 @@ body {
   }
 }
 
-/* ── Mobile composer edge blend ──────────────────────────────────────────
-   Keep the iPhone composer as a soft control floating inside the viewport,
-   not a boxed footer. This overrides earlier premium desktop chrome. */
+/* ── Mobile composer glass dock ─────────────────────────────────────────
+   Let transcript content visually glide underneath the composer instead of
+   hitting an opaque footer plate. Keep the actual controls legible. */
 @media (max-width: 720px) {
   .composer-region {
     position: relative;
     isolation: isolate;
-    padding-top: 18px;
+    padding-top: 24px;
     background: transparent;
   }
 
@@ -1198,12 +1198,12 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    height: calc(100% + 52px);
+    height: calc(100% + 64px);
     background: linear-gradient(
       180deg,
       transparent 0%,
-      color-mix(in srgb, var(--surface-canvas) 28%, transparent) 28%,
-      color-mix(in srgb, var(--surface-canvas) 62%, transparent) 100%
+      color-mix(in srgb, var(--surface-canvas) 10%, transparent) 46%,
+      color-mix(in srgb, var(--surface-canvas) 24%, transparent) 100%
     );
     pointer-events: none;
     z-index: 0;
@@ -1231,22 +1231,22 @@ body {
 
   .composer::before {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08)),
-      color-mix(in srgb, var(--surface-2) 70%, var(--surface-canvas) 30%);
-    border: 1px solid color-mix(in srgb, var(--line-hairline) 18%, transparent);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1)),
+      color-mix(in srgb, var(--surface-2) 46%, transparent);
+    border: 1px solid color-mix(in srgb, var(--line-hairline) 10%, transparent);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.16) inset,
-      0 4px 14px rgba(0, 0, 0, 0.028);
+      0 1px 0 rgba(255, 255, 255, 0.12) inset,
+      0 5px 18px rgba(0, 0, 0, 0.032);
   }
 
   .composer-icon-record {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08)),
-      color-mix(in srgb, var(--surface-2) 70%, var(--surface-canvas) 30%);
-    border-color: color-mix(in srgb, var(--line-hairline) 18%, transparent);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.1)),
+      color-mix(in srgb, var(--surface-2) 48%, transparent);
+    border-color: color-mix(in srgb, var(--line-hairline) 10%, transparent);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.14) inset,
-      0 4px 12px rgba(0, 0, 0, 0.028);
+      0 1px 0 rgba(255, 255, 255, 0.12) inset,
+      0 5px 16px rgba(0, 0, 0, 0.032);
   }
 }
 
