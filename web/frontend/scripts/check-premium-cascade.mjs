@@ -20,6 +20,9 @@ if (markerIndex < 0) {
 }
 
 const afterMarker = css.slice(markerIndex);
+const mobileDockMarker = "Mobile composer glass dock";
+const mobileDockIndex = css.lastIndexOf(mobileDockMarker);
+const mobileDockBlock = mobileDockIndex >= 0 ? css.slice(mobileDockIndex, markerIndex) : "";
 
 const requiredFragments = [
   ".turn-user {",
@@ -35,6 +38,22 @@ const errors = [];
 for (const fragment of requiredFragments) {
   if (!afterMarker.includes(fragment)) {
     errors.push(`Final user hardening block is missing required fragment: ${fragment}`);
+  }
+}
+
+const mobileDockFragments = [
+  ".transcript-jump,",
+  ".transcript-toast {",
+  "bottom: calc(var(--composer-clearance, 96px) + 10px);",
+];
+
+if (mobileDockIndex < 0) {
+  errors.push(`Missing \"${mobileDockMarker}\" block in ${cssPath}.`);
+} else {
+  for (const fragment of mobileDockFragments) {
+    if (!mobileDockBlock.includes(fragment)) {
+      errors.push(`Mobile composer dock block is missing required fragment: ${fragment}`);
+    }
   }
 }
 

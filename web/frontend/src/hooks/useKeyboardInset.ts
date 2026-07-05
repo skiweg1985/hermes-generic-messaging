@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useViewportMetrics, type ViewportMetrics } from "./useVisualViewport";
 
 /** CSS custom properties written to `document.documentElement`. */
@@ -23,9 +23,15 @@ export interface DerivedViewport {
   pinDocumentScroll: boolean;
 }
 
+interface StableClosedViewport {
+  innerHeight: number;
+  visualHeight: number;
+}
+
 const MOBILE_MIN_HEIGHT = 140;
 const DESKTOP_MIN_HEIGHT = 320;
 const KEYBOARD_OPEN_THRESHOLD = 100;
+const CLOSED_VIEWPORT_ROTATION_THRESHOLD = 120;
 
 const VAR_NAMES: ViewportVarName[] = [
   "--app-viewport-height",
@@ -41,7 +47,9 @@ const VAR_NAMES: ViewportVarName[] = [
  * Pure derivation of layout CSS variables from raw viewport metrics.
  *
  * iOS behaviour encoded here:
- * - On mobile the shell is cut to the visual viewport height.
+ * - On mobile the shell is cut to the visual viewport height. This keeps the
+ *   app aligned with Safari's visible area and avoids hiding the header behind
+ *   browser chrome.
  * - While the keyboard is open the shell is bottom-anchored above the keyboard
  *   instead of top-anchored on offsetTop. iOS can drop offsetTop when the user
  *   rubber-bands the page; top anchoring then lifts the composer away from the
@@ -56,7 +64,7 @@ export function deriveViewport(metrics: ViewportMetrics): DerivedViewport {
   const { innerHeight, visualHeight, offsetTop, isMobileDock, isAppleTouchDevice, editableFocused } =
     metrics;
 
-  const keyboardFocused = isAppleTouchDevice && editableFocused;
+  const keyboardFocused = editableFocused && (isMobileDock || isAppleTouchDevice);
   const height = isMobileDock
     ? visualHeight
     : keyboardFocused
@@ -67,8 +75,7 @@ export function deriveViewport(metrics: ViewportMetrics): DerivedViewport {
   const keyboardOpen =
     isMobileDock && editableFocused && innerHeight - visualHeight > KEYBOARD_OPEN_THRESHOLD;
 
-  const bottomAnchored =
-    isMobileDock && editableFocused && (keyboardOpen || offsetTop > 0);
+  const bottomAnchored = isMobileDock && editableFocused && keyboardOpen;
   const rawOffsetTop = isMobileDock ? Math.max(0, Math.round(offsetTop)) : 0;
   const shellBottom = bottomAnchored
     ? Math.max(0, Math.round(innerHeight - offsetTop - visualHeight))
@@ -92,11 +99,46 @@ export function deriveViewport(metrics: ViewportMetrics): DerivedViewport {
   };
 }
 
+function stabilizeClosedViewport(
+  metrics: ViewportMetrics,
+  stableClosed: StableClosedViewport | null,
+): { metrics: ViewportMetrics; stableClosed: StableClosedViewport | null } {
+  if (!metrics.isMobileDock) {
+    return { metrics, stableClosed: null };
+  }
+
+  if (metrics.editableFocused) {
+    return { metrics, stableClosed };
+  }
+
+  const roundedInnerHeight = Math.round(metrics.innerHeight);
+  const roundedVisualHeight = Math.round(metrics.visualHeight);
+  const shouldRefreshStableClosed =
+    !stableClosed ||
+    Math.abs(roundedInnerHeight - stableClosed.innerHeight) > CLOSED_VIEWPORT_ROTATION_THRESHOLD;
+
+  const nextStableClosed = shouldRefreshStableClosed
+    ? { innerHeight: roundedInnerHeight, visualHeight: roundedVisualHeight }
+    : stableClosed;
+
+  return {
+    metrics: {
+      ...metrics,
+      // When the keyboard is closed, iOS can still emit tiny visualViewport
+      // resize/scroll changes during rubber-band and browser-bar gestures. The
+      // app shell should not follow those; it should stay aligned to the last
+      // stable closed viewport until a real orientation/height change occurs.
+      visualHeight: nextStableClosed.visualHeight,
+      offsetTop: 0,
+    },
+    stableClosed: nextStableClosed,
+  };
+}
+
 type KeyboardListener = (open: boolean) => void;
 
 const keyboardListeners = new Set<KeyboardListener>();
 let keyboardOpenState = false;
-let bottomAnchoredState = false;
 
 function setKeyboardOpen(open: boolean) {
   if (open === keyboardOpenState) return;
@@ -104,18 +146,45 @@ function setKeyboardOpen(open: boolean) {
   keyboardListeners.forEach((listener) => listener(open));
 }
 
-function setBottomAnchored(anchored: boolean) {
-  bottomAnchoredState = anchored;
-}
+let lastTouchX = 0;
+let lastTouchY = 0;
 
-function shouldAllowTouchScroll(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  if (target.closest(".transcript")) return true;
+function findScrollableTarget(target: EventTarget | null): HTMLElement | HTMLTextAreaElement | null {
+  if (!(target instanceof Element)) return null;
+  const transcript = target.closest(".transcript");
+  if (transcript instanceof HTMLElement) return transcript;
   const textarea = target.closest("textarea");
   if (textarea instanceof HTMLTextAreaElement && textarea.scrollHeight > textarea.clientHeight + 1) {
-    return true;
+    return textarea;
   }
-  return false;
+  return null;
+}
+
+function shouldAllowTouchScroll(target: EventTarget | null, currentX: number, currentY: number): boolean {
+  const scrollable = findScrollableTarget(target);
+  if (!scrollable) return false;
+
+  const deltaX = currentX - lastTouchX;
+  const deltaY = currentY - lastTouchY;
+  lastTouchX = currentX;
+  lastTouchY = currentY;
+
+  // Horizontal drags on the composer textarea are never intended to move the
+  // app shell. iOS otherwise turns these into a subtle page/viewport pan after
+  // the keyboard has been opened once.
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) return false;
+  if (deltaY === 0) return true;
+
+  const { scrollTop, scrollHeight, clientHeight } = scrollable;
+  const canScroll = scrollHeight > clientHeight + 1;
+  if (!canScroll) return false;
+
+  const atTop = scrollTop <= 0;
+  const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+  const pullingDown = deltaY > 0;
+  const pullingUp = deltaY < 0;
+
+  return !((atTop && pullingDown) || (atBottom && pullingUp));
 }
 
 /**
@@ -124,6 +193,8 @@ function shouldAllowTouchScroll(target: EventTarget | null): boolean {
  * viewport (instead of overlaying) when the keyboard opens.
  */
 export function useKeyboardInset(): void {
+  const stableClosedViewportRef = useRef<StableClosedViewport | null>(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const virtualKeyboard = navigator.virtualKeyboard;
@@ -133,14 +204,23 @@ export function useKeyboardInset(): void {
       virtualKeyboard.overlaysContent = false;
     }
 
+    const onTouchStart = (event: TouchEvent) => {
+      lastTouchX = event.touches[0]?.clientX ?? 0;
+      lastTouchY = event.touches[0]?.clientY ?? 0;
+    };
+
     const onTouchMove = (event: TouchEvent) => {
-      if (!keyboardOpenState && !bottomAnchoredState) return;
-      if (shouldAllowTouchScroll(event.target)) return;
+      if (!mobileDock) return;
+      const currentX = event.touches[0]?.clientX ?? lastTouchX;
+      const currentY = event.touches[0]?.clientY ?? lastTouchY;
+      if (shouldAllowTouchScroll(event.target, currentX, currentY)) return;
       event.preventDefault();
     };
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", onTouchMove, { passive: false });
 
     return () => {
+      document.removeEventListener("touchstart", onTouchStart);
       document.removeEventListener("touchmove", onTouchMove);
       if (virtualKeyboard && previousOverlay !== undefined) {
         virtualKeyboard.overlaysContent = previousOverlay;
@@ -148,21 +228,21 @@ export function useKeyboardInset(): void {
       const rootStyle = document.documentElement.style;
       VAR_NAMES.forEach((name) => rootStyle.removeProperty(name));
       document.documentElement.classList.remove("keyboard-open", "shell-bottom-anchored");
-      setBottomAnchored(false);
       setKeyboardOpen(false);
     };
   }, []);
 
   useViewportMetrics((metrics) => {
+    const stabilized = stabilizeClosedViewport(metrics, stableClosedViewportRef.current);
+    stableClosedViewportRef.current = stabilized.stableClosed;
     const { vars, resetScroll, keyboardOpen, bottomAnchored, pinDocumentScroll } =
-      deriveViewport(metrics);
+      deriveViewport(stabilized.metrics);
     const rootStyle = document.documentElement.style;
     (Object.keys(vars) as ViewportVarName[]).forEach((name) => {
       rootStyle.setProperty(name, vars[name]);
     });
     document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
     document.documentElement.classList.toggle("shell-bottom-anchored", bottomAnchored);
-    setBottomAnchored(bottomAnchored);
     if (
       (resetScroll || pinDocumentScroll) &&
       (window.scrollX !== 0 || window.scrollY !== 0)

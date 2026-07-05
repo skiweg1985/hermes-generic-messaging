@@ -15,14 +15,22 @@ function metrics(overrides: Partial<ViewportMetrics> = {}): ViewportMetrics {
 }
 
 describe("deriveViewport", () => {
-  it("cuts the shell to the visual viewport height on mobile", () => {
+  it("cuts the shell to the visual viewport height on mobile while an input is focused", () => {
     const { vars } = deriveViewport(
       metrics({ isMobileDock: true, innerHeight: 800, visualHeight: 500, editableFocused: true }),
     );
     expect(vars["--app-viewport-height"]).toBe("500px");
   });
 
-  it("bottom-anchors the shell while the keyboard is open or opening on mobile", () => {
+  it("keeps mobile height aligned to the visual viewport when the keyboard is closed", () => {
+    const { vars } = deriveViewport(
+      metrics({ isMobileDock: true, innerHeight: 800, visualHeight: 760, offsetTop: 18, editableFocused: false }),
+    );
+    expect(vars["--app-viewport-height"]).toBe("760px");
+    expect(vars["--app-viewport-offset-top"]).toBe("0px");
+  });
+
+  it("bottom-anchors the shell while the keyboard is open on mobile", () => {
     const { vars, bottomAnchored } = deriveViewport(
       metrics({ isMobileDock: true, innerHeight: 800, offsetTop: 47, visualHeight: 500, editableFocused: true }),
     );
@@ -30,6 +38,15 @@ describe("deriveViewport", () => {
     expect(vars["--app-viewport-offset-top"]).toBe("0px");
     expect(vars["--app-shell-bottom"]).toBe("253px");
     expect(vars["--app-visual-viewport-offset-top"]).toBe("47px");
+  });
+
+  it("does not bottom-anchor on small transient viewport offsets", () => {
+    const { vars, bottomAnchored } = deriveViewport(
+      metrics({ isMobileDock: true, innerHeight: 800, offsetTop: 18, visualHeight: 760, editableFocused: true }),
+    );
+    expect(bottomAnchored).toBe(false);
+    expect(vars["--app-shell-bottom"]).toBe("0px");
+    expect(vars["--app-viewport-offset-top"]).toBe("18px");
   });
 
   it("ignores transient visualViewport offsetTop on mobile when no field is focused", () => {

@@ -1014,14 +1014,14 @@ body {
     inset: -4px 0 -18px;
     background: linear-gradient(
       180deg,
-      rgba(248, 250, 252, 0.64) 0%,
-      rgba(248, 250, 252, 0.36) 62%,
+      rgba(10, 10, 12, 0.72) 0%,
+      rgba(10, 10, 12, 0.42) 62%,
       transparent
     );
-    border-bottom: 1px solid rgba(255, 255, 255, 0.24);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
-    backdrop-filter: blur(12px) saturate(128%);
-    -webkit-backdrop-filter: blur(12px) saturate(128%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(12px) saturate(124%);
+    -webkit-backdrop-filter: blur(12px) saturate(124%);
     -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 64%, transparent 100%);
     mask-image: linear-gradient(180deg, #000 0%, #000 64%, transparent 100%);
     pointer-events: none;
@@ -1034,22 +1034,26 @@ body {
 
   .topbar-icon-btn,
   .topbar-rail-toggle {
-    background: rgba(255, 255, 255, 0.34);
-    border: 1px solid rgba(255, 255, 255, 0.34);
+    background: rgba(24, 24, 28, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.42),
-      0 4px 12px rgba(15, 23, 42, 0.045);
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 4px 12px rgba(0, 0, 0, 0.18);
     backdrop-filter: blur(10px) saturate(122%);
     -webkit-backdrop-filter: blur(10px) saturate(122%);
   }
 
   .topbar-icon-btn:hover:not(:disabled),
   .topbar-rail-toggle:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.48);
+    background: rgba(34, 34, 40, 0.76);
   }
 
   .connection-banner {
     margin-top: var(--topbar-height, 54px);
+  }
+
+  .connection-banner + .stage-main .transcript {
+    padding-top: 22px;
   }
 
   .topbar-title {
@@ -1069,7 +1073,7 @@ body {
 
   .transcript-jump,
   .transcript-toast {
-    bottom: 10px;
+    bottom: calc(var(--composer-clearance, 96px) + 10px);
   }
 
   .transcript-content {
@@ -1246,6 +1250,10 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+    touch-action: none;
     z-index: var(--z-sticky);
     isolation: isolate;
     padding-top: 8px;
@@ -1255,6 +1263,11 @@ body {
   html.keyboard-open .composer-region {
     bottom: -4px;
     padding-top: 4px;
+  }
+
+  .transcript-jump,
+  .transcript-toast {
+    bottom: calc(var(--composer-clearance, 96px) + 10px);
   }
 
   .composer-region::before {
@@ -1267,8 +1280,8 @@ body {
     background: linear-gradient(
       180deg,
       transparent 0%,
-      rgba(248, 250, 252, 0.16) 70%,
-      rgba(248, 250, 252, 0.32) 100%
+      rgba(10, 10, 12, 0.18) 70%,
+      rgba(10, 10, 12, 0.46) 100%
     );
     pointer-events: none;
     z-index: 0;
@@ -1283,8 +1296,8 @@ body {
     background: linear-gradient(
       180deg,
       transparent 0%,
-      rgba(248, 250, 252, 0.08) 74%,
-      rgba(248, 250, 252, 0.18) 100%
+      rgba(10, 10, 12, 0.1) 74%,
+      rgba(10, 10, 12, 0.28) 100%
     );
   }
 
@@ -1310,11 +1323,96 @@ body {
 
   .composer::before {
     background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.025)),
+      rgba(24, 24, 28, 0.68);
+    backdrop-filter: blur(18px) saturate(128%);
+    -webkit-backdrop-filter: blur(18px) saturate(128%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .composer-icon-record {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.025)),
+      rgba(30, 30, 36, 0.7);
+    border-color: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 5px 14px rgba(0, 0, 0, 0.18);
+  }
+
+
+  .composer-slash-pill {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .composer-send {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 8px 20px color-mix(in srgb, var(--accent-strong) 28%, transparent);
+  }
+}
+
+
+@media (max-width: 720px) and (prefers-color-scheme: light) {
+  .topbar::before {
+    background: linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0.64) 0%,
+      rgba(248, 250, 252, 0.36) 62%,
+      transparent
+    );
+    border-bottom-color: rgba(255, 255, 255, 0.24);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
+    backdrop-filter: blur(12px) saturate(128%);
+    -webkit-backdrop-filter: blur(12px) saturate(128%);
+  }
+
+  .topbar-icon-btn,
+  .topbar-rail-toggle {
+    background: rgba(255, 255, 255, 0.34);
+    border-color: rgba(255, 255, 255, 0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.42),
+      0 4px 12px rgba(15, 23, 42, 0.045);
+  }
+
+  .topbar-icon-btn:hover:not(:disabled),
+  .topbar-rail-toggle:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.48);
+  }
+
+  .composer-region::before {
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(248, 250, 252, 0.16) 70%,
+      rgba(248, 250, 252, 0.32) 100%
+    );
+  }
+
+  html.keyboard-open .composer-region::before {
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(248, 250, 252, 0.08) 74%,
+      rgba(248, 250, 252, 0.18) 100%
+    );
+  }
+
+  .composer::before {
+    background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.14)),
       rgba(255, 255, 255, 0.54);
     backdrop-filter: blur(18px) saturate(138%);
     -webkit-backdrop-filter: blur(18px) saturate(138%);
-    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-color: rgba(255, 255, 255, 0.38);
     box-shadow:
       0 10px 30px rgba(15, 23, 42, 0.075),
       inset 0 1px 0 rgba(255, 255, 255, 0.42);
@@ -1332,17 +1430,10 @@ body {
       0 5px 14px rgba(15, 23, 42, 0.055);
   }
 
-
   .composer-slash-pill {
     background: rgba(255, 255, 255, 0.34);
     border-color: rgba(255, 255, 255, 0.34);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
-  }
-
-  .composer-send {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.28),
-      0 8px 20px color-mix(in srgb, var(--accent-strong) 28%, transparent);
   }
 }
 
