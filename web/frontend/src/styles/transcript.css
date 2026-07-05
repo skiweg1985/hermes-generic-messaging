@@ -891,7 +891,7 @@
 .activity-card-leaving {
   pointer-events: none;
   transform-origin: 50% 60%;
-  animation: activity-card-vaporize 620ms cubic-bezier(0.2, 0.85, 0.2, 1) forwards;
+  animation: activity-card-vaporize 420ms cubic-bezier(0.2, 0.85, 0.2, 1) forwards;
 }
 
 .activity-card-leaving .activity-card-head,
@@ -907,33 +907,22 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  background:
-    radial-gradient(circle at 25% 40%, color-mix(in srgb, var(--accent) 55%, transparent) 0 2px, transparent 3px),
-    radial-gradient(circle at 45% 60%, color-mix(in srgb, var(--state-success) 55%, transparent) 0 2px, transparent 3px),
-    radial-gradient(circle at 70% 35%, color-mix(in srgb, var(--accent) 45%, transparent) 0 1.5px, transparent 3px),
-    radial-gradient(circle at 82% 68%, color-mix(in srgb, var(--state-success) 50%, transparent) 0 1.5px, transparent 3px);
-  animation: activity-card-sparks 620ms ease-out forwards;
+  background: var(--accent-faint);
+  animation: activity-card-sparks 420ms ease-out forwards;
 }
 
 @keyframes activity-card-vaporize {
   0% {
     opacity: 1;
     transform: translateY(0) scale(1) rotate(0deg);
-    filter: blur(0);
-    max-height: 320px;
-    margin-block: 0;
   }
   48% {
     opacity: 0.92;
     transform: translateY(-5px) scale(1.012) rotate(-0.4deg);
-    filter: blur(0);
   }
   100% {
     opacity: 0;
-    transform: translateY(-22px) scale(0.94) rotate(1deg);
-    filter: blur(7px);
-    max-height: 0;
-    margin-block: -4px;
+    transform: translateY(-16px) scale(0.96) rotate(0.5deg);
   }
 }
 
@@ -958,7 +947,7 @@
   }
   100% {
     opacity: 0;
-    transform: translateY(-18px) scale(1.22);
+    transform: translateY(-10px) scale(1.08);
   }
 }
 

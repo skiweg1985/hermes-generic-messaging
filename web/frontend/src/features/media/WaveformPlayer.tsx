@@ -32,8 +32,9 @@ export function WaveformPlayer({
   const [duration, setDuration] = useState(0);
   const [progressTime, setProgressTime] = useState(0);
   const [speedIndex, setSpeedIndex] = useState(0);
+  const [waveformEnabled, setWaveformEnabled] = useState(false);
 
-  const { peaks } = useWaveform(url);
+  const { peaks } = useWaveform(waveformEnabled ? url : undefined);
 
   // Measure container width to size canvas.
   useLayoutEffect(() => {
@@ -45,6 +46,28 @@ export function WaveformPlayer({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Mobile Safari is sensitive to many concurrent AudioContext decodes.
+  // Decode only when the card approaches the viewport, or when the user plays it.
+  useEffect(() => {
+    if (waveformEnabled) return;
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setWaveformEnabled(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setWaveformEnabled(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "360px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [waveformEnabled]);
 
   // Bind audio events.
   useEffect(() => {
@@ -82,6 +105,7 @@ export function WaveformPlayer({
   }, [speedIndex]);
 
   const toggle = useCallback(() => {
+    setWaveformEnabled(true);
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {

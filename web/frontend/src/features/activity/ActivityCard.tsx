@@ -64,7 +64,7 @@ function useVanishOnCompletion(state: ParsedActivity["state"], resetKey: string)
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const settleDelay = reducedMotion ? 600 : 1500;
-    const animationMs = reducedMotion ? 0 : 620;
+    const animationMs = reducedMotion ? 0 : 420;
     const leaveId = window.setTimeout(() => setPhase("leaving"), settleDelay);
     const goneId = window.setTimeout(() => setPhase("gone"), settleDelay + animationMs);
     return () => {
