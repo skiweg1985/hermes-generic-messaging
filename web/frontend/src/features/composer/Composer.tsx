@@ -526,15 +526,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </div>
         ) : null}
 
-        <SlashPopover
-          suggestions={suggestions}
-          highlightIndex={highlight}
-          onPick={(cmd) => {
-            const idx = suggestions.indexOf(cmd);
-            pickSuggestion(idx);
-          }}
-          onHover={(i) => setHighlight(i)}
-        />
+        {menuOpen ? (
+          <SlashPopover
+            suggestions={suggestions}
+            highlightIndex={highlight}
+            onPick={(cmd) => {
+              const idx = suggestions.indexOf(cmd);
+              pickSuggestion(idx);
+            }}
+            onHover={(i) => setHighlight(i)}
+          />
+        ) : null}
 
         {recordingActive ? (
           <div className="composer-recording-panel" aria-live="polite">

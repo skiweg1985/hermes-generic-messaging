@@ -100,6 +100,7 @@ export function useScrollFollow(
     const el = scrollerRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     let frame = 0;
+    let observedContent: Element | null = null;
     const followResize = () => {
       if (!pinnedRef.current) return;
       cancelAnimationFrame(frame);
@@ -107,13 +108,22 @@ export function useScrollFollow(
     };
     const observer = new ResizeObserver(followResize);
     observer.observe(el);
-    const content = el.firstElementChild;
-    if (content instanceof HTMLElement) observer.observe(content);
+    const observeContent = () => {
+      const content = el.firstElementChild;
+      if (content === observedContent) return;
+      if (observedContent instanceof HTMLElement) observer.unobserve(observedContent);
+      observedContent = content;
+      if (content instanceof HTMLElement) observer.observe(content);
+    };
+    observeContent();
+    const mutationObserver = new MutationObserver(observeContent);
+    mutationObserver.observe(el, { childList: true });
     return () => {
       cancelAnimationFrame(frame);
+      mutationObserver.disconnect();
       observer.disconnect();
     };
-  }, [jumpToBottom]);
+  }, [jumpToBottom, trigger]);
 
   // Re-pin to the bottom when the mobile keyboard opens/closes while pinned, so
   // the latest message stays visible above the composer instead of being pushed

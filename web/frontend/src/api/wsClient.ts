@@ -202,8 +202,8 @@ export class WsClient {
     });
   }
 
-  sendCommand(command: string, chatId: string, userId: string, context: SendContext = {}): void {
-    this.send({
+  sendCommand(command: string, chatId: string, userId: string, context: SendContext = {}): boolean {
+    return this.send({
       schema_version: "v1",
       event_id: newId(),
       timestamp: nowIso(),
@@ -274,8 +274,8 @@ export class WsClient {
     });
   }
 
-  sendCancel(targetMessageId: string, chatId: string, userId: string, context: SendContext = {}): void {
-    this.send({
+  sendCancel(targetMessageId: string, chatId: string, userId: string, context: SendContext = {}): boolean {
+    return this.send({
       schema_version: "v1",
       event_id: newId(),
       timestamp: nowIso(),
@@ -294,8 +294,8 @@ export class WsClient {
     chatId: string,
     userId: string,
     context: SendContext = {},
-  ): void {
-    this.send({
+  ): boolean {
+    return this.send({
       schema_version: "v1",
       event_id: newId(),
       timestamp: nowIso(),
