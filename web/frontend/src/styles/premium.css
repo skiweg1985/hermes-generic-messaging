@@ -998,29 +998,54 @@ body {
     left: 0;
     right: 0;
     z-index: var(--z-sticky);
+    isolation: isolate;
+    overflow: visible;
     padding: 0 14px;
-    background: color-mix(in srgb, var(--surface-canvas) 34%, transparent);
+    background: transparent;
     border-bottom: 0;
-    backdrop-filter: blur(16px) saturate(1.08);
-    -webkit-backdrop-filter: blur(16px) saturate(1.08);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .topbar::before {
     content: "";
     position: absolute;
-    inset: 0;
+    inset: -4px 0 -18px;
     background: linear-gradient(
       180deg,
-      color-mix(in srgb, var(--surface-canvas) 46%, transparent),
-      color-mix(in srgb, var(--surface-canvas) 14%, transparent) 72%,
+      rgba(248, 250, 252, 0.64) 0%,
+      rgba(248, 250, 252, 0.36) 62%,
       transparent
     );
+    border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
+    backdrop-filter: blur(12px) saturate(128%);
+    -webkit-backdrop-filter: blur(12px) saturate(128%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 64%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 64%, transparent 100%);
     pointer-events: none;
     z-index: -1;
   }
 
   .topbar::after {
     display: none;
+  }
+
+  .topbar-icon-btn,
+  .topbar-rail-toggle {
+    background: rgba(255, 255, 255, 0.34);
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.42),
+      0 4px 12px rgba(15, 23, 42, 0.045);
+    backdrop-filter: blur(10px) saturate(122%);
+    -webkit-backdrop-filter: blur(10px) saturate(122%);
+  }
+
+  .topbar-icon-btn:hover:not(:disabled),
+  .topbar-rail-toggle:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.48);
   }
 
   .connection-banner {
@@ -1233,17 +1258,19 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    height: calc(100% + 18px);
+    height: calc(100% + 12px);
     background: linear-gradient(
       180deg,
       transparent 0%,
-      color-mix(in srgb, var(--surface-canvas) 8%, transparent) 72%,
-      color-mix(in srgb, var(--surface-canvas) 18%, transparent) 100%
+      rgba(248, 250, 252, 0.16) 70%,
+      rgba(248, 250, 252, 0.32) 100%
     );
     pointer-events: none;
     z-index: 0;
-    backdrop-filter: blur(8px) saturate(1.02);
-    -webkit-backdrop-filter: blur(8px) saturate(1.02);
+    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 42%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 42%, #000 100%);
   }
 
   .composer-region > .composer {
@@ -1268,24 +1295,39 @@ body {
 
   .composer::before {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1)),
-      color-mix(in srgb, var(--surface-2) 46%, transparent);
-    backdrop-filter: blur(16px) saturate(1.08);
-    -webkit-backdrop-filter: blur(16px) saturate(1.08);
-    border: 1px solid color-mix(in srgb, var(--line-hairline) 10%, transparent);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.14)),
+      rgba(255, 255, 255, 0.54);
+    backdrop-filter: blur(18px) saturate(138%);
+    -webkit-backdrop-filter: blur(18px) saturate(138%);
+    border: 1px solid rgba(255, 255, 255, 0.38);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.12) inset,
-      0 5px 18px rgba(0, 0, 0, 0.032);
+      0 10px 30px rgba(15, 23, 42, 0.075),
+      inset 0 1px 0 rgba(255, 255, 255, 0.42);
   }
 
   .composer-icon-record {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.1)),
-      color-mix(in srgb, var(--surface-2) 48%, transparent);
-    border-color: color-mix(in srgb, var(--line-hairline) 10%, transparent);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14)),
+      rgba(255, 255, 255, 0.46);
+    border-color: rgba(255, 255, 255, 0.34);
+    backdrop-filter: blur(14px) saturate(128%);
+    -webkit-backdrop-filter: blur(14px) saturate(128%);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.12) inset,
-      0 5px 16px rgba(0, 0, 0, 0.032);
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 5px 14px rgba(15, 23, 42, 0.055);
+  }
+
+
+  .composer-slash-pill {
+    background: rgba(255, 255, 255, 0.34);
+    border-color: rgba(255, 255, 255, 0.34);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  }
+
+  .composer-send {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 8px 20px color-mix(in srgb, var(--accent-strong) 28%, transparent);
   }
 }
 
