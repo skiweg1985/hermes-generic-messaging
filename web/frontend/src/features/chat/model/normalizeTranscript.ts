@@ -81,7 +81,7 @@ function buildToolGroupMessage(lines: TranscriptLine[]): ChatMessage {
   const activeLine = [...lines].reverse().find((line) => toolLineStatus(line) === "running") ?? lines.at(-1)!;
   const rawText = lines.map((line) => line.text).filter(Boolean).join("\n");
   const parts: MessagePart[] =
-    status === "success" || status === "idle"
+    status === "idle"
       ? []
       : [
           {

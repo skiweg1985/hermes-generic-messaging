@@ -35,6 +35,47 @@ function useElapsed(running: boolean, resetKey: string): number {
   return Date.now() - startRef.current;
 }
 
+function useVanishOnCompletion(state: ParsedActivity["state"], resetKey: string) {
+  const wasRunningRef = useRef(state === "running");
+  const [phase, setPhase] = useState<"visible" | "leaving" | "gone">(() =>
+    state === "success" || state === "idle" ? "gone" : "visible",
+  );
+
+  useEffect(() => {
+    wasRunningRef.current = state === "running";
+    setPhase(state === "success" || state === "idle" ? "gone" : "visible");
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (state === "running") {
+      wasRunningRef.current = true;
+      setPhase("visible");
+      return;
+    }
+    if (state === "error") {
+      setPhase("visible");
+      return;
+    }
+    if (state !== "success" && state !== "idle") return;
+    if (!wasRunningRef.current) {
+      setPhase("gone");
+      return;
+    }
+
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const settleDelay = reducedMotion ? 600 : 1500;
+    const animationMs = reducedMotion ? 0 : 620;
+    const leaveId = window.setTimeout(() => setPhase("leaving"), settleDelay);
+    const goneId = window.setTimeout(() => setPhase("gone"), settleDelay + animationMs);
+    return () => {
+      window.clearTimeout(leaveId);
+      window.clearTimeout(goneId);
+    };
+  }, [state]);
+
+  return phase;
+}
+
 function stateLabel(state: ParsedActivity["state"]): string {
   if (state === "running") return "running";
   if (state === "success") return "done";
@@ -83,15 +124,18 @@ export function ActivityCard({ line }: ActivityCardProps) {
   const stateClass = `activity-card-state-${parsed.state}`;
   const Icon = parsed.meta.icon;
   const label = stateLabel(parsed.state);
+  const vanishPhase = useVanishOnCompletion(parsed.state, line.id);
 
   const hasTimeline = entries.length > 1;
   const hasDetail = parsed.detail.length > 0 || hasTimeline;
   const runningEntryIndex = entries.findIndex((entry) => entry.state === "running");
   const activeTimelineIndex = runningEntryIndex >= 0 ? runningEntryIndex : entries.length - 1;
 
+  if (vanishPhase === "gone") return null;
+
   return (
     <section
-      className={`activity-card ${stateClass}${open ? " activity-card-open" : ""}${hasTimeline ? " activity-card-has-timeline" : ""}`}
+      className={`activity-card ${stateClass}${open ? " activity-card-open" : ""}${hasTimeline ? " activity-card-has-timeline" : ""}${vanishPhase === "leaving" ? " activity-card-leaving" : ""}`}
       data-tool={parsed.meta.kind}
       aria-label={parsed.title}
       aria-live={running ? "polite" : undefined}

@@ -15,7 +15,7 @@ function parseToolStatus(value?: string): ToolStatus | undefined {
 }
 
 function shouldShowToolActivity(status: ToolStatus): boolean {
-  return status === "running" || status === "error";
+  return status === "running" || status === "success" || status === "error";
 }
 
 function isToolLikeNotice(kind: string, line: TranscriptLine): boolean {

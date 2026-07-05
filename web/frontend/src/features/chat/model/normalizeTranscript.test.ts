@@ -346,7 +346,7 @@ describe("normalizeTranscript", () => {
     });
   });
 
-  it("hides finished tool notices from the visible transcript", () => {
+  it("keeps finished tool notices long enough for the completion animation", () => {
     const messages = normalizeTranscript([
       line({
         id: "t1",
@@ -358,7 +358,11 @@ describe("normalizeTranscript", () => {
         toolResult: "ok",
       }),
     ]);
-    expect(messages[0]!.parts).toEqual([]);
+    expect(messages[0]!.parts[0]).toMatchObject({
+      type: "tool_call",
+      toolName: "read_file",
+      status: "success",
+    });
   });
 
   it("keeps failed tool notices visible", () => {
