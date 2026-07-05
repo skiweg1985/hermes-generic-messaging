@@ -8,7 +8,7 @@ Universal Hermes platform adapter (`custom_chat`) that speaks **Event Schema v1*
 |------|-------------|
 | `plugins/platforms/custom_chat/` | Hermes platform plugin |
 | `packages/custom_chat_schema/` | Shared Event Schema v1 models |
-| `web/backend/` | FastAPI BFF (WS proxy, media upload) |
+| `web/backend/` | FastAPI BFF (WS proxy, media upload, diagnostics, session persistence) |
 | `web/frontend/` | React terminal chat UI |
 
 ## Plugin install
@@ -71,10 +71,10 @@ See [docs/web-app.md](docs/web-app.md) and [web/README.md](web/README.md).
 | Variable | Description |
 |----------|-------------|
 | `CUSTOM_CHAT_BEARER_TOKEN` | Bearer token for WebSocket clients |
-| `CUSTOM_CHAT_WS_HOST` | Bind host (default `127.0.0.1`) |
+| `CUSTOM_CHAT_WS_HOST` | Bind host (default `0.0.0.0`) |
 | `CUSTOM_CHAT_WS_PORT` | Bind port (default `8765`) |
 
-See [docs/custom_chat.md](docs/custom_chat.md) and [docs/plans/universal-platform-adapter-v1.md](docs/plans/universal-platform-adapter-v1.md).
+See [docs/custom_chat.md](docs/custom_chat.md) and [docs/interface_contract.md](docs/interface_contract.md).
 
 ## Tests
 

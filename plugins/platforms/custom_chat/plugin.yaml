@@ -13,7 +13,7 @@ requires_env:
     password: true
 optional_env:
   - name: CUSTOM_CHAT_WS_HOST
-    description: "WebSocket bind host (default 127.0.0.1)"
+    description: "WebSocket bind host (default 0.0.0.0)"
     prompt: "Bind host"
     password: false
   - name: CUSTOM_CHAT_WS_PORT
@@ -43,4 +43,12 @@ optional_env:
   - name: CUSTOM_CHAT_TTS_TIMEOUT_SECONDS
     description: "Maximum seconds to wait for Hermes TTS during audio_response"
     prompt: "TTS timeout seconds"
+    password: false
+  - name: CUSTOM_CHAT_MAX_UPLOAD_BYTES
+    description: "Maximum inbound attachment size in bytes"
+    prompt: "Max upload bytes"
+    password: false
+  - name: CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES
+    description: "Comma-separated MIME allowlist for inbound attachments"
+    prompt: "Allowed upload MIME types"
     password: false

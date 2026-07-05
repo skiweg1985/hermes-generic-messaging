@@ -2,7 +2,7 @@
 
 Plan for multiple parallel conversations in the `custom_chat` web app, switchable via tabs or a session menu.
 
-**Status:** draft — not implemented  
+**Status:** superseded — implemented in the current web UI; retained as historical planning context
 **Depends on:** [Event Schema v1](universal-platform-adapter-v1.md), [path-discovery](path-discovery.md)  
 **Related:** [web-app.md](../web-app.md), [custom_chat.md](../custom_chat.md)
 
@@ -12,14 +12,16 @@ Plan for multiple parallel conversations in the `custom_chat` web app, switchabl
 
 Nutzer können im Browser mehrere Chats parallel führen und zwischen ihnen wechseln (Tabs oder Seitenmenü). Jeder Chat hat eigenen Transcript-State und eine eigene Hermes-Konversation. Eine WebSocket-Verbindung zum BFF reicht aus.
 
-## Ist-Zustand
+## Ursprünglicher Ist-Zustand
 
 | Ebene | Verhalten heute |
 |-------|-----------------|
 | Event Schema v1 | `chat_id` trennt Konversationen; `thread_id` optional für Threads; `session_id` nur Client-Metadaten |
 | Plugin `custom_chat` | Routet Inbound/Outbound per `chat_id`; kein Session-Registry-API |
 | BFF `enrich_inbound` | Setzt `chat_id`/`user_id` nur wenn fehlend — clientseitige IDs bleiben erhalten |
-| Web-UI | Ein fester `CHAT_ID` (`workspace:demo`), ein `chatReducer`, kein Filter auf eingehende `chat_id` |
+| Web-UI | Ursprünglich ein fester `CHAT_ID` (`workspace:demo`), ein `chatReducer`, kein Filter auf eingehende `chat_id` |
+
+Aktueller Stand: Multi-Chat ist umgesetzt. Der Frontend-State verwendet `sessionsById` und `activeChatId`, eingehende Events werden per `event.chat_id` geroutet, neue Chats nutzen `workspace:<uuid>`, und Session-State wird lokal plus über `/api/v1/sessions` persistiert. Siehe [web-app.md](../web-app.md).
 
 `StreamSession` im Plugin bezeichnet **Streaming pro Antwort-`message_id`**, nicht einen Benutzer-Chat.
 

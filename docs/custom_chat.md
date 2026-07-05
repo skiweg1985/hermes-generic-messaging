@@ -50,6 +50,8 @@ The lookup key is `custom_chat-platform` (from `plugin.yaml` `name:`), not `cust
 | `dedupe_ttl_seconds` | no | `60` | Duplicate `event_id` window |
 | `media_public_base_url` | no | — | Web BFF base URL for outbound local file uploads (fallback when no `client.register` from BFF) |
 | `tts_response_format` | no | — | Optional override for Hermes TTS `response_format` when `audio_response` is requested (`pcm`, `mp3`, `opus`, `wav`, `flac`) |
+| `max_upload_bytes` | no | `20971520` | Maximum inbound attachment size |
+| `allowed_upload_mime_types` | no | schema default list | MIME allowlist for inbound attachments |
 
 Top-level `platforms.custom_chat.enabled` tells Hermes to include the platform. The plugin additionally requires `extra.enabled: true` (or env-based enablement below).
 
@@ -67,6 +69,8 @@ Set in `~/.hermes/.env` or the process environment. Env values **override** the 
 | `CUSTOM_CHAT_HOME_CHANNEL` | Default `chat_id` for cron-delivered messages (`deliver=custom_chat`) |
 | `CUSTOM_CHAT_HOME_CHANNEL_NAME` | Human-readable name for the home channel |
 | `CUSTOM_CHAT_MEDIA_PUBLIC_BASE_URL` | Web BFF base URL for publishing outbound attachments (optional when the web BFF sends `client.register` on connect) |
+| `CUSTOM_CHAT_MAX_UPLOAD_BYTES` | Maximum inbound attachment size; replaces legacy `CUSTOM_CHAT_MAX_AUDIO_BYTES` |
+| `CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES` | Comma-separated MIME allowlist for inbound attachments |
 | `CUSTOM_CHAT_TTS_RESPONSE_FORMAT` | Optional override for Hermes TTS `response_format` used by `audio_response`; set `pcm` to force PCM synthesis and automatic OGG/Opus conversion for Telegram-style voice delivery |
 | `CUSTOM_CHAT_TTS_TIMEOUT_SECONDS` | Maximum seconds to wait for Hermes TTS during `audio_response` before failing the reply path cleanly (default `120`) |
 
@@ -102,7 +106,7 @@ Connect to `ws://<ws_host>:<ws_port>` with header:
 Authorization: Bearer YOUR_TOKEN_HERE
 ```
 
-Send JSON events per [universal-platform-adapter-v1.md](plans/universal-platform-adapter-v1.md).
+Send JSON events per [interface_contract.md](interface_contract.md). The older [plans/universal-platform-adapter-v1.md](plans/universal-platform-adapter-v1.md) is retained as a compact Event Schema summary.
 
 ### Minimal Python client
 
@@ -216,11 +220,7 @@ The web client renders the buttons in a grid. When the user clicks one, the clie
 
 ### Gateway integration
 
-When the gateway runner receives a slash command without required arguments (e.g. bare `/model`), it calls `send_model_picker` on adapters that implement it (Telegram, Discord, custom_chat). The picker is a two-step provider → model flow with in-place card updates.
-
-### Gateway integration
-
-The gateway already invokes `send_model_picker` when bare `/model` is received and the platform adapter exposes that method. No separate gateway patch is required once the custom_chat adapter implements it.
+When the gateway runner receives a slash command without required arguments (e.g. bare `/model`), it calls `send_model_picker` on adapters that implement it (Telegram, Discord, custom_chat). The picker is a two-step provider -> model flow with in-place card updates. No separate gateway patch is required when the installed Hermes gateway already supports that adapter hook.
 
 The older `send_slash_options` helper remains available for simple flat option lists, but `/model` uses `send_model_picker` for Telegram parity.
 
@@ -245,6 +245,8 @@ await adapter.send_model_picker(
 | `assistant_segment` | Segment boundary within one turn (after tool calls) |
 | `assistant_notice` | System/info/tool/reasoning bubble outside the streaming reply flow |
 | `assistant_image` | Image attachment with optional caption |
+| `assistant_file` | Generic file attachment with filename, MIME type, optional size, and HTTP URL |
+| `assistant_audio` | TTS/audio response with MIME type and HTTP URL |
 | `session_meta` | Hermes session metadata (e.g. session title) bound to `session_id`/`thread_id` |
 | `typing` | Typing indicator (`state: "start"` / `"stop"`) |
 

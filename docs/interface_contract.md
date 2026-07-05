@@ -144,6 +144,49 @@ Hochgeladene Datei abrufen.
 
 ---
 
+#### `GET /api/v1/diagnostics`
+
+BFF-Liveness plus kurzer BFF→Plugin-WebSocket-Probe.
+
+**Response 200**
+```json
+{
+  "bff": "ok",
+  "upstream": {
+    "target": "127.0.0.1:8765",
+    "status": "ok"
+  }
+}
+```
+
+`upstream.status` ist `ok`, `unreachable`, `unauthorized`, `closed` oder `error`.
+`target` enthält nur `host:port`, keine Credentials.
+
+---
+
+#### `GET /api/v1/sessions`
+
+Lädt den leichten Browser-Session-State aus `WEB_SESSION_STORE_PATH`.
+
+**Response 200**
+```json
+{
+  "version": 1,
+  "activeChatId": "workspace:abc",
+  "sessions": []
+}
+```
+
+---
+
+#### `PUT /api/v1/sessions`
+
+Speichert und merged Browser-Session-State. Der Store begrenzt auf 80 Sessions
+und 200 Transcript-Zeilen pro Session; leere Platzhalter-Sessions werden nicht
+persistiert.
+
+---
+
 ### 1.3  BFF-Konfiguration (Env-Variablen)
 
 | Variable                       | Standard                   | Beschreibung                                  |
@@ -154,9 +197,12 @@ Hochgeladene Datei abrufen.
 | `WEB_CHAT_ID`                  | `workspace:demo`           | chat_id für outgehendes Enrichment            |
 | `WEB_USER_ID`                  | `user-demo`                | user_id für outgehendes Enrichment            |
 | `WEB_PUBLIC_MEDIA_BASE_URL`    | `http://127.0.0.1:8000`    | Öffentliche Basis-URL für Media-Links         |
+| `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` | `WEB_PUBLIC_MEDIA_BASE_URL` | Media-Basis-URL, die per `client.register` an Hermes gemeldet wird |
+| `CUSTOM_CHAT_INTERNAL_MEDIA_BASE_URL` | `WEB_PUBLIC_MEDIA_BASE_URL` | Legacy-Alias für `WEB_CUSTOM_CHAT_MEDIA_BASE_URL` |
 | `WEB_PUBLIC_HOST`              | –                          | Alternativ zu PUBLIC_MEDIA_BASE_URL           |
 | `WEB_PUBLIC_PORT`              | –                          | Alternativ zu PUBLIC_MEDIA_BASE_URL           |
 | `WEB_MEDIA_UPLOAD_DIR`         | `./data/uploads`           | Speicherort für Uploads                       |
+| `WEB_SESSION_STORE_PATH`       | `./data/chat_sessions.json` | JSON-Speicher für `/api/v1/sessions`         |
 | `WEB_MAX_UPLOAD_BYTES`         | `20971520` (20 MB)         | Maximale Upload-Größe                         |
 | `WEB_ALLOWED_UPLOAD_MIME_TYPES`| (schema default list)      | Komma-separierte MIME-Allowlist               |
 | `WEB_CORS_ORIGINS`             | `http://127.0.0.1:5173,…`  | Erlaubte CORS-Origins                         |
@@ -655,7 +701,7 @@ class BasePlatformAdapter:
 | `send_private_notice(chat_id, text, metadata)` | Interne Hinweis-Bubble               |
 | `send_slash_confirm(chat_id, confirm_id, title, body, buttons, metadata)` | Confirm-Dialog |
 | `send_slash_options(chat_id, pick_id, command, title, body, buttons, metadata)` | Options-Picker |
-| `send_model_picker(chat_id, pick_id, title, body, buttons, metadata)` | Modell-Auswahl   |
+| `send_model_picker(chat_id, providers, current_model, current_provider, session_key, on_model_selected, metadata)` | Modell-Auswahl |
 | `send_session_meta(chat_id, title, session_id, thread_id)` | Session-Titel an Frontend  |
 
 ---
@@ -748,8 +794,12 @@ def register(ctx) -> None:
 | `CUSTOM_CHAT_HOME_CHANNEL_NAME`   | `"Home"`          | Anzeige-Name des Home-Channels                  |
 | `CUSTOM_CHAT_ALLOWED_USERS`       | –                 | Komma-separierte User-IDs (Allowlist)           |
 | `CUSTOM_CHAT_ALLOW_ALL_USERS`     | –                 | `"true"` erlaubt alle User                      |
+| `CUSTOM_CHAT_MAX_UPLOAD_BYTES`    | `20971520`        | Max. Größe für eingehende Anhänge               |
+| `CUSTOM_CHAT_ALLOWED_UPLOAD_MIME_TYPES` | schema default list | Komma-separierte MIME-Allowlist für Anhänge |
 | `CUSTOM_CHAT_DEDUPE_TTL_SECONDS`  | `60`              | Deduplizierungs-TTL in Sekunden                 |
 | `CUSTOM_CHAT_RATE_LIMIT_PER_MINUTE` | `60`            | Max. Nachrichten/Minute pro User                |
+| `CUSTOM_CHAT_TTS_RESPONSE_FORMAT` | –                 | Optionales Hermes-TTS-Format für `audio_response` |
+| `CUSTOM_CHAT_TTS_TIMEOUT_SECONDS` | `120`             | Max. Wartezeit für Hermes-TTS                   |
 
 ---
 

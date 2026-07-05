@@ -1,5 +1,9 @@
 # Universal Hermes Platform Adapter (v2.1) – Cursor-Ready Execution Plan
 
+> **Status:** historical execution plan. The adapter and web app are implemented in
+> this repository; use `README.md`, `docs/custom_chat.md`, `docs/web-app.md`, and
+> `docs/interface_contract.md` as the current documentation.
+
 > **For Cursor:** Implement strictly PR-by-PR in this order. Do not skip tests. Do not combine PR scopes.
 
 **Goal:** Einen universellen Hermes-Messaging-Adapter im Repo `skiweg1985/hermes-generic-messaging` implementieren, mit Streaming, Slash-Commands und Audio (STT/TTS).

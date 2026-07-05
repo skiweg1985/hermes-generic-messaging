@@ -10,8 +10,8 @@ cp .env.example .env
 # edit CUSTOM_CHAT_BEARER_TOKEN
 
 cd ..
-pip install -e "..[dev,web]"
-cd backend
+pip install -e ".[dev,web]"
+cd web/backend
 uvicorn app.main:app --reload --port 8000
 
 # App logs (upstream errors etc.), less access-log noise:

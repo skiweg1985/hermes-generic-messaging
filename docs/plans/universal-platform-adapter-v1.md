@@ -2,6 +2,9 @@
 
 Normative contract for the `custom_chat` Hermes platform adapter.
 
+For the full stack contract, including BFF REST endpoints and Hermes adapter
+hooks, see [`docs/interface_contract.md`](../interface_contract.md).
+
 ## Envelope
 
 Every event is a JSON object with these fields:
@@ -64,6 +67,20 @@ Every event is a JSON object with these fields:
 
 Either `url` or `file_ref` is required.
 
+### `file.uploaded`
+
+```json
+{
+  "message_id": "msg-uuid",
+  "filename": "report.pdf",
+  "mime_type": "application/pdf",
+  "size_bytes": 12345,
+  "url": "https://example.local/report.pdf"
+}
+```
+
+Either `url` or `file_ref` is required.
+
 ### `message.cancel`
 
 ```json
@@ -72,12 +89,42 @@ Either `url` or `file_ref` is required.
 }
 ```
 
+### `button.click`
+
+```json
+{
+  "message_id": "confirm-msg-uuid",
+  "confirm_id": "confirm-msg-uuid",
+  "button_id": "once",
+  "choice": "once",
+  "extra": {}
+}
+```
+
+Used for `slash_confirm` and `model_picker` button flows. `slash_pick` buttons
+are handled by sending a `command.create` event with the selected command.
+
+### `client.register`
+
+```json
+{
+  "public_media_base_url": "https://web.example.local",
+  "client_kind": "web_bff"
+}
+```
+
+Sent by the BFF once after connecting upstream so the plugin knows where to
+publish local outbound media.
+
 ## Outbound types
 
 ### `assistant_start`
 
 ```json
-{ "message_id": "reply-msg-uuid" }
+{
+  "message_id": "reply-msg-uuid",
+  "turn_message_id": "turn-msg-uuid"
+}
 ```
 
 ### `assistant_delta`
@@ -140,6 +187,70 @@ Clients finalize the current streaming line and continue in a new assistant line
   "url": "https://example.local/reply.mp3"
 }
 ```
+
+### `assistant_buttons`
+
+```json
+{
+  "message_id": "confirm-msg-uuid",
+  "confirm_id": "confirm-msg-uuid",
+  "title": "Reload MCP",
+  "body": "Approve this command?",
+  "kind": "slash_confirm",
+  "buttons": [
+    {"id": "once", "label": "Approve Once", "style": "primary"},
+    {"id": "cancel", "label": "Cancel", "style": "danger"}
+  ]
+}
+```
+
+`kind` may be `slash_confirm`, `slash_pick`, or `model_picker`. `slash_pick`
+payloads include `pick_id` and `command`; `model_picker` payloads include
+`pick_id` and optional `page_info`.
+
+### `assistant_image`
+
+```json
+{
+  "message_id": "image-msg-uuid",
+  "url": "https://example.local/image.png",
+  "mime_type": "image/png",
+  "caption": "optional caption"
+}
+```
+
+### `assistant_file`
+
+```json
+{
+  "message_id": "file-msg-uuid",
+  "filename": "report.pdf",
+  "url": "https://example.local/report.pdf",
+  "mime_type": "application/pdf",
+  "size_bytes": 12345
+}
+```
+
+### `session_meta`
+
+```json
+{
+  "title": "Conversation title",
+  "extra": {}
+}
+```
+
+The envelope carries `chat_id`, and may carry `session_id` / `thread_id`.
+
+### `typing`
+
+```json
+{
+  "state": "start"
+}
+```
+
+`state` is `start` or `stop`.
 
 ### `assistant_error`
 

@@ -80,7 +80,8 @@
       "user_id": "user-demo",
       "type": "assistant_start",
       "payload": {
-        "message_id": "00000000-0000-4000-8000-000000000200"
+        "message_id": "00000000-0000-4000-8000-000000000200",
+        "turn_message_id": "00000000-0000-4000-8000-000000000200"
       }
     },
     {
@@ -107,7 +108,8 @@
       "type": "assistant_done",
       "payload": {
         "message_id": "00000000-0000-4000-8000-000000000200",
-        "final_text": "Hello back"
+        "final_text": "Hello back",
+        "turn_message_id": "00000000-0000-4000-8000-000000000200"
       }
     },
     {
