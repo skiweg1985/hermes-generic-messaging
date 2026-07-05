@@ -993,7 +993,38 @@ body {
   }
 
   .topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-sticky);
     padding: 0 14px;
+    background: color-mix(in srgb, var(--surface-canvas) 34%, transparent);
+    border-bottom: 0;
+    backdrop-filter: blur(16px) saturate(1.08);
+    -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  }
+
+  .topbar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-canvas) 46%, transparent),
+      color-mix(in srgb, var(--surface-canvas) 14%, transparent) 72%,
+      transparent
+    );
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .topbar::after {
+    display: none;
+  }
+
+  .connection-banner {
+    margin-top: var(--topbar-height, 54px);
   }
 
   .topbar-title {
@@ -1006,8 +1037,8 @@ body {
   }
 
   .transcript {
-    padding: 22px 14px 14px;
-    scroll-padding-bottom: 14px;
+    padding: calc(var(--topbar-height, 54px) + 22px) 14px calc(var(--composer-clearance, 96px) + 18px);
+    scroll-padding-bottom: calc(var(--composer-clearance, 96px) + 18px);
     scroll-behavior: auto;
   }
 
@@ -1186,7 +1217,11 @@ body {
    hitting an opaque footer plate. Keep the actual controls legible. */
 @media (max-width: 720px) {
   .composer-region {
-    position: relative;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-sticky);
     isolation: isolate;
     padding-top: 24px;
     background: transparent;
@@ -1207,6 +1242,8 @@ body {
     );
     pointer-events: none;
     z-index: 0;
+    backdrop-filter: blur(14px) saturate(1.04);
+    -webkit-backdrop-filter: blur(14px) saturate(1.04);
   }
 
   .composer-region > .composer {
@@ -1233,6 +1270,8 @@ body {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1)),
       color-mix(in srgb, var(--surface-2) 46%, transparent);
+    backdrop-filter: blur(16px) saturate(1.08);
+    -webkit-backdrop-filter: blur(16px) saturate(1.08);
     border: 1px solid color-mix(in srgb, var(--line-hairline) 10%, transparent);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.12) inset,
