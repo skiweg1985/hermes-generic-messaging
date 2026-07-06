@@ -69,6 +69,7 @@ interface RecordPointerState {
   pointerId: number;
   startY: number;
   startAt: number;
+  recordedAt: number | null;
   started: boolean;
   locked: boolean;
   pendingStop: RecordPendingStop;
@@ -111,6 +112,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     Array.from({ length: WAVEFORM_BARS }, () => 0.08),
   );
   const recordPointerRef = useRef<RecordPointerState | null>(null);
+  const [recordNotice, setRecordNotice] = useState<string | null>(null);
+  const recordNoticeTimerRef = useRef<number | null>(null);
+  // Send-Moment: kurzer "Duck" des Composers + Puls am Send-Button.
+  const [sendPulse, setSendPulse] = useState(0);
+  const sendPulseTimerRef = useRef<number | null>(null);
+
+  const showRecordNotice = useCallback((text: string) => {
+    setRecordNotice(text);
+    if (recordNoticeTimerRef.current !== null) {
+      window.clearTimeout(recordNoticeTimerRef.current);
+    }
+    recordNoticeTimerRef.current = window.setTimeout(() => {
+      recordNoticeTimerRef.current = null;
+      setRecordNotice(null);
+    }, 2400);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (recordNoticeTimerRef.current !== null) {
+        window.clearTimeout(recordNoticeTimerRef.current);
+      }
+    },
+    [],
+  );
 
   useImperativeHandle(
     ref,
@@ -146,9 +172,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       setWaveformLevels(Array.from({ length: WAVEFORM_BARS }, () => 0.08));
       return;
     }
-    const start = recordStartedAt ?? Date.now();
-    if (recordStartedAt === null) setRecordStartedAt(start);
-    const tick = () => setRecordElapsed(Math.max(0, Date.now() - start));
+    if (recordStartedAt === null) {
+      // Not capturing yet (mic still starting up) — keep the timer at 0:00
+      // until the recorder reports its actual start.
+      if (recording) setRecordStartedAt(Date.now());
+      return;
+    }
+    const tick = () => setRecordElapsed(Math.max(0, Date.now() - recordStartedAt));
     tick();
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
@@ -206,8 +236,25 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const submit = useCallback(() => {
     if (!value.trim() && !hasReadyAttachment) return;
     if (hasUploading) return;
+    setSendPulse((v) => v + 1);
+    if (sendPulseTimerRef.current !== null) {
+      window.clearTimeout(sendPulseTimerRef.current);
+    }
+    sendPulseTimerRef.current = window.setTimeout(() => {
+      sendPulseTimerRef.current = null;
+      setSendPulse(0);
+    }, 460);
     onSubmit();
   }, [onSubmit, value, hasReadyAttachment, hasUploading]);
+
+  useEffect(
+    () => () => {
+      if (sendPulseTimerRef.current !== null) {
+        window.clearTimeout(sendPulseTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (menuOpen) {
@@ -277,8 +324,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return;
       }
 
-      const elapsed = state ? Date.now() - state.startAt : recordElapsed;
+      // Measure from the actual recorder start, not the button press — the
+      // mic takes a moment to start, so the press is longer than the audio.
+      const startedAt = state?.recordedAt ?? recordStartedAt;
+      const elapsed = startedAt !== null ? Date.now() - startedAt : recordElapsed;
       const shouldSend = send && elapsed >= RECORD_MIN_SEND_MS;
+      if (send && !shouldSend) {
+        showRecordNotice("Zu kurz – zum Aufnehmen gedrückt halten");
+      }
       setRecordGesture("finishing");
       setRecordLockProgress(0);
       try {
@@ -290,7 +343,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         setRecordElapsed(0);
       }
     },
-    [onStopRecord, recordElapsed],
+    [onStopRecord, recordElapsed, recordStartedAt, showRecordNotice],
   );
 
   const handleRecordPointerDown = async (e: PointerEvent<HTMLButtonElement>) => {
@@ -304,12 +357,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       pointerId,
       startY: e.clientY,
       startAt,
+      recordedAt: null,
       started: false,
       locked: false,
       pendingStop: null,
     };
     setRecordGesture("starting");
-    setRecordStartedAt(startAt);
+    setRecordStartedAt(null);
     setRecordElapsed(0);
     setRecordLockProgress(0);
     try {
@@ -328,6 +382,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       return;
     }
     state.started = true;
+    state.recordedAt = Date.now();
+    setRecordStartedAt(state.recordedAt);
     if (state.pendingStop) {
       void finishRecording(state.pendingStop === "send");
       return;
@@ -396,13 +452,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const canSend = hasText || hasReadyAttachment;
   const recordingActive = recording || recordGesture !== "idle";
   const recordLocked = recordGesture === "locked";
+  const recordStarting = recordGesture === "starting" || (recordingActive && !recording && recordGesture !== "finishing");
   const recordBusy = recordGesture === "starting" || recordGesture === "finishing";
   const sendDisabled = disabled || recordingActive || (!canSend && !streaming) || hasUploading;
   const recordButtonLabel = recordLocked
     ? "Aufnahme beenden und senden"
-    : recordingActive
-      ? "Aufnahme läuft"
-      : "Sprachnachricht aufnehmen";
+    : recordStarting
+      ? "Mikrofon startet"
+      : recordingActive
+        ? "Aufnahme läuft"
+        : "Sprachnachricht aufnehmen";
   const recordButtonTitle = recordLocked
     ? "Aufnahme beenden und senden"
     : recordingActive
@@ -423,7 +482,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   ) : (
     <button
       type="button"
-      className="composer-send"
+      className={`composer-send${sendPulse > 0 ? " composer-send-sent" : ""}`}
       disabled={sendDisabled}
       onClick={submit}
       aria-label="Send message"
@@ -444,11 +503,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           : "Message Hermes",
     [recording, streaming],
   );
-  const recordHint = recordBusy
-    ? "Mikrofon startet"
-    : recordLocked
-      ? "Fixiert: Stop beendet und sendet"
-      : "Nach oben wischen zum Fixieren";
+  const recordHint = recordStarting
+    ? "Mikrofon startet…"
+    : recordGesture === "finishing"
+      ? "Aufnahme wird beendet…"
+      : recordLocked
+        ? "Fixiert: Stop beendet und sendet"
+        : "Nach oben wischen zum Fixieren";
 
   return (
     <div className="composer-region" ref={regionRef}>
@@ -457,7 +518,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           recordingActive ? " composer-recording" : ""
         }${recordLocked ? " composer-recording-locked" : ""}${
           canSend || streaming ? " composer-can-send" : ""
-        }`}
+        }${sendPulse > 0 ? " composer-sent" : ""}`}
       >
         {replyTarget ? (
           <div className="composer-reply" aria-label="Replying to message">
@@ -483,11 +544,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
         {pendingAttachments.length > 0 ? (
           <div className="composer-attachments" aria-label="Anhänge">
-            {pendingAttachments.map((entry) => (
+            {pendingAttachments.map((entry) => {
+              const thumbUrl =
+                entry.previewUrl ??
+                (entry.mimeType.startsWith("image/") ? entry.result?.url : undefined);
+              return (
               <div
                 key={entry.localId}
-                className={`composer-attachment composer-attachment-${entry.status}`}
+                className={`composer-attachment composer-attachment-${entry.status}${
+                  thumbUrl ? " composer-attachment-has-thumb" : ""
+                }`}
               >
+                {thumbUrl ? (
+                  <span className="composer-attachment-thumb" aria-hidden>
+                    <img src={thumbUrl} alt="" loading="lazy" decoding="async" />
+                  </span>
+                ) : null}
                 <span className="composer-attachment-name truncate" title={entry.fileName}>
                   {entry.fileName}
                 </span>
@@ -522,7 +594,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   </button>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
 
@@ -539,7 +612,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         ) : null}
 
         {recordingActive ? (
-          <div className="composer-recording-panel" aria-live="polite">
+          <div
+            className={`composer-recording-panel${
+              recordStarting ? " composer-recording-panel-starting" : ""
+            }`}
+            aria-live="polite"
+          >
             <div className="composer-recording-dot" aria-hidden />
             <span className="composer-recording-time t-mono-sm">
               {formatElapsed(recordElapsed)}
@@ -568,7 +646,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               </div>
             ) : null}
             <div className="composer-recording-lock-hint t-meta">
-              <IconLock size={12} />
+              {!recordBusy ? <IconLock size={12} /> : null}
               <span>{recordHint}</span>
             </div>
           </div>
@@ -594,6 +672,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             aria-expanded={menuOpen}
           />
         )}
+
+        {recordNotice ? (
+          <div className="composer-record-notice t-meta" role="status">
+            {recordNotice}
+          </div>
+        ) : null}
 
         <div className="composer-actions">
           <div className="composer-actions-left">

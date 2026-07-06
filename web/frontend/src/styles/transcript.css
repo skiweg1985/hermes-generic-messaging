@@ -128,6 +128,29 @@
   max-width: var(--content-max-width);
 }
 
+/* ── Day separators (sticky Glas-Pills, kleben unter der TopBar) ─────── */
+
+.day-sep {
+  position: sticky;
+  top: calc(var(--topbar-height, 56px) + 8px);
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.day-sep-pill {
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-2) 74%, transparent);
+  border: 1px solid var(--line-hairline);
+  color: var(--text-tertiary);
+  font-weight: 550;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
 /* ── Turn architecture ───────────────────────────────────────────────── */
 
 .turn {
@@ -152,6 +175,19 @@
   animation: hermes-send-in var(--dur-slower) var(--ease-soft-out) both;
   transform-origin: 100% 100%;
 }
+
+/* Mehrteilige Sends (Text + Anhänge): die Parts steigen leicht versetzt auf,
+   statt als ein Block zu erscheinen. */
+.turn-user-fresh .message-part-stack > :nth-child(2) .motion-rise-in-soft {
+  animation-delay: 50ms;
+}
+.turn-user-fresh .message-part-stack > :nth-child(3) .motion-rise-in-soft {
+  animation-delay: 100ms;
+}
+.turn-user-fresh .message-part-stack > :nth-child(n + 4) .motion-rise-in-soft {
+  animation-delay: 150ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .turn-user-fresh .motion-rise-in-soft {
     animation: none;
@@ -241,6 +277,41 @@
   color: var(--text-primary);
 }
 
+/* Delivered-Receipt: erscheint nur unter frisch gesendeten Nachrichten. Der
+   Haken zeichnet sich nach der Send-Animation, die Zeile blendet später aus. */
+.msg-user-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--s-1);
+  color: var(--text-quaternary);
+  font-size: 11px;
+  line-height: 16px;
+  animation:
+    hermes-fade-in var(--dur-base) var(--ease-standard) 340ms both,
+    hermes-fade-out var(--dur-slow) var(--ease-standard) 4.4s forwards;
+}
+
+.msg-user-receipt svg {
+  display: block;
+}
+
+.msg-receipt-check {
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: hermes-check-draw 340ms var(--ease-soft-out) 460ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-user-receipt {
+    animation: hermes-fade-out 1ms linear 4.4s forwards;
+  }
+  .msg-receipt-check {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* ── Assistant message ───────────────────────────────────────────────── */
 
 .msg-assistant {
@@ -294,6 +365,21 @@
   background: var(--text-primary);
   border-radius: 1px;
   animation: hermes-caret-pulse 1s var(--ease-standard) infinite;
+}
+
+/* Streaming-Reveal: während die Antwort streamt, faden neu geparste Blöcke
+   weich ein statt hart zu erscheinen ("der Text materialisiert sich"). Text-
+   Updates innerhalb bestehender Knoten bleiben instantan. */
+.prose-streaming .markdown-text > *,
+.prose-streaming .markdown-text li {
+  animation: hermes-fade-in 240ms var(--ease-standard) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose-streaming .markdown-text > *,
+  .prose-streaming .markdown-text li {
+    animation: none;
+  }
 }
 
 /* ── Reasoning ───────────────────────────────────────────────────────── */
@@ -828,6 +914,39 @@
   color: var(--text-primary);
 }
 
+/* Fortschritts-Scan: eine feine Lichtlinie läuft am Rail des laufenden
+   Timeline-Eintrags entlang — sichtbares "hier arbeitet gerade etwas". */
+.activity-timeline-entry-running .activity-timeline-rail {
+  overflow: hidden;
+}
+
+.activity-timeline-entry-running .activity-timeline-rail::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 40%;
+  min-height: 14px;
+  margin-left: -0.5px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--text-primary) 60%, transparent),
+    transparent
+  );
+  animation: hermes-scan-y 1.6s var(--ease-standard) infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-timeline-entry-running .activity-timeline-rail::after {
+    animation: none;
+    opacity: 0.25;
+    height: 100%;
+  }
+}
+
 .activity-timeline-entry-success .activity-timeline-dot {
   color: var(--state-success);
 }
@@ -984,6 +1103,91 @@
 
 /* Media (.media-image-card, .file-card, .audio-card, .waveform, .lightbox)
    lives in features/media/media.css. */
+
+/* ── Hover-Toolbar (Desktop): Reply/More-Pill über der Nachricht ─────── */
+
+.message-hover-actions {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .message-hover-actions {
+    position: absolute;
+    top: -15px;
+    inset-inline-end: -4px;
+    z-index: 2;
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+    border: 1px solid var(--line-hairline);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    opacity: 0;
+    translate: 0 4px;
+    pointer-events: none;
+    transition:
+      opacity var(--dur-fast) var(--ease-standard),
+      translate var(--dur-fast) var(--ease-standard);
+  }
+
+  .message-action-surface-right .message-hover-actions,
+  .turn-user-row .message-hover-actions {
+    inset-inline-end: auto;
+    inset-inline-start: -4px;
+  }
+
+  .message-action-surface:hover .message-hover-actions,
+  .message-hover-actions:focus-within {
+    opacity: 1;
+    translate: 0 0;
+    pointer-events: auto;
+  }
+
+  .message-hover-action {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    color: var(--text-tertiary);
+    opacity: 0;
+    translate: 0 3px;
+    transition:
+      opacity var(--dur-fast) var(--ease-standard),
+      translate var(--dur-fast) var(--ease-soft-out),
+      background var(--dur-fast) var(--ease-standard),
+      color var(--dur-fast) var(--ease-standard);
+  }
+
+  /* Icon-Stagger: die Buttons steigen mit leichtem Versatz nacheinander ein. */
+  .message-action-surface:hover .message-hover-action,
+  .message-hover-actions:focus-within .message-hover-action {
+    opacity: 1;
+    translate: 0 0;
+  }
+  .message-action-surface:hover .message-hover-action:nth-child(1) {
+    transition-delay: 30ms;
+  }
+  .message-action-surface:hover .message-hover-action:nth-child(2) {
+    transition-delay: 75ms;
+  }
+
+  .message-hover-action:hover {
+    background: var(--accent-faint);
+    color: var(--text-primary);
+    transition-delay: 0ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-hover-actions,
+  .message-hover-action {
+    transition: none;
+  }
+}
 
 /* ── Typing indicator (3 soft dots) ──────────────────────────────────── */
 

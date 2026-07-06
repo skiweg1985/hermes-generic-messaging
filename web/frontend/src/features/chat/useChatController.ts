@@ -30,6 +30,7 @@ import type {
 
 const USER_ID = "user-demo";
 const TYPING_TIMEOUT_MS = 5500;
+const RECORD_TAIL_MS = 300;
 
 export interface ChatController {
   userId: string;
@@ -318,6 +319,9 @@ export function useChatController(): ChatController {
           localId,
           fileName: file.name,
           mimeType: file.type || "application/octet-stream",
+          previewUrl: file.type.startsWith("image/")
+            ? URL.createObjectURL(file)
+            : undefined,
         });
         uploads.push(startPendingUpload(file, localId, uploadChatId));
       }
@@ -352,13 +356,17 @@ export function useChatController(): ChatController {
     (localId: string) => {
       pendingFilesRef.current.delete(pendingFileKey(state.activeChatId, localId));
       uploadPromisesRef.current.delete(pendingFileKey(state.activeChatId, localId));
+      const entry = draftFor(state.activeChatId).pendingAttachments.find(
+        (a) => a.localId === localId,
+      );
+      if (entry?.previewUrl) URL.revokeObjectURL(entry.previewUrl);
       draftDispatch({
         type: "REMOVE_PENDING_ATTACHMENT",
         chatId: state.activeChatId,
         localId,
       });
     },
-    [draftDispatch, state.activeChatId],
+    [draftDispatch, draftFor, state.activeChatId],
   );
 
   const submit = useCallback(() => {
@@ -468,6 +476,9 @@ export function useChatController(): ChatController {
           });
         }
 
+        for (const entry of draft.pendingAttachments) {
+          if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+        }
         draftDispatch({ type: "CLEAR_DRAFT", chatId: session.chatId });
         for (const entry of ready) {
           pendingFilesRef.current.delete(pendingFileKey(session.chatId, entry.localId));
@@ -678,7 +689,9 @@ export function useChatController(): ChatController {
       const shouldSend = options.send !== false;
       const chatId = recordingChatIdRef.current ?? stateRef.current.activeChatId;
       try {
-        const blob = await stopRec();
+        // Keep capturing briefly after release so the last syllable, which is
+        // still in the mic input pipeline, lands in the recording.
+        const blob = await stopRec({ tailMs: shouldSend ? RECORD_TAIL_MS : 0 });
         recordingChatIdRef.current = null;
         if (!shouldSend || blob.size === 0) return;
         if (!connectedRef.current) {

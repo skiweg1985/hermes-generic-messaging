@@ -106,6 +106,52 @@ body:has(.shell-root.shell-rail-hidden) {
   display: grid;
   place-items: center;
   padding: var(--s-12) var(--s-8) var(--s-12);
+  /* Nur der Hintergrund blendet ein — das Bild fliegt separat (FLIP) und darf
+     dabei nicht mit-faden, deshalb keine opacity-Animation auf dem Container. */
+  animation: lightbox-backdrop-in 260ms var(--ease-standard) both;
+}
+
+@keyframes lightbox-backdrop-in {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes lightbox-backdrop-out {
+  to {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+}
+
+.lightbox-backdrop-closing {
+  animation: lightbox-backdrop-out 240ms var(--ease-standard) both;
+  pointer-events: none;
+}
+
+.lightbox-backdrop .lightbox-toolbar,
+.lightbox-backdrop .lightbox-nav,
+.lightbox-backdrop .lightbox-caption {
+  animation: hermes-fade-in 200ms var(--ease-standard) 100ms both;
+}
+
+.lightbox-backdrop-closing .lightbox-toolbar,
+.lightbox-backdrop-closing .lightbox-nav,
+.lightbox-backdrop-closing .lightbox-caption {
+  animation: hermes-fade-out 140ms var(--ease-standard) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox-backdrop,
+  .lightbox-backdrop-closing,
+  .lightbox-backdrop .lightbox-toolbar,
+  .lightbox-backdrop .lightbox-nav,
+  .lightbox-backdrop .lightbox-caption {
+    animation: none;
+  }
 }
 
 .lightbox-toolbar {
@@ -215,6 +261,9 @@ body:has(.shell-root.shell-rail-hidden) {
   object-fit: contain;
   box-shadow: 0 30px 80px -10px rgba(0, 0, 0, 0.7);
   background: var(--surface-sunken);
+  /* FLIP-Transform setzt Lightbox.tsx inline; hier nur das Rendering-Hint. */
+  will-change: transform;
+  transform-origin: center center;
 }
 
 .lightbox-caption {
@@ -352,7 +401,7 @@ body:has(.shell-root.shell-rail-hidden) {
     transform var(--dur-fast) var(--ease-standard);
 }
 .waveform-play:hover {
-  background: #ffffff;
+  background: color-mix(in srgb, var(--accent-strong) 86%, var(--text-primary));
 }
 .waveform-play:active {
   transform: scale(0.96);

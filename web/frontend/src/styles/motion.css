@@ -83,6 +83,48 @@
   50%      { opacity: 1;    transform: scale(1.06); }
 }
 
+@keyframes hermes-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Vertikaler Scan-Lauf (Activity-Timeline: Fortschrittslinie am Rail). */
+@keyframes hermes-scan-y {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(260%); }
+}
+
+/* Gezeichneter Haken (Delivered-Receipt): stroke wird sichtbar "gemalt". */
+@keyframes hermes-check-draw {
+  from { stroke-dashoffset: 14; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* Badge-Pop beim Hochzählen (Unread-Counter in der Rail). */
+@keyframes hermes-pop {
+  0%   { transform: scale(1.24); }
+  100% { transform: scale(1); }
+}
+
+/* Send-Moment: der Composer "duckt" sich kurz unter der abfliegenden Nachricht. */
+@keyframes hermes-composer-duck {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.985); }
+  100% { transform: scale(1); }
+}
+
+/* Send-Moment: expandierender Halo um den Send-Button. */
+@keyframes hermes-send-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--accent-glow); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
+/* Mobile-Drawer: Slide-out beim Schließen (Slide-in liegt in shell.css). */
+@keyframes hermes-rail-slide-out {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+
 /* Utility motion classes (used sparingly inside components). */
 .motion-rise-in {
   animation: hermes-rise-in var(--dur-base) var(--ease-soft-out) both;

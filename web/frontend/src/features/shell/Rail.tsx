@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatSession } from "../../types/events";
 import { SessionGroupList } from "./SessionGroupList";
 import { IconPlus, IconSearch, IconClose } from "./icons";
+
+const DRAWER_CLOSE_MS = 220;
 
 interface RailProps {
   userId: string;
@@ -42,17 +44,36 @@ export function Rail({
     return () => window.removeEventListener("keydown", handler);
   }, [drawerOpen, onCloseDrawer]);
 
+  // Drawer-Exit: beim Schließen bleibt der Drawer für die Slide-out-Dauer
+  // gemountet und trägt die Closing-Klasse, statt instant zu verschwinden.
+  const [drawerClosing, setDrawerClosing] = useState(false);
+  const wasOpenRef = useRef(drawerOpen);
+  useEffect(() => {
+    if (drawerOpen) {
+      wasOpenRef.current = true;
+      setDrawerClosing(false);
+      return;
+    }
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
+    setDrawerClosing(true);
+    const timer = window.setTimeout(() => setDrawerClosing(false), DRAWER_CLOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [drawerOpen]);
+
   return (
     <>
-      {drawerOpen ? (
+      {drawerOpen || drawerClosing ? (
         <div
-          className="rail-backdrop"
+          className={`rail-backdrop${drawerClosing ? " rail-backdrop-closing" : ""}`}
           onClick={onCloseDrawer}
           aria-hidden
         />
       ) : null}
       <aside
-        className={`rail${drawerOpen ? " rail-drawer-open" : ""}`}
+        className={`rail${drawerOpen ? " rail-drawer-open" : ""}${
+          drawerClosing ? " rail-drawer-closing" : ""
+        }`}
         aria-label="Workspace navigation"
       >
         <div className="rail-workspace">

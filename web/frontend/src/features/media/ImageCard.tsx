@@ -40,6 +40,15 @@ export function ImageCard({ line, alignRight }: ImageCardProps) {
     registerImage(image);
   }, [registerImage, image]);
 
+  const registerImageElement = media?.registerImageElement;
+  const lineId = line.id;
+  useEffect(
+    () => () => {
+      registerImageElement?.(lineId, null);
+    },
+    [registerImageElement, lineId],
+  );
+
   if (!url || !image) return null;
 
   const openLightbox = () => {
@@ -99,6 +108,7 @@ export function ImageCard({ line, alignRight }: ImageCardProps) {
           aria-label="Open image fullscreen"
         >
           <img
+            ref={(el) => registerImageElement?.(lineId, el)}
             src={url}
             alt={line.caption ?? "image"}
             loading="lazy"
