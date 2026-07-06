@@ -78,18 +78,19 @@ export function useAudioRecorder() {
 
   const stop = useCallback((): Promise<Blob> => {
     if (stopPromiseRef.current) return stopPromiseRef.current;
+    const recorder = mediaRef.current;
+    // Not recording: reject transiently WITHOUT caching, so a stray stop() does
+    // not poison stopPromiseRef and wedge every future recording.
+    if (!recorder) return Promise.reject(new Error("not recording"));
     const promise = new Promise<Blob>((resolve, reject) => {
-      const recorder = mediaRef.current;
-      if (!recorder) {
-        reject(new Error("not recording"));
-        return;
-      }
-      mediaRef.current = null;
       const cleanup = () => {
         recorder.stream.getTracks().forEach((t) => t.stop());
         chunksRef.current = [];
         stopLevelMeter();
         setRecording(false);
+        // Free mediaRef only once the recorder has actually stopped, so start()'s
+        // `if (mediaRef.current) return` guard blocks a restart mid-stop.
+        mediaRef.current = null;
         stopPromiseRef.current = null;
       };
       recorder.onstop = () => {

@@ -149,8 +149,31 @@ function setKeyboardOpen(open: boolean) {
 let lastTouchX = 0;
 let lastTouchY = 0;
 
-function findScrollableTarget(target: EventTarget | null): HTMLElement | HTMLTextAreaElement | null {
+function findScrollableTarget(
+  target: EventTarget | null,
+  axis: "x" | "y",
+): HTMLElement | HTMLTextAreaElement | null {
   if (!(target instanceof Element)) return null;
+  if (axis === "x") {
+    // Wide code blocks / tables inside the transcript scroll horizontally in
+    // their own overflow-x container. Walk up to (and including) the transcript
+    // to find such a container so horizontal panning of it is not blocked.
+    const boundary = target.closest(".transcript")?.parentElement ?? null;
+    let el: Element | null = target;
+    while (el && el !== boundary) {
+      if (el instanceof HTMLElement) {
+        const overflowX = window.getComputedStyle(el).overflowX;
+        if (
+          (overflowX === "auto" || overflowX === "scroll") &&
+          el.scrollWidth > el.clientWidth + 1
+        ) {
+          return el;
+        }
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
   const transcript = target.closest(".transcript");
   if (transcript instanceof HTMLElement) return transcript;
   const textarea = target.closest("textarea");
@@ -161,18 +184,23 @@ function findScrollableTarget(target: EventTarget | null): HTMLElement | HTMLTex
 }
 
 function shouldAllowTouchScroll(target: EventTarget | null, currentX: number, currentY: number): boolean {
-  const scrollable = findScrollableTarget(target);
-  if (!scrollable) return false;
-
   const deltaX = currentX - lastTouchX;
   const deltaY = currentY - lastTouchY;
   lastTouchX = currentX;
   lastTouchY = currentY;
 
-  // Horizontal drags on the composer textarea are never intended to move the
-  // app shell. iOS otherwise turns these into a subtle page/viewport pan after
-  // the keyboard has been opened once.
-  if (Math.abs(deltaX) >= Math.abs(deltaY)) return false;
+  // Predominantly-horizontal drag: allow it only if it lands on a horizontally
+  // scrollable container (code block / table) that can still scroll that way.
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    const scrollable = findScrollableTarget(target, "x");
+    if (!scrollable) return false;
+    const atLeft = scrollable.scrollLeft <= 0;
+    const atRight = scrollable.scrollLeft + scrollable.clientWidth >= scrollable.scrollWidth - 1;
+    return !((atLeft && deltaX > 0) || (atRight && deltaX < 0));
+  }
+
+  const scrollable = findScrollableTarget(target, "y");
+  if (!scrollable) return false;
   if (deltaY === 0) return true;
 
   const { scrollTop, scrollHeight, clientHeight } = scrollable;
@@ -210,7 +238,11 @@ export function useKeyboardInset(): void {
     };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (!mobileDock) return;
+      // Only intercept touch scrolling while the on-screen keyboard is open —
+      // that is the only situation where iOS pans the whole page/viewport. With
+      // the keyboard closed, native scrolling must work everywhere (drawers,
+      // command palette, popovers, code blocks), so do nothing.
+      if (!mobileDock || !keyboardOpenState) return;
       const currentX = event.touches[0]?.clientX ?? lastTouchX;
       const currentY = event.touches[0]?.clientY ?? lastTouchY;
       if (shouldAllowTouchScroll(event.target, currentX, currentY)) return;

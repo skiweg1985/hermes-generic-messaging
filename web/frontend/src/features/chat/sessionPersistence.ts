@@ -24,10 +24,12 @@ export function persistChatState(state: ChatState): void {
 
 export function loadChatState(fallback: ChatState): ChatState {
   if (typeof window === "undefined") return fallback;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return fallback;
-
   try {
+    // localStorage access itself can throw (SecurityError when storage is
+    // blocked/disabled). Keep it inside the try so boot never crashes — this is
+    // the useReducer initializer and there is no error boundary above it.
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<StoredState>;
     return stateFromStoredState(parsed, fallback);
   } catch {
@@ -126,6 +128,7 @@ function trimLine(line: TranscriptLine): TranscriptLine {
     toolResult: line.toolResult ? truncateStoredText(line.toolResult, MAX_TOOL_FIELD_CHARS) : line.toolResult,
     toolError: line.toolError ? truncateStoredText(line.toolError, MAX_TOOL_FIELD_CHARS) : line.toolError,
     streaming: false,
+    pendingDeltas: undefined,
   };
   if (next.toolStatus === "running") {
     return { ...next, toolStatus: "idle" };

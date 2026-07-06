@@ -14,7 +14,7 @@ import {
   type ChatAction,
 } from "./chatReducer";
 import { getDraft, type Draft, type DraftAction } from "./draftStore";
-import { loadChatState, mergeChatStates, persistChatState } from "./sessionPersistence";
+import { loadChatState, persistChatState } from "./sessionPersistence";
 import { replyTargetFromLine } from "./messageActions";
 import { newId } from "../../lib/uuid";
 import { normalizeMimeType } from "../../lib/normalizeMimeType";
@@ -198,8 +198,9 @@ export function useChatController(): ChatController {
       .then((remoteState) => {
         if (cancelled) return;
         if (remoteState) {
-          const merged = mergeChatStates(stateRef.current, remoteState);
-          dispatch({ type: "HYDRATE_STATE", state: merged });
+          // The reducer merges against its live state (HYDRATE_STATE), so
+          // in-flight events dispatched during the fetch are not lost.
+          dispatch({ type: "HYDRATE_STATE", state: remoteState });
         } else {
           void persistRemoteChatState(stateRef.current).catch(() => {});
         }
@@ -609,6 +610,10 @@ export function useChatController(): ChatController {
           dispatch(notConnectedError(chatId));
           return;
         }
+        // Delivered — the line-level `clickedButtonId` guard now prevents
+        // re-clicks. Release the in-flight key so it neither leaks nor blocks a
+        // legitimately re-offered button (e.g. an upserted model_picker step).
+        pendingButtonClicksRef.current.delete(clickKey);
         dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
         return;
       }
@@ -634,6 +639,10 @@ export function useChatController(): ChatController {
           dispatch(notConnectedError(chatId));
           return;
         }
+        // Delivered — the line-level `clickedButtonId` guard now prevents
+        // re-clicks. Release the in-flight key so it neither leaks nor blocks a
+        // legitimately re-offered button (e.g. an upserted model_picker step).
+        pendingButtonClicksRef.current.delete(clickKey);
         dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
         return;
       }
