@@ -99,6 +99,14 @@ export function SessionGroupList({
                       <span className="rail-session-typing" aria-label="assistant typing">
                         <span className="dot-pulse" />
                       </span>
+                    ) : session.unread && (session.unreadCount ?? 0) > 0 ? (
+                      <span
+                        key={session.unreadCount}
+                        className="rail-session-badge"
+                        aria-label={`${session.unreadCount} unread`}
+                      >
+                        {(session.unreadCount ?? 0) > 99 ? "99+" : session.unreadCount}
+                      </span>
                     ) : session.unread ? (
                       <span className="rail-session-unread" aria-label="unread" />
                     ) : (

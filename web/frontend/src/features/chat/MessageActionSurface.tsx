@@ -162,6 +162,26 @@ export function MessageActionSurface({
       <span className="message-swipe-cue message-swipe-cue-actions" aria-hidden>
         <IconMore size={20} />
       </span>
+      <div className="message-hover-actions" role="toolbar" aria-label="Message actions">
+        <button
+          type="button"
+          className="message-hover-action"
+          onClick={() => onReply(line)}
+          aria-label="Reply"
+          title="Reply"
+        >
+          <IconReply size={14} />
+        </button>
+        <button
+          type="button"
+          className="message-hover-action"
+          onClick={openFromSurface}
+          aria-label="More actions"
+          title="More actions"
+        >
+          <IconMore size={15} />
+        </button>
+      </div>
       <div className="message-action-surface-content">{children}</div>
     </div>
   );

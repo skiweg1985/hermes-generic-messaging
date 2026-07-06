@@ -151,6 +151,8 @@ export interface TranscriptLine {
   toolError?: string;
   videoUrl?: string;
   posterUrl?: string;
+  /** ISO timestamp of when the line entered the transcript (drives day separators). */
+  at?: string;
 }
 
 export interface ReplyTarget {
@@ -173,6 +175,8 @@ export interface PendingAttachment {
   fileName: string;
   mimeType: string;
   status: PendingAttachmentStatus;
+  /** Session-local object URL for an inline thumbnail (images only). */
+  previewUrl?: string;
   error?: { code: string; message: string };
   result?: {
     url: string;
@@ -197,6 +201,8 @@ export interface ChatSession {
   typingStartedAt?: string;
   typingClosed?: boolean;
   unread: boolean;
+  /** Number of inbound events since the session was last active (badge count). */
+  unreadCount?: number;
   createdAt: string;
   updatedAt: string;
 }

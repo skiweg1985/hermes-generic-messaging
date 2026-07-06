@@ -23,7 +23,7 @@ export function MessageAssistant({ line }: MessageAssistantProps) {
         <div className="msg-assistant-label t-label">{line.title}</div>
       ) : null}
       <div className="msg-assistant-bubble">
-        <div className="prose">
+        <div className={`prose${streaming ? " prose-streaming" : ""}`}>
           <MarkdownText text={text} />
           {streaming ? <Caret /> : null}
         </div>

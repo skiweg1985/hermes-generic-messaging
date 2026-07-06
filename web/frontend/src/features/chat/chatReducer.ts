@@ -123,7 +123,10 @@ function streamBufferKey(chatId: string, messageId: string): string {
 
 function appendLine(session: ChatSession, line: TranscriptLine): ChatSession {
   const lines = session.lines.filter((l) => l.kind !== "empty");
-  return touchSession({ ...session, lines: [...lines, line] });
+  return touchSession({
+    ...session,
+    lines: [...lines, line.at ? line : { ...line, at: nowIso() }],
+  });
 }
 
 function upsertLine(session: ChatSession, line: TranscriptLine): ChatSession {
@@ -133,7 +136,7 @@ function upsertLine(session: ChatSession, line: TranscriptLine): ChatSession {
     return appendLine(session, line);
   }
   const next = [...lines];
-  next[index] = line;
+  next[index] = { ...line, at: lines[index]!.at ?? line.at };
   return touchSession({ ...session, lines: next });
 }
 
@@ -169,9 +172,24 @@ function findAssistantLineIndex(lines: TranscriptLine[], messageId: string): num
   return lines.findIndex((l) => l.id === messageId && l.kind === "assistant");
 }
 
-function markUnread(state: ChatState, chatId: string): ChatState {
+/** Event types that represent one new visible message (deltas/typing don't count). */
+const UNREAD_COUNTED_EVENTS = new Set([
+  "assistant_done",
+  "assistant_audio",
+  "assistant_image",
+  "assistant_file",
+  "assistant_buttons",
+  "assistant_error",
+]);
+
+function markUnread(state: ChatState, chatId: string, eventType: string): ChatState {
   if (chatId === state.activeChatId) return state;
-  return updateSession(state, chatId, (session) => ({ ...session, unread: true }));
+  const counted = UNREAD_COUNTED_EVENTS.has(eventType);
+  return updateSession(state, chatId, (session) => ({
+    ...session,
+    unread: true,
+    unreadCount: counted ? (session.unreadCount ?? 0) + 1 : session.unreadCount ?? 0,
+  }));
 }
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
@@ -186,7 +204,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return updateSession(
         { ...state, activeChatId: action.chatId },
         action.chatId,
-        (session) => ({ ...session, unread: false }),
+        (session) => ({ ...session, unread: false, unreadCount: 0 }),
       );
     case "CREATE_CHAT": {
       const session = createChatSession(action.chatId, action.label);
@@ -480,7 +498,7 @@ function buildAttachmentLine(params: {
 function reduceInbound(state: ChatState, event: EventEnvelope): ChatState {
   const chatId = event.chat_id || state.activeChatId;
   const routed = updateSession(state, chatId, (session) => reduceSessionInbound(session, event));
-  return markUnread(routed, chatId);
+  return markUnread(routed, chatId, event.type);
 }
 
 function finalizeStreamingLines(

@@ -29,7 +29,14 @@ export type DraftAction =
   | { type: "SET_REPLY_TARGET"; chatId: string; target: ReplyTarget }
   | { type: "CLEAR_REPLY_TARGET"; chatId: string }
   | { type: "CLEAR_REPLY_FOR_LINE"; chatId: string; lineId: string }
-  | { type: "ADD_PENDING_ATTACHMENT"; chatId: string; localId: string; fileName: string; mimeType: string }
+  | {
+      type: "ADD_PENDING_ATTACHMENT";
+      chatId: string;
+      localId: string;
+      fileName: string;
+      mimeType: string;
+      previewUrl?: string;
+    }
   | {
       type: "SET_PENDING_ATTACHMENT_STATUS";
       chatId: string;
@@ -70,6 +77,7 @@ export function draftReducer(map: DraftMap, action: DraftAction): DraftMap {
             localId: action.localId,
             fileName: action.fileName,
             mimeType: action.mimeType,
+            previewUrl: action.previewUrl,
             status: "queued",
           },
         ],

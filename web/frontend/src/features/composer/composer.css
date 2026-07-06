@@ -116,6 +116,66 @@
   border-radius: var(--r-md);
   background: var(--surface-1);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  animation: hermes-scale-in var(--dur-base) var(--ease-soft-out) both;
+}
+
+/* Bild-Anhänge zeigen ein echtes Thumbnail statt nur des Dateinamens. */
+.composer-attachment-has-thumb {
+  padding: 4px;
+  max-width: 240px;
+}
+
+.composer-attachment-thumb {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: calc(var(--r-md) - 3px);
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.composer-attachment-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Upload läuft: Thumbnail gedimmt + Shimmer-Lauf darüber. */
+.composer-attachment-uploading .composer-attachment-thumb img,
+.composer-attachment-queued .composer-attachment-thumb img {
+  opacity: 0.55;
+}
+
+.composer-attachment-uploading .composer-attachment-thumb::after,
+.composer-attachment-queued .composer-attachment-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 80%
+  );
+  animation: hermes-shimmer 1.4s linear infinite;
+}
+
+.composer-attachment-error .composer-attachment-thumb {
+  outline: 1px solid var(--state-danger-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-attachment {
+    animation: none;
+  }
+  .composer-attachment-uploading .composer-attachment-thumb::after,
+  .composer-attachment-queued .composer-attachment-thumb::after {
+    animation: none;
+    opacity: 0.4;
+  }
 }
 
 .composer-attachment-name {
@@ -262,6 +322,36 @@
   background: var(--state-danger);
   box-shadow: 0 0 0 5px var(--state-danger-bg);
   animation: hermes-dot-pulse 1.2s var(--ease-standard) infinite;
+}
+
+/* Mic is still starting up — nothing is being captured yet. */
+.composer-recording-panel-starting .composer-recording-dot {
+  background: var(--text-tertiary);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-tertiary) 16%, transparent);
+  animation-duration: 0.7s;
+}
+
+.composer-recording-panel-starting .composer-recording-time,
+.composer-recording-panel-starting .composer-recording-bar {
+  opacity: 0.45;
+}
+
+.composer-record-notice {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--line-hairline);
+  box-shadow: var(--shadow-md);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: hermes-fade-in var(--dur-fast) var(--ease-standard);
 }
 
 .composer-recording-time {
@@ -519,6 +609,26 @@
 .composer-send-stop:hover {
   background: var(--state-danger-bg);
   color: var(--state-danger);
+}
+
+/* ── Send-Moment ─────────────────────────────────────────────────────────
+   Der Composer "duckt" sich kurz unter der abfliegenden Nachricht, der
+   Send-Button schickt einen Halo hinterher. Klassen setzt Composer.tsx für
+   ~460ms nach dem Submit. */
+.composer-sent {
+  animation: hermes-composer-duck 360ms var(--ease-soft-out);
+  transform-origin: 50% 100%;
+}
+
+.composer-send-sent {
+  animation: hermes-send-pulse 420ms var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-sent,
+  .composer-send-sent {
+    animation: none;
+  }
 }
 
 /* ── Slash popover ───────────────────────────────────────────────────── */

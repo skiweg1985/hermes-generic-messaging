@@ -129,6 +129,8 @@ function partToLine(part: MessagePart, message: ChatMessage): TranscriptLine {
 interface PartRendererProps {
   message: ChatMessage;
   alignRight?: boolean;
+  /** Frisch gesendeter User-Turn — zeigt den Delivered-Receipt unter dem Text. */
+  fresh?: boolean;
   turnActive: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
   onMessageAction: (target: MessageActionTarget) => void;
@@ -138,6 +140,7 @@ interface PartRendererProps {
 export function PartRenderer({
   message,
   alignRight = false,
+  fresh = false,
   turnActive,
   onButtonClick,
   onMessageAction,
@@ -171,7 +174,11 @@ export function PartRenderer({
               } as TranscriptLine;
               return (
                 <div key={key} className={partAlignRight ? "turn-user-row" : undefined}>
-                  {withActions(userLine, <MessageUser line={userLine} />, partAlignRight)}
+                  {withActions(
+                    userLine,
+                    <MessageUser line={userLine} receipt={fresh && message.role === "user"} />,
+                    partAlignRight,
+                  )}
                 </div>
               );
             }
