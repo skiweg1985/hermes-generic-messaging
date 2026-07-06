@@ -450,6 +450,13 @@ export function useChatController(): ChatController {
             size: entry.result!.size_bytes,
             url: entry.result!.url,
           })),
+          replyTo: draft.replyTarget
+            ? {
+                lineId: draft.replyTarget.lineId,
+                label: draft.replyTarget.label,
+                preview: draft.replyTarget.preview,
+              }
+            : undefined,
         });
 
         const delivered = client.sendMessage(
@@ -707,6 +714,13 @@ export function useChatController(): ChatController {
           mime: upload.mime_type,
           size: upload.size_bytes,
           url: upload.url,
+          replyTo: replyTarget
+            ? {
+                lineId: replyTarget.lineId,
+                label: replyTarget.label,
+                preview: replyTarget.preview,
+              }
+            : undefined,
         });
         const delivered = client.sendMessage(
           {

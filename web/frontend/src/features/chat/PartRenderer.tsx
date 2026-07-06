@@ -154,8 +154,22 @@ export function PartRenderer({
     </MessageActionSurface>
   );
 
+  const replyLabel = message.metadata.replyToLabel;
+  const replyPreview = message.metadata.replyToPreview;
+  const showReplyContext = message.role === "user" && Boolean(replyLabel || replyPreview);
+
   return (
     <div className="message-part-stack">
+      {showReplyContext ? (
+        <div className="turn-user-row">
+          <div className="msg-reply-context" aria-label={`In reply to ${replyLabel ?? "message"}`}>
+            {replyLabel ? <span className="msg-reply-context-label">{replyLabel}</span> : null}
+            {replyPreview ? (
+              <span className="msg-reply-context-preview">{replyPreview}</span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {message.parts.map((part, index) => {
         const line = partToLine(part, message);
         const key = `${message.messageId}-${part.type}-${index}`;

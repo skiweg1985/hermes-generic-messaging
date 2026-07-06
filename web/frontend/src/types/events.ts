@@ -151,6 +151,9 @@ export interface TranscriptLine {
   toolError?: string;
   videoUrl?: string;
   posterUrl?: string;
+  replyToLineId?: string;
+  replyToLabel?: string;
+  replyToPreview?: string;
 }
 
 export interface ReplyTarget {

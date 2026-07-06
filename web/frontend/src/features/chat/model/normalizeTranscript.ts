@@ -32,6 +32,7 @@ function buildMessage(lines: TranscriptLine[], turnActive: boolean): ChatMessage
   }
 
   const messageId = first.turnMessageId && role === "user" ? first.turnMessageId : first.id;
+  const replySource = lines.find((l) => l.replyToLabel || l.replyToPreview);
 
   return {
     messageId,
@@ -45,6 +46,9 @@ function buildMessage(lines: TranscriptLine[], turnActive: boolean): ChatMessage
       title: lines.find((l) => l.title)?.title,
       interrupted: lines.some((l) => l.interrupted),
       lineIds: lines.map((l) => l.id),
+      replyToLineId: replySource?.replyToLineId,
+      replyToLabel: replySource?.replyToLabel,
+      replyToPreview: replySource?.replyToPreview,
     },
   };
 }

@@ -457,27 +457,6 @@
   font-size: 10.5px;
 }
 
-.composer-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.composer-status .typing-indicator {
-  min-height: auto;
-  padding: 0;
-  background: transparent;
-}
-
-.composer-status .typing-indicator .typing-dot {
-  width: 5px;
-  height: 5px;
-}
-
-.composer-status-label {
-  color: var(--text-tertiary);
-}
-
 .composer-send {
   display: grid;
   place-items: center;

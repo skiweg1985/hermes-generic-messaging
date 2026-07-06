@@ -66,6 +66,21 @@ export function createChatSession(chatId: string, label = defaultLabel(chatId)):
   };
 }
 
+export interface ReplyContext {
+  lineId: string;
+  label: string;
+  preview: string;
+}
+
+function replyLineFields(replyTo?: ReplyContext): Partial<TranscriptLine> {
+  if (!replyTo) return {};
+  return {
+    replyToLineId: replyTo.lineId,
+    replyToLabel: replyTo.label,
+    replyToPreview: replyTo.preview,
+  };
+}
+
 export const initialChatState = (
   chatId = DEFAULT_CHAT_ID,
   label = "New chat",
@@ -94,6 +109,7 @@ export type ChatAction =
       size: number;
       url: string;
       chatId?: string;
+      replyTo?: ReplyContext;
     }
   | {
       type: "USER_MESSAGE";
@@ -107,6 +123,7 @@ export type ChatAction =
         url: string;
       }>;
       chatId?: string;
+      replyTo?: ReplyContext;
     }
   | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string; turnMessageId?: string }
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
@@ -216,18 +233,20 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const { turnMessageId, text, attachments } = action;
       return updateSession(state, action.chatId ?? state.activeChatId, (session) => {
         let next: ChatSession = openTyping(session);
+        let replyFields = replyLineFields(action.replyTo);
         if (text.trim()) {
           next = appendLine(next, {
             id: turnMessageId,
             kind: "user",
             text: text.trim(),
             turnMessageId,
+            ...replyFields,
           });
+          replyFields = {};
         }
         for (const att of attachments) {
-          next = appendLine(
-            next,
-            buildAttachmentLine({
+          next = appendLine(next, {
+            ...buildAttachmentLine({
               id: att.attachmentId,
               role: "user",
               filename: att.filename,
@@ -236,7 +255,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
               url: att.url,
               turnMessageId,
             }),
-          );
+            ...replyFields,
+          });
+          replyFields = {};
         }
         return next;
       });
@@ -261,6 +282,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           sizeBytes: action.size,
           mimeType: action.mime,
           turnMessageId: action.turnMessageId,
+          ...replyLineFields(action.replyTo),
         }),
       );
     case "USER_UPLOAD":

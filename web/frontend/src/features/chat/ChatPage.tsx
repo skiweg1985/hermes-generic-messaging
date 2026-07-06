@@ -196,7 +196,6 @@ export function ChatPage() {
             value={ctrl.draft.input}
             disabled={!ctrl.connected}
             streaming={ctrl.streaming}
-            typing={activeSession.typing}
             recording={ctrl.recording}
             recordingLevel={ctrl.recordingLevel}
             replyTarget={ctrl.draft.replyTarget}
