@@ -98,8 +98,11 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
         return out
     out.setdefault("schema_version", SCHEMA_VERSION)
     out.setdefault("platform", PLATFORM_NAME)
+    # chat_id is client-owned (the browser owns its workspace:<uuid> namespace,
+    # which is what enables multiple chats), so it stays a default. user_id is
+    # the BFF's single configured identity and must NOT be spoofable — force it.
     out.setdefault("chat_id", settings.web_chat_id)
-    out.setdefault("user_id", settings.web_user_id)
+    out["user_id"] = settings.web_user_id
     out.setdefault("timestamp", _now_iso())
     out.setdefault("event_id", str(uuid.uuid4()))
     if out.get("type") == "message.create" and isinstance(out.get("payload"), dict):
@@ -137,6 +140,9 @@ async def proxy_chat(client_ws: WebSocket, settings: Settings) -> None:
         async with websockets.connect(
             settings.custom_chat_ws_url,
             additional_headers=headers,
+            # Upstream may send large frames (inline media); the 1 MiB default
+            # would close the whole chat on the first oversized message.
+            max_size=16 * 1024 * 1024,
         ) as upstream:
             await upstream.send(json.dumps(build_client_register(settings)))
             await _relay(client_ws, upstream, settings)
@@ -165,24 +171,30 @@ async def _relay(
                     continue
                 if isinstance(data, dict):
                     await upstream.send(json.dumps(enrich_inbound(data, settings)))
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, ConnectionClosed):
+            # Either side closed; end this leg cleanly so teardown proceeds.
             pass
 
     async def upstream_to_client() -> None:
         try:
             async for raw in upstream:
+                # Upstream frames should be text; tolerate binary rather than
+                # crashing the relay on send_text(bytes).
+                if isinstance(raw, (bytes, bytearray)):
+                    raw = bytes(raw).decode("utf-8", "ignore")
                 await client_ws.send_text(raw)
-        except ConnectionClosed as exc:
-            logger.warning("upstream closed during relay: %s", exc)
+        except (ConnectionClosed, WebSocketDisconnect, RuntimeError) as exc:
+            logger.warning("upstream relay ended: %s", exc)
 
-    done, pending = await asyncio.wait(
-        [
-            asyncio.create_task(client_to_upstream()),
-            asyncio.create_task(upstream_to_client()),
-        ],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    for task in pending:
-        task.cancel()
-    for task in done:
-        _ = task.exception() if not task.cancelled() else None
+    tasks = [
+        asyncio.create_task(client_to_upstream()),
+        asyncio.create_task(upstream_to_client()),
+    ]
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in tasks:
+            task.cancel()
+        # Await the cancelled/finished tasks so no leg keeps running against a
+        # socket that is being torn down and no exception goes unretrieved.
+        await asyncio.gather(*tasks, return_exceptions=True)

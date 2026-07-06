@@ -21,10 +21,12 @@ logger.info(
 )
 logger.info("BFF public media base for browsers: %s", settings.public_media_base_url)
 if settings.cors_reflect_origin:
+    # Reflecting arbitrary origins with credentials would let any site read a
+    # victim's stored sessions/media. When reflecting, credentials must be off.
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"https?://.*",
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

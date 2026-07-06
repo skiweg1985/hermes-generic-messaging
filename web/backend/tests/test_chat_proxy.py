@@ -83,3 +83,20 @@ def test_enrich_audio_uploaded_rewrites_public_media_url_for_hermes():
 
     assert out["payload"]["url"] == "http://127.0.0.1:8001/api/v1/media/audio-1"
     assert out["payload"]["file_ref"] == "http://127.0.0.1:8001/api/v1/media/audio-1"
+
+
+def test_enrich_forces_user_id_and_cannot_be_spoofed():
+    settings = Settings(web_chat_id="workspace:demo", web_user_id="user-demo")
+    data = {
+        "type": "message.create",
+        "user_id": "victim",
+        "chat_id": "workspace:mine",
+        "payload": {"message_id": "m-1", "text": "hi"},
+    }
+
+    out = enrich_inbound(data, settings)
+
+    # user_id is the BFF's identity and must be overwritten...
+    assert out["user_id"] == "user-demo"
+    # ...but chat_id stays client-owned (multi-chat namespace).
+    assert out["chat_id"] == "workspace:mine"

@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
+import uuid
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from app.core.config import Settings
+
+try:  # POSIX only; used for cross-process (multi-worker) locking.
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX fallback
+    fcntl = None  # type: ignore[assignment]
 
 STORE_VERSION = 1
 MAX_SESSIONS = 80
@@ -21,13 +29,30 @@ class SessionStore:
     def __init__(self, settings: Settings):
         self.path = Path(settings.session_store_path)
 
+    @contextmanager
+    def _cross_process_lock(self) -> Iterator[None]:
+        """Serialize the read-modify-write across processes (uvicorn workers).
+        threading.Lock alone only guards a single process. Falls back to a no-op
+        where fcntl is unavailable."""
+        if fcntl is None:
+            yield
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_name(f"{self.path.name}.lock")
+        with open(lock_path, "w", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
     def load(self) -> dict[str, Any]:
         with _LOCK:
             return self._read_unlocked()
 
     def save(self, payload: dict[str, Any]) -> dict[str, Any]:
         incoming = normalize_store_payload(payload)
-        with _LOCK:
+        with _LOCK, self._cross_process_lock():
             existing = self._read_unlocked()
             merged = merge_store_payloads(existing, incoming)
             self._write_unlocked(merged)
@@ -46,12 +71,19 @@ class SessionStore:
 
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self.path.with_suffix(f"{self.path.suffix}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
+        # Unique temp name per writer so concurrent processes can't interleave
+        # into a shared "*.tmp" and promote a corrupt file via replace().
+        tmp_path = self.path.with_name(
+            f"{self.path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         )
-        tmp_path.replace(self.path)
+        try:
+            tmp_path.write_text(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            tmp_path.replace(self.path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
 
 def empty_store_payload() -> dict[str, Any]:
@@ -115,14 +147,16 @@ def _normalize_session(session: dict[str, Any]) -> dict[str, Any] | None:
     chat_id = session.get("chatId")
     label = session.get("label")
     lines = session.get("lines")
-    input_value = session.get("input")
     created_at = session.get("createdAt")
     updated_at = session.get("updatedAt")
+    # NOTE: `input` (composer draft text) is deliberately NOT required. It lives
+    # in a separate client-side draft store and is never part of the persisted
+    # session, so requiring it here silently dropped every real session the
+    # frontend sent (server-side history sync was a no-op).
     if not (
         isinstance(chat_id, str)
         and isinstance(label, str)
         and isinstance(lines, list)
-        and isinstance(input_value, str)
         and isinstance(created_at, str)
         and isinstance(updated_at, str)
     ):

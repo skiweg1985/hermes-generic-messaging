@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import glob as globlib
 import uuid
 from pathlib import Path
 
@@ -53,9 +54,12 @@ class MediaStore:
         }
 
     def resolve_path(self, file_id: str) -> Path:
-        if ".." in file_id or "/" in file_id or "\\" in file_id:
+        if not file_id or ".." in file_id or "/" in file_id or "\\" in file_id:
             raise HTTPException(status_code=400, detail="invalid file id")
-        matches = list(self.root.glob(f"{file_id}.*"))
+        # Escape glob metacharacters so a file_id like "*" or "abc[0-9]" cannot
+        # match (and leak) other users' uploads — the UUID's unguessability is
+        # the only access control on this endpoint.
+        matches = list(self.root.glob(f"{globlib.escape(file_id)}.*"))
         if not matches:
             raise HTTPException(status_code=404, detail="file not found")
         return matches[0]

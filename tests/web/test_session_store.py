@@ -53,6 +53,19 @@ def test_session_store_merges_without_losing_newer_sessions(tmp_path):
     assert by_id["c2"]["lines"][0]["text"] == "second"
 
 
+def test_session_store_persists_sessions_without_input_field(tmp_path):
+    # The real frontend payload has no "input" key (drafts live client-side).
+    # Such sessions must persist, not be silently dropped.
+    store = SessionStore(Settings(session_store_path=str(tmp_path / "sessions.json")))
+    entry = session("c1", "2026-07-03T10:00:00Z", "hello")
+    entry.pop("input", None)
+
+    saved = store.save({"version": 1, "activeChatId": "c1", "sessions": [entry]})
+
+    assert [s["chatId"] for s in saved["sessions"]] == ["c1"]
+    assert store.load()["sessions"][0]["chatId"] == "c1"
+
+
 def test_session_store_drops_draft_only_sessions(tmp_path):
     path = tmp_path / "sessions.json"
     draft = session("draft", "2026-07-03T12:00:00Z")
