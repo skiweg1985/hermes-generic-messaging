@@ -6,6 +6,8 @@ import type { MessageActionTarget } from "./messageActions";
 interface TurnGroupProps {
   turn: MessageTurn;
   turnActive: boolean;
+  /** Frisch gesendet (kein Historien-Turn) — löst die Send-Animation aus. */
+  freshUser?: boolean;
   onButtonClick: (line: TranscriptLine, button: AssistantButton) => void;
   onMessageAction: (target: MessageActionTarget) => void;
   onReplyLine: (line: TranscriptLine) => void;
@@ -14,6 +16,7 @@ interface TurnGroupProps {
 export function TurnGroup({
   turn,
   turnActive,
+  freshUser = false,
   onButtonClick,
   onMessageAction,
   onReplyLine,
@@ -27,7 +30,7 @@ export function TurnGroup({
   return (
     <div className="turn">
       {turn.user ? (
-        <div className="turn-user">
+        <div className={`turn-user${freshUser ? " turn-user-fresh" : ""}`}>
           <PartRenderer
             message={turn.user}
             alignRight

@@ -145,8 +145,14 @@ body {
   font-size: 10px;
 }
 
+/* Stage-Backdrop: Punktraster über zwei ruhigen Farb-Washes. Liegt auf der
+   Stage (nicht im Scroller), steht also still, während Nachrichten darüber
+   scrollen — wie ein Messenger-Wallpaper. Tokens: --chat-* in tokens.css. */
 .stage {
   background:
+    var(--chat-pattern),
+    radial-gradient(1100px 720px at 84% -160px, var(--chat-wash-a), transparent 70%),
+    radial-gradient(940px 680px at -8% 106%, var(--chat-wash-b), transparent 72%),
     radial-gradient(900px 520px at 72% -180px, rgba(255, 255, 255, 0.035), transparent 70%),
     var(--surface-canvas);
 }
@@ -201,14 +207,100 @@ body {
   border-radius: 14px;
 }
 
+/* Overlay statt Flow-Element: Der Banner schwebt unter der TopBar über dem
+   Transcript. Läge er im Flow, würde er den Inhalt nach unten schieben und
+   nichts würde mehr unter der TopBar hindurchscrollen — der Milchglas-Effekt
+   wäre weg (so war es auf Mobile bei reconnect/disconnected). */
 .connection-banner {
+  position: absolute;
+  top: var(--topbar-height, 56px);
+  left: 0;
+  right: 0;
+  z-index: calc(var(--z-sticky) - 1);
   min-height: 30px;
   background: var(--surface-overlay);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+}
+
+/* ── Desktop/iPad glass chrome (>720px) ─────────────────────────────────
+   Gleiche Overlay-Architektur wie Mobile: TopBar und Composer schweben über
+   dem Transcript, der Inhalt gleitet unter Milchglas hindurch statt an
+   opaken Flow-Leisten zu enden. */
+@media (min-width: 721px) {
+  .topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-sticky);
+    isolation: isolate;
+    background: transparent;
+    border-bottom: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .topbar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -18px;
+    background: linear-gradient(
+      180deg,
+      rgba(10, 10, 12, 0.72) 0%,
+      rgba(10, 10, 12, 0.42) 62%,
+      transparent
+    );
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 64%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 64%, transparent 100%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .topbar::after {
+    display: none;
+  }
+
+  /* Composer-Glas selbst (Hintergrund + Blur) liegt bei den .composer-Regeln
+     weiter unten — hier nur die Overlay-Positionierung, damit der Transcript
+     darunter durchscrollt. */
+  .composer-region {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-sticky);
+    isolation: isolate;
+  }
+
+  .transcript-jump,
+  .transcript-toast {
+    bottom: calc(var(--composer-clearance, 128px) + 12px);
+  }
+}
+
+@media (min-width: 721px) and (prefers-color-scheme: light) {
+  .topbar::before {
+    background: linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0.66) 0%,
+      rgba(248, 250, 252, 0.38) 62%,
+      transparent
+    );
+    border-bottom-color: rgba(255, 255, 255, 0.24);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  }
 }
 
 .transcript {
-  padding: 40px 28px
+  /* Oben Platz für die absolute TopBar (Glass-Overlay), unten für den
+     schwebenden Composer; Mobile setzt eigene Werte im 720px-Block. */
+  padding: calc(var(--topbar-height, 56px) + 28px) 28px
     calc(var(--composer-clearance, 128px) + 18px);
   scroll-padding-bottom: calc(
     var(--composer-clearance, 128px) + 18px
@@ -762,7 +854,7 @@ body {
 
 .composer {
   border-radius: 22px;
-  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
   border: 1px solid var(--line-hairline);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(22px) saturate(1.2);
@@ -980,6 +1072,9 @@ body {
 
   .stage {
     background:
+      var(--chat-pattern),
+      radial-gradient(1100px 720px at 84% -160px, var(--chat-wash-a), transparent 70%),
+      radial-gradient(940px 680px at -8% 106%, var(--chat-wash-b), transparent 72%),
       radial-gradient(900px 520px at 72% -180px, rgba(40, 60, 80, 0.06), transparent 70%),
       var(--surface-canvas);
   }
@@ -1065,14 +1160,6 @@ body {
   .topbar-icon-btn:hover:not(:disabled),
   .topbar-rail-toggle:hover:not(:disabled) {
     background: rgba(34, 34, 40, 0.76);
-  }
-
-  .connection-banner {
-    margin-top: var(--topbar-height, 54px);
-  }
-
-  .connection-banner + .stage-main .transcript {
-    padding-top: 22px;
   }
 
   .topbar-title {

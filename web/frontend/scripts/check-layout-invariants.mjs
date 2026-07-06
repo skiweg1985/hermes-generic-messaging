@@ -4,7 +4,9 @@
  *
  * Drives the Playwright CLI wrapper against a running dev server and asserts:
  *  - the composer is fully inside the viewport,
- *  - the transcript does not overlap the composer,
+ *  - the last message clears the floating composer dock (transcript content
+ *    glides underneath the glass composer, so box overlap is expected —
+ *    what must hold is that pinned-to-bottom content stays readable),
  *  - the last message is reachable at the bottom of the transcript.
  *
  * Usage:
@@ -50,7 +52,7 @@ const evalExpr = `(async () => {
   const lr = last ? last.getBoundingClientRect() : { top: 0, bottom: 0 };
   const inv = {
     composerInViewport: cr.top >= -0.5 && cr.bottom <= vh + 0.5,
-    noOverlap: cr.top >= tr.bottom - 0.5,
+    lastMsgClearsComposer: !last || lr.bottom <= cr.top + 0.5,
     lastMsgVisible: !last || (lr.bottom <= tr.bottom + 0.5 && lr.bottom > tr.top),
   };
   return '${SENTINEL} ' + JSON.stringify(inv);

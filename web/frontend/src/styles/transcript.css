@@ -145,6 +145,19 @@
   max-width: 100%;
 }
 
+/* Frisch gesendete Nachrichten fliegen betont vom Composer hoch; Turns aus
+   geladener Historie behalten den weichen Standard-Einstieg. Überschreibt
+   .motion-rise-in-soft per Spezifität (0,2,0). */
+.turn-user-fresh .motion-rise-in-soft {
+  animation: hermes-send-in var(--dur-slower) var(--ease-soft-out) both;
+  transform-origin: 100% 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-user-fresh .motion-rise-in-soft {
+    animation: none;
+  }
+}
+
 .turn-outputs {
   position: relative;
   display: grid;

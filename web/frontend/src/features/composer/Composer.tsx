@@ -427,7 +427,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       disabled={sendDisabled}
       onClick={submit}
       aria-label="Send message"
-      title="Send (⏎)"
+      title="Send (⏎) · Neue Zeile (⇧⏎)"
     >
       <IconArrowUp size={14} />
       <span className="composer-shortcut" aria-hidden>⏎</span>
@@ -663,22 +663,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 <IconClose size={14} />
                 <span className="composer-shortcut" aria-hidden>Esc</span>
               </button>
-            ) : (
+            ) : typing || streaming ? (
               <span className="composer-hint t-meta">
-              {typing ? (
-                <span className="composer-status" aria-live="polite" aria-label="Assistant schreibt">
-                  <TypingIndicator />
-                  <span className="composer-status-label">Schreibt…</span>
-                </span>
-              ) : streaming ? (
-                "Generating…"
-              ) : (
-                <>
-                  <kbd>⏎</kbd> send · <kbd>⇧⏎</kbd> newline
-                </>
-              )}
+                {typing ? (
+                  <span className="composer-status" aria-live="polite" aria-label="Assistant schreibt">
+                    <TypingIndicator />
+                    <span className="composer-status-label">Schreibt…</span>
+                  </span>
+                ) : (
+                  "Generating…"
+                )}
               </span>
-            )}
+            ) : null}
             {recordingActive && recordLocked ? null : sendButton}
           </div>
         </div>

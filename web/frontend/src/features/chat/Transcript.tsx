@@ -44,6 +44,27 @@ export function Transcript({
 
   const { scrollerRef, isPinned, hasNew, scrollToBottom } = useScrollFollow(trigger, 120, chatId);
 
+  // Turns, die beim Öffnen der Session schon da waren (oder kurz danach per
+  // Hydration/Replay eintreffen), sind Historie und dürfen nicht als "frisch
+  // gesendet" animieren. Alles, was später dazukommt, gilt als Send-Moment.
+  const knownTurnsRef = useRef<{ chatId: string; ids: Set<string>; openedAt: number } | null>(null);
+  if (knownTurnsRef.current?.chatId !== chatId) {
+    knownTurnsRef.current = {
+      chatId,
+      ids: new Set(turns.map((turn) => turn.id)),
+      openedAt: performance.now(),
+    };
+  }
+  const known = knownTurnsRef.current;
+  const isFreshTurn = (turnId: string): boolean => {
+    if (known.ids.has(turnId)) return false;
+    if (performance.now() - known.openedAt < 1500) {
+      known.ids.add(turnId);
+      return false;
+    }
+    return true;
+  };
+
   const [lightboxImages, setLightboxImages] = useState<MediaImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -122,6 +143,7 @@ export function Transcript({
                 <TurnGroup
                   key={turn.id}
                   turn={turn}
+                  freshUser={isFreshTurn(turn.id)}
                   turnActive={turnActive}
                   onButtonClick={onButtonClick}
                   onMessageAction={setActionTarget}

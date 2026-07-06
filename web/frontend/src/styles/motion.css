@@ -33,6 +33,25 @@
   }
 }
 
+/* Send-Moment: die eigene Nachricht steigt betont vom Composer in den
+   Verlauf auf. Nur für frisch gesendete Turns (.turn-user-fresh in
+   transcript.css), nie für geladene Historie. */
+@keyframes hermes-send-in {
+  0% {
+    opacity: 0;
+    translate: 0 28px;
+    scale: 0.96;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+}
+
 @keyframes hermes-scale-in {
   from {
     opacity: 0;
