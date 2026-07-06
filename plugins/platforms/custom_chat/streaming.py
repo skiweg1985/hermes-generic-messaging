@@ -88,4 +88,9 @@ class StreamManager:
         new_line_id = f"{message_id}-s{session.segment_index}"
         session.active_line_id = new_line_id
         session.accumulated = ""
+        # Deltas are addressed to the per-segment line id, and the frontend gates
+        # sequences per line starting at 0. Reset the counter so the new line's
+        # first delta is seq 1 — otherwise every post-segment delta lands in the
+        # reorder buffer and never renders.
+        session.sequence = 0
         return message_id, new_line_id

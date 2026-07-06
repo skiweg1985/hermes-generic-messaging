@@ -95,6 +95,14 @@ async def test_segment_boundary_emits_assistant_segment(adapter: CustomChatAdapt
     assert segment["payload"]["label"] == "🔧 read_file"
     assert segment["payload"]["segment_message_id"] == "stream-3-s1"
 
+    # The sequence counter resets per segment so the new line's first delta is
+    # seq 1 — the frontend gates sequences per line starting at 0, so a
+    # continued counter would strand every post-segment delta in its buffer.
+    deltas = [e for e in events if e["type"] == "assistant_delta"]
+    after = next(d for d in deltas if d["payload"]["message_id"] == "stream-3-s1")
+    assert after["payload"]["sequence"] == 1
+    assert after["payload"]["delta"] == "After tool"
+
 
 @pytest.mark.asyncio
 async def test_reasoning_prepend_on_send(adapter: CustomChatAdapter, parse_sent_events):
