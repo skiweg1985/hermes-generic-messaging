@@ -2,3 +2,71 @@
 [     209ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts?t=1783162228051:48
 [     217ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
 [  264101ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts?t=1783162228051:48
+[ 1698741ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5173/@vite/client:559
+[ 1699560ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:21550
+[ 1699637ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts:48
+[ 4784253ms] [ERROR] Warning: React has detected a change in the order of Hooks called by %s. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://reactjs.org/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+%s   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+%s ChatPage 1. useRef                     useRef
+2. useReducer                 useReducer
+3. useRef                     useRef
+4. useCallback                useCallback
+5. useRef                     useRef
+6. useState                   useState
+7. useState                   useState
+8. useState                   useState
+9. useState                   useState
+10. useRef                    useRef
+11. useRef                    useRef
+12. useEffect                 useEffect
+13. useCallback               useCallback
+14. useCallback               useCallback
+15. useRef                    useRef
+16. useRef                    useReducer
+ 
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783167346523:47:16)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:520
+[ 4784260ms] Error: Should have a queue. This is likely a bug in React. Please file an issue.
+    at updateReducer (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11730:19)
+    at Object.useReducer (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:12737:24)
+    at useReducer (http://localhost:5173/node_modules/.vite/deps/chunk-RLJ2RCJQ.js?v=47c88d31:1070:29)
+    at useDraftStore (http://localhost:5173/src/hooks/useDraftStore.ts:10:30)
+    at useChatController (http://localhost:5173/src/features/chat/useChatController.ts?t=1783167346523:81:22)
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783167346523:47:16)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14582:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15924:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+[ 4784260ms] Error: Should have a queue. This is likely a bug in React. Please file an issue.
+    at updateReducer (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11730:19)
+    at Object.useReducer (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:12737:24)
+    at useReducer (http://localhost:5173/node_modules/.vite/deps/chunk-RLJ2RCJQ.js?v=47c88d31:1070:29)
+    at useDraftStore (http://localhost:5173/src/hooks/useDraftStore.ts:10:30)
+    at useChatController (http://localhost:5173/src/features/chat/useChatController.ts?t=1783167346523:81:22)
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783167346523:47:16)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14582:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15924:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:3674:22)
+[ 4784259ms] [ERROR] The above error occurred in the <ChatPage> component:
+
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783167346523:47:16)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14031
+[ 4784262ms] Error: Should have a queue. This is likely a bug in React. Please file an issue.
+    at updateReducer (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11730:19)
+    at Object.useReducer (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:12737:24)
+    at useReducer (http://localhost:5173/node_modules/.vite/deps/chunk-RLJ2RCJQ.js?v=47c88d31:1070:29)
+    at useDraftStore (http://localhost:5173/src/hooks/useDraftStore.ts:10:30)
+    at useChatController (http://localhost:5173/src/features/chat/useChatController.ts?t=1783167346523:81:22)
+    at ChatPage (http://localhost:5173/src/features/chat/ChatPage.tsx?t=1783167346523:47:16)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:11548:26)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:14582:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:15924:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:19753:22)
+[ 4784364ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/api/wsClient.ts:48

@@ -1,0 +1,3 @@
+[     274ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ https://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=47c88d31:21550
+[     322ms] [WARNING] WebSocket connection to 'wss://localhost:5173/ws/chat' failed: WebSocket is closed before the connection is established. @ https://localhost:5173/src/api/wsClient.ts?t=1783321345988:87
+[     329ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ https://localhost:5173/favicon.ico:0

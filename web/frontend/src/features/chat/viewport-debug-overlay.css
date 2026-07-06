@@ -1,3 +1,8 @@
+:root {
+  --vdebug-safe-area-top: env(safe-area-inset-top, 0px);
+  --vdebug-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 .viewport-debug-overlay {
   position: fixed;
   top: max(8px, env(safe-area-inset-top));

@@ -1,0 +1,61 @@
+- generic [ref=e3]:
+  - complementary "Workspace navigation" [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]: GM
+      - generic [ref=e9]: Generic Messaging
+    - button "Start a new chat" [ref=e10] [cursor=pointer]:
+      - img [ref=e11]
+      - generic [ref=e13]: New chat
+    - button "Open command palette" [ref=e15] [cursor=pointer]:
+      - img [ref=e16]
+      - generic [ref=e19]: Search
+    - list "Conversations" [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: Today
+        - list [ref=e23]:
+          - listitem [ref=e24]:
+            - button "New chat" [ref=e25] [cursor=pointer]:
+              - generic [ref=e26]: New chat
+              - img [ref=e27]
+    - generic [ref=e29]:
+      - generic [ref=e30]: UD
+      - generic [ref=e32]: user-demo
+  - generic [ref=e33]:
+    - generic "Session header" [ref=e34]:
+      - generic [ref=e35]:
+        - button "Toggle navigation" [ref=e36] [cursor=pointer]:
+          - img [ref=e37]
+        - generic "Connecting…" [ref=e41]
+        - heading "New chat" [level=1] [ref=e42]
+      - button "Session details (⌘I)" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+    - status [ref=e47]:
+      - generic [ref=e49]: Connecting…
+    - main [ref=e50]:
+      - log [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]: Start a conversation
+          - paragraph [ref=e55]: Hermes is ready.
+      - generic [ref=e56]:
+        - textbox "Message" [disabled] [ref=e57]:
+          - /placeholder: Message Hermes
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - button "Attach file" [disabled] [ref=e60]:
+              - img [ref=e61]
+              - generic: ⌘U
+            - button "Sprachnachricht aufnehmen" [disabled] [ref=e63]:
+              - img [ref=e64]
+              - generic: ⌥V
+            - button "Slash commands" [disabled] [ref=e67]:
+              - generic [ref=e68]: /
+              - generic: /
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - generic [ref=e71]: ⏎
+              - text: send ·
+              - generic [ref=e72]: ⇧⏎
+              - text: newline
+            - button "Send message" [disabled] [ref=e73]:
+              - img [ref=e74]
+              - generic: ⏎

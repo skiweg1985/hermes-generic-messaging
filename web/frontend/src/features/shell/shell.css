@@ -448,19 +448,6 @@
     0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
-.topbar-link {
-  height: 30px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-sm);
-  color: var(--text-primary);
-  font-size: 13px;
-  background: var(--accent-soft);
-  transition: background var(--dur-fast) var(--ease-standard);
-}
-.topbar-link:hover {
-  background: var(--surface-3);
-}
-
 /* ── Command palette ─────────────────────────────────────────────────── */
 
 .palette-backdrop {

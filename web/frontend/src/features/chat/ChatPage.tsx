@@ -166,8 +166,8 @@ export function ChatPage() {
           title={title}
           connection={ctrl.connection}
           streaming={ctrl.streaming}
+          typing={activeSession.typing}
           onOpenPeek={openPeek}
-          onReconnect={ctrl.reconnect}
           onToggleRail={toggleRail}
         />
 

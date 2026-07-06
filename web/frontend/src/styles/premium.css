@@ -185,6 +185,12 @@ body {
   color: var(--text-tertiary);
 }
 
+/* Typing-Indicator in der TopBar: nur auf Mobile sichtbar (Desktop zeigt ihn
+   im Transcript). */
+.topbar-typing {
+  display: none;
+}
+
 .topbar-icon-btn,
 .composer-icon,
 .composer-send {
@@ -297,7 +303,9 @@ body {
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.48) inset,
     0 10px 24px rgba(0, 0, 0, 0.12);
-  opacity: var(--message-swipe-progress);
+  /* Sichtbar wird nur der Cue der aktiven Swipe-Richtung (s.u.) — sonst
+     erscheinen bei schmalen Bubbles beide Kreise nebeneinander. */
+  opacity: 0;
   transform: translateY(-50%) scale(calc(0.82 + var(--message-swipe-progress) * 0.18));
   pointer-events: none;
   backdrop-filter: blur(14px) saturate(1.15);
@@ -317,6 +325,11 @@ body {
   right: 8px;
   background: color-mix(in srgb, var(--surface-2) 88%, transparent);
   color: var(--text-secondary);
+}
+
+.message-action-surface-reply .message-swipe-cue-reply,
+.message-action-surface-actions .message-swipe-cue-actions {
+  opacity: var(--message-swipe-progress);
 }
 
 @media (pointer: coarse) {
@@ -450,7 +463,8 @@ body {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
     color-mix(in srgb, var(--surface-4) 82%, var(--surface-2) 18%);
-  border: 1px solid color-mix(in srgb, var(--line-soft) 82%, transparent);
+  /* bewusst ohne Kontur-Linie — wie die Assistant-Karten */
+  border: 0;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.36) inset,
     0 8px 22px rgba(0, 0, 0, 0.06);
@@ -465,12 +479,17 @@ body {
   gap: 6px;
 }
 
+/* Assistant-Nachrichten behalten den Karten-Look aus transcript.css. Diese Regel
+   bekräftigt ihn hier, weil premium.css als letztes Stylesheet lädt und eine
+   frühere Fassung ihn (nie wirksam) entfernte — die Karte ist das gewollte Design. */
 .msg-assistant-bubble {
-  padding: 0;
-  background: transparent;
+  width: 100%;
+  max-width: min(560px, 100%);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
   border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .msg-assistant-label {
@@ -1065,6 +1084,16 @@ body {
     display: none;
   }
 
+  /* Typing-Anzeige wandert auf Mobile vom Transcript in die TopBar. */
+  .topbar-typing {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .turn-typing {
+    display: none;
+  }
+
   .transcript {
     padding: calc(var(--topbar-height, 54px) + 22px) 14px calc(var(--composer-clearance, 96px) + 6px);
     scroll-padding-bottom: calc(var(--composer-clearance, 96px) + 6px);
@@ -1166,6 +1195,15 @@ body {
   .composer-input {
     min-height: 50px;
     padding: 12px 14px 2px;
+    /* ≥16px, sonst zoomt iOS Safari beim Fokus hinein und lässt beim Schließen
+       der Tastatur einen Rest-Zoom zurück (Header rutscht unter die Adressleiste) */
+    font-size: 16px;
+  }
+
+  /* input-Selektor schlägt die spätere .t-body-Regel aus typography.css */
+  input.palette-input {
+    /* ≥16px: verhindert iOS-Fokus-Zoom, siehe .composer-input */
+    font-size: 16px;
   }
 
   .composer-actions-left {
@@ -1489,7 +1527,7 @@ body {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0)),
     color-mix(in srgb, var(--surface-4) 92%, var(--surface-2) 8%);
-  border-color: color-mix(in srgb, var(--line-soft) 92%, transparent);
+  border: 0;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.48) inset,
     0 10px 26px rgba(0, 0, 0, 0.08);

@@ -15,6 +15,10 @@ export interface WsCloseInfo {
 export type CloseHandler = (info: WsCloseInfo) => void;
 
 const CONNECT_TIMEOUT_MS = 10_000;
+/** How often to send an app-level heartbeat while the socket is open. */
+const HEARTBEAT_INTERVAL_MS = 25_000;
+/** How long to wait for a pong before treating the link as dead. */
+const HEARTBEAT_TIMEOUT_MS = 10_000;
 
 interface SendContext {
   threadId?: string;
@@ -39,6 +43,8 @@ export class WsClient {
   private maxRetries = 3;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private pongTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
 
   constructor(onMessage: MessageHandler, onStatus: StatusHandler, onClose?: CloseHandler) {
@@ -65,8 +71,48 @@ export class WsClient {
     }
   }
 
+  private clearPongTimer(): void {
+    if (this.pongTimer !== null) {
+      clearTimeout(this.pongTimer);
+      this.pongTimer = null;
+    }
+  }
+
+  private clearHeartbeat(): void {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    this.clearPongTimer();
+  }
+
+  /** Begin app-level ping/pong keep-alive; browsers can't send protocol pings. */
+  private startHeartbeat(): void {
+    this.clearHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.sendHeartbeat();
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private sendHeartbeat(): void {
+    const socket = this.ws;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    try {
+      socket.send(JSON.stringify({ type: "ping", timestamp: nowIso() }));
+    } catch {
+      return;
+    }
+    // Expect a pong; if none arrives the link is dead, so force a reconnect.
+    this.clearPongTimer();
+    this.pongTimer = setTimeout(() => {
+      this.pongTimer = null;
+      if (this.ws === socket) socket.close();
+    }, HEARTBEAT_TIMEOUT_MS);
+  }
+
   private closeSocket(): void {
     this.clearConnectTimer();
+    this.clearHeartbeat();
     if (!this.ws) return;
     const socket = this.ws;
     this.ws = null;
@@ -95,10 +141,15 @@ export class WsClient {
       this.clearConnectTimer();
       this.retries = 0;
       this.onStatus("connected");
+      this.startHeartbeat();
     };
     socket.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data as string) as EventEnvelope;
+        if ((data as { type?: string }).type === "pong") {
+          this.clearPongTimer();
+          return;
+        }
         this.onMessage(data);
       } catch {
         /* ignore malformed */
@@ -110,6 +161,7 @@ export class WsClient {
     };
     socket.onclose = (ev) => {
       this.clearConnectTimer();
+      this.clearHeartbeat();
       if (this.ws === socket) this.ws = null;
       if (this.intentionalClose) {
         this.intentionalClose = false;

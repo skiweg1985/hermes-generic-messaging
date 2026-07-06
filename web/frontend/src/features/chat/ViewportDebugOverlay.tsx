@@ -30,6 +30,11 @@ function measureComposerHeight(): number {
   return el ? Math.round(el.getBoundingClientRect().height) : 0;
 }
 
+function measureShellTop(): string {
+  const el = document.querySelector<HTMLElement>(".shell-root");
+  return el ? `${Math.round(el.getBoundingClientRect().top)}px` : "-";
+}
+
 /**
  * Development-only overlay that surfaces live viewport/keyboard metrics.
  * Toggle with `?vdebug=1` (persisted) or `?vdebug=0` to clear.
@@ -38,7 +43,16 @@ export function ViewportDebugOverlay() {
   const [enabled] = useState(shouldEnable);
   const metrics = useViewportMetricsState();
   const keyboardOpen = useKeyboardOpen();
-  const [derived, setDerived] = useState({ clearance: "-", viewportHeight: "-", composerHeight: 0 });
+  const [derived, setDerived] = useState({
+    clearance: "-",
+    viewportHeight: "-",
+    composerHeight: 0,
+    shellTop: "-",
+    scrollY: 0,
+    safeAreaTop: "-",
+    safeAreaBottom: "-",
+    zoomScale: "-",
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -46,6 +60,11 @@ export function ViewportDebugOverlay() {
       clearance: readCssVar("--composer-clearance"),
       viewportHeight: readCssVar("--app-viewport-height"),
       composerHeight: measureComposerHeight(),
+      shellTop: measureShellTop(),
+      scrollY: Math.round(window.scrollY),
+      safeAreaTop: readCssVar("--vdebug-safe-area-top"),
+      safeAreaBottom: readCssVar("--vdebug-safe-area-bottom"),
+      zoomScale: window.visualViewport ? window.visualViewport.scale.toFixed(3) : "-",
     });
   }, [enabled, metrics]);
 
@@ -55,6 +74,11 @@ export function ViewportDebugOverlay() {
     ["innerHeight", metrics.innerHeight],
     ["visualHeight", Math.round(metrics.visualHeight)],
     ["offsetTop", Math.round(metrics.offsetTop)],
+    ["scrollY", derived.scrollY],
+    ["shellTop", derived.shellTop],
+    ["safeAreaTop", derived.safeAreaTop],
+    ["safeAreaBottom", derived.safeAreaBottom],
+    ["zoomScale", derived.zoomScale],
     ["keyboardInset", Math.max(0, metrics.innerHeight - Math.round(metrics.visualHeight))],
     ["viewportHeight var", derived.viewportHeight],
     ["composer-clearance", derived.clearance],

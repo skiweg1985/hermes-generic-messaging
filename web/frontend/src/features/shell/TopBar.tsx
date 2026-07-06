@@ -1,13 +1,14 @@
 import type { ConnectionStatus } from "../../types/events";
+import { TypingIndicator } from "../chat/messages/TypingIndicator";
 import { IconPanel, IconSidebarToggle } from "./icons";
 
 interface TopBarProps {
   title: string;
   connection: ConnectionStatus;
   streaming: boolean;
+  typing?: boolean;
   modelLabel?: string;
   onOpenPeek: () => void;
-  onReconnect: () => void;
   onToggleRail: () => void;
 }
 
@@ -26,9 +27,9 @@ export function TopBar({
   title,
   connection,
   streaming,
+  typing = false,
   modelLabel,
   onOpenPeek,
-  onReconnect,
   onToggleRail,
 }: TopBarProps) {
   return (
@@ -54,19 +55,14 @@ export function TopBar({
         {streaming ? (
           <span className="topbar-stream-tag t-meta">Streaming</span>
         ) : null}
+        {typing ? (
+          <span className="topbar-typing">
+            <TypingIndicator />
+          </span>
+        ) : null}
       </div>
 
       <div className="topbar-right">
-        {connection === "error" ? (
-          <button
-            type="button"
-            className="topbar-link"
-            onClick={onReconnect}
-            aria-label="Reconnect"
-          >
-            Reconnect
-          </button>
-        ) : null}
         {modelLabel ? (
           <span className="topbar-chip" title="Model">
             <span className="t-body-sm truncate">{modelLabel}</span>

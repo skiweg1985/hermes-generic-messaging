@@ -107,6 +107,14 @@ class WebSocketHub:
                     await self.on_message(ws, {"__parse_error__": True, "raw": raw})
                     continue
                 if isinstance(data, dict):
+                    if data.get("type") == "ping":
+                        # App-level heartbeat: reply immediately, bypassing the
+                        # message pipeline (rate limiting, dedup, schema parsing).
+                        try:
+                            await ws.send(json.dumps({"type": "pong"}))
+                        except Exception:
+                            logger.debug("failed to send pong", exc_info=True)
+                        continue
                     await self.on_message(ws, data)
         except websockets.exceptions.ConnectionClosed:
             pass
