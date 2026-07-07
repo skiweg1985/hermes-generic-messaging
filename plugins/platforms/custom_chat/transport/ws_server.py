@@ -14,6 +14,7 @@ from websockets.server import WebSocketServerProtocol
 logger = logging.getLogger(__name__)
 
 OnMessageCallback = Callable[[WebSocketServerProtocol, dict[str, Any]], Awaitable[None]]
+OnDisconnectCallback = Callable[[WebSocketServerProtocol], None]
 AuthCallback = Callable[[WebSocketServerProtocol], bool]
 
 
@@ -25,11 +26,13 @@ class WebSocketHub:
         *,
         on_message: OnMessageCallback,
         authenticate: Optional[AuthCallback] = None,
+        on_disconnect: Optional[OnDisconnectCallback] = None,
     ) -> None:
         self.host = host
         self.port = port
         self.on_message = on_message
         self.authenticate = authenticate
+        self.on_disconnect = on_disconnect
         self._server: Optional[Server] = None
         self._clients: Set[WebSocketServerProtocol] = set()
         self._client_context: dict[WebSocketServerProtocol, dict[str, str]] = {}
@@ -86,8 +89,15 @@ class WebSocketHub:
             except Exception:
                 logger.debug("failed to send to client", exc_info=True)
 
-    async def send_to(self, ws: WebSocketServerProtocol, event: dict[str, Any]) -> None:
-        await ws.send(json.dumps(event))
+    async def send_to(self, ws: WebSocketServerProtocol, event: dict[str, Any]) -> bool:
+        """Send to one client. Returns False (instead of raising) if the socket
+        is dead, so callers can drop stale routing state and fall back."""
+        try:
+            await ws.send(json.dumps(event))
+            return True
+        except Exception:
+            logger.debug("failed to send to client", exc_info=True)
+            return False
 
     def _check_auth(self, ws: WebSocketServerProtocol) -> bool:
         if self.authenticate is None:
@@ -121,3 +131,8 @@ class WebSocketHub:
         finally:
             self._clients.discard(ws)
             self._client_context.pop(ws, None)
+            if self.on_disconnect is not None:
+                try:
+                    self.on_disconnect(ws)
+                except Exception:
+                    logger.debug("on_disconnect handler failed", exc_info=True)

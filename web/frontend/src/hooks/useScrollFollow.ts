@@ -123,7 +123,10 @@ export function useScrollFollow(
       mutationObserver.disconnect();
       observer.disconnect();
     };
-  }, [jumpToBottom, trigger]);
+    // NOTE: intentionally not keyed on `trigger`. The MutationObserver already
+    // re-observes when the content node swaps, so re-running this on every
+    // streaming delta only churned the observers on the hot path.
+  }, [jumpToBottom]);
 
   // Re-pin to the bottom when the mobile keyboard opens/closes while pinned, so
   // the latest message stays visible above the composer instead of being pushed

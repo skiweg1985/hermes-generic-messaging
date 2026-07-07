@@ -143,6 +143,13 @@ export interface TranscriptLine {
   interrupted?: boolean;
   reasoningText?: string;
   lastSequence?: number;
+  /**
+   * Out-of-order streaming deltas buffered on the line until the sequence gap
+   * fills. Kept in line state (not module-global) so the reducer stays pure and
+   * StrictMode double-invocation cannot drop buffered chunks. Transient — never
+   * persisted (stripped by trimLine).
+   */
+  pendingDeltas?: Record<number, string>;
   toolName?: string;
   toolStatus?: ToolStatus;
   toolArgs?: string;
@@ -151,6 +158,9 @@ export interface TranscriptLine {
   toolError?: string;
   videoUrl?: string;
   posterUrl?: string;
+  replyToLineId?: string;
+  replyToLabel?: string;
+  replyToPreview?: string;
   /** ISO timestamp of when the line entered the transcript (drives day separators). */
   at?: string;
 }

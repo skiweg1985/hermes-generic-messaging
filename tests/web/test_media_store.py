@@ -50,3 +50,18 @@ def test_reject_size(store):
     with pytest.raises(HTTPException) as exc:
         store.save(b"x" * 2000, "audio/wav")
     assert exc.value.status_code == 413
+
+
+def test_resolve_path_rejects_glob_wildcards(store):
+    # A stored file exists...
+    store.save(b"x" * 10, "audio/ogg")
+    # ...but a glob-wildcard file_id must not match/leak it.
+    with pytest.raises(HTTPException) as exc:
+        store.resolve_path("*")
+    assert exc.value.status_code == 404
+
+
+def test_resolve_path_rejects_path_separators(store):
+    with pytest.raises(HTTPException) as exc:
+        store.resolve_path("../secret")
+    assert exc.value.status_code == 400

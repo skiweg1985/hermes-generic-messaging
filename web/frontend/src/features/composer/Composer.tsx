@@ -29,7 +29,6 @@ import {
   IconLock,
   IconReply,
 } from "../shell/icons";
-import { TypingIndicator } from "../chat/messages/TypingIndicator";
 
 const MIN_HEIGHT = 56;
 const MAX_HEIGHT = 240;
@@ -42,7 +41,6 @@ interface ComposerProps {
   value: string;
   disabled: boolean;
   streaming: boolean;
-  typing?: boolean;
   recording: boolean;
   recordingLevel: number;
   replyTarget?: ReplyTarget;
@@ -80,7 +78,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     value,
     disabled,
     streaming,
-    typing = false,
     recording,
     recordingLevel,
     replyTarget,
@@ -747,17 +744,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 <IconClose size={14} />
                 <span className="composer-shortcut" aria-hidden>Esc</span>
               </button>
-            ) : typing || streaming ? (
-              <span className="composer-hint t-meta">
-                {typing ? (
-                  <span className="composer-status" aria-live="polite" aria-label="Assistant schreibt">
-                    <TypingIndicator />
-                    <span className="composer-status-label">Schreibt…</span>
-                  </span>
-                ) : (
-                  "Generating…"
-                )}
-              </span>
+            ) : streaming ? (
+              <span className="composer-hint t-meta">Generating…</span>
             ) : null}
             {recordingActive && recordLocked ? null : sendButton}
           </div>

@@ -87,6 +87,46 @@ async def test_cancel_by_segment_line_id(adapter, parse_sent_events):
 
 
 @pytest.mark.asyncio
+async def test_cancel_prevents_resurrection_via_real_cancel_path(adapter, parse_sent_events):
+    """After the real message.cancel path (which pops the stream handle), a
+    still-running gateway send_draft must not resurrect the stream and emit."""
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._ws_by_chat["c1"] = ws
+    adapter._reply_routes["reply-1"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter.state.register_stream("reply-1")
+
+    await adapter._on_ws_message(
+        ws,
+        {
+            "schema_version": "v1",
+            "event_id": "evt-cancel-r",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "platform": "custom_chat",
+            "chat_id": "c1",
+            "user_id": "u1",
+            "type": "message.cancel",
+            "payload": {"target_message_id": "reply-1"},
+        },
+    )
+
+    # Gateway coroutine, unaware of the cancel, tries to stream the next chunk.
+    result = await adapter.send_draft("c1", 1, "late chunk", metadata={"reply_id": "reply-1"})
+    assert result.success is False
+
+    events = parse_sent_events(ws)
+    # Exactly one assistant_done (the interrupted one); no resurrected start/delta.
+    assert [e["type"] for e in events if e["type"] == "assistant_done"] == ["assistant_done"]
+    assert not any(e["type"] == "assistant_start" for e in events)
+    assert not any(e["type"] == "assistant_delta" for e in events)
+
+
+@pytest.mark.asyncio
 async def test_cancel_unknown_target_is_noop(adapter, parse_sent_events):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

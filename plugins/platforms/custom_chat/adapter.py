@@ -10,6 +10,7 @@ import re
 import shutil
 import tempfile
 import uuid
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -209,12 +210,16 @@ class CustomChatAdapter(BasePlatformAdapter):
     # reply was already emitted. custom_chat typing is explicit state, so late
     # starts must be ignored until a new inbound turn opens the chat again.
     self._typing_closed_chats: set[str] = set()
-    # message_ids of in-flight tool-progress notice bubbles (editable)
-    self._tool_progress_ids: set[str] = set()
+    # message_ids of in-flight tool-progress notice bubbles (editable). Bounded
+    # LRU so a long session's tool calls don't grow this without limit.
+    self._tool_progress_ids: "OrderedDict[str, None]" = OrderedDict()
     # Latest web BFF media base URL from client.register (overrides env when set).
     self._registered_media_base_url: str = ""
     # Temp dirs for inbound attachments materialized from the BFF media API.
-    self._temp_media_dirs: set[Path] = set()
+    # Bounded FIFO: the gateway consumes each attachment within seconds, so
+    # keeping the most recent N and evicting older ones caps disk growth over a
+    # long-running process (previously only cleaned at shutdown).
+    self._temp_media_dirs: "OrderedDict[Path, None]" = OrderedDict()
     self._show_reasoning_cache: tuple[Path, float, bool] | None = None
 
   def _effective_media_base_url(self) -> str | None:
@@ -258,6 +263,12 @@ class CustomChatAdapter(BasePlatformAdapter):
 
   def _close_typing_for_chat(self, chat_id: str) -> None:
     self._typing_closed_chats.add(chat_id)
+
+  def _on_ws_disconnect(self, ws: Any) -> None:
+    """Drop routing bindings for a socket that just closed, so ``_ws_by_chat``
+    does not retain dead sockets for the process lifetime."""
+    for cid in [cid for cid, bound in self._ws_by_chat.items() if bound is ws]:
+      self._ws_by_chat.pop(cid, None)
 
   def _bind_ws_for_chat(self, ws: Any, chat_id: str, user_id: str) -> None:
     """Track the active socket for a chat.
@@ -356,6 +367,7 @@ class CustomChatAdapter(BasePlatformAdapter):
       self.settings.ws_port,
       on_message=self._on_ws_message,
       authenticate=self._authenticate_ws,
+      on_disconnect=self._on_ws_disconnect,
     )
     await self._hub.start()
     self._mark_connected()
@@ -365,9 +377,9 @@ class CustomChatAdapter(BasePlatformAdapter):
     if self._hub:
       await self._hub.stop()
       self._hub = None
-    for tmp_dir in list(self._temp_media_dirs):
+    for tmp_dir in list(self._temp_media_dirs.keys()):
       shutil.rmtree(tmp_dir, ignore_errors=True)
-      self._temp_media_dirs.discard(tmp_dir)
+    self._temp_media_dirs.clear()
     self._mark_disconnected()
 
   @staticmethod
@@ -436,10 +448,29 @@ class CustomChatAdapter(BasePlatformAdapter):
         f"could not download attachment: {exc}",
       ) from exc
 
-    self._temp_media_dirs.add(tmp_dir)
+    self._register_temp_media_dir(tmp_dir)
     local_path = str(target)
     attachment.file_ref = local_path
     attachment.url = local_path
+
+  # Keep at most this many inbound attachment temp dirs before evicting oldest.
+  _MAX_TEMP_MEDIA_DIRS = 64
+
+  def _register_temp_media_dir(self, tmp_dir: Path) -> None:
+    self._temp_media_dirs[tmp_dir] = None
+    self._temp_media_dirs.move_to_end(tmp_dir)
+    while len(self._temp_media_dirs) > self._MAX_TEMP_MEDIA_DIRS:
+      old, _ = self._temp_media_dirs.popitem(last=False)
+      shutil.rmtree(old, ignore_errors=True)
+
+  # Bound on remembered tool-progress notice ids.
+  _MAX_TOOL_PROGRESS_IDS = 2048
+
+  def _remember_tool_progress_id(self, notice_id: str) -> None:
+    self._tool_progress_ids[notice_id] = None
+    self._tool_progress_ids.move_to_end(notice_id)
+    while len(self._tool_progress_ids) > self._MAX_TOOL_PROGRESS_IDS:
+      self._tool_progress_ids.popitem(last=False)
 
   def _normalize_message_create_attachments(self, attachments: list[Any]) -> None:
     for attachment in attachments:
@@ -504,7 +535,12 @@ class CustomChatAdapter(BasePlatformAdapter):
       else:
         target = ws or self._ws_by_chat.get(chat_id)
         if target is not None:
-          await self._hub.send_to(target, event)
+          if not await self._hub.send_to(target, event):
+            # Dead socket: drop every stale binding pointing at it, then fall
+            # back to broadcasting to whichever clients remain connected.
+            for cid in [cid for cid, bound in self._ws_by_chat.items() if bound is target]:
+              self._ws_by_chat.pop(cid, None)
+            await self._hub.broadcast(event, chat_id=chat_id)
         else:
           await self._hub.broadcast(event, chat_id=chat_id)
     return event
@@ -722,7 +758,15 @@ class CustomChatAdapter(BasePlatformAdapter):
   def _compute_incremental_delta(previous: str, content: str) -> tuple[str, str]:
     if content.startswith(previous):
       return content[len(previous) :], content
-    return content, previous + content
+    # Non-monotonic content (e.g. reasoning-hiding shifted the visible tail):
+    # emit only the suffix past the common prefix and resync the accumulator to
+    # `content`, instead of re-appending the whole string (which duplicated the
+    # already-rendered text and corrupted session.accumulated).
+    common = 0
+    limit = min(len(previous), len(content))
+    while common < limit and previous[common] == content[common]:
+      common += 1
+    return content[common:], content
 
   @staticmethod
   def _split_reasoning_answer(reasoning_meta: str, answer: str) -> tuple[str, str]:
@@ -948,6 +992,13 @@ class CustomChatAdapter(BasePlatformAdapter):
     if not reply_id:
       reply_id = self._new_event_id()
 
+    # Cancel guard BEFORE get_or_create — otherwise a cancelled stream (whose
+    # handle was already removed by end_stream) would be silently resurrected
+    # here and keep emitting after the interrupted assistant_done.
+    handle = self.state.get_stream(reply_id)
+    if self.state.is_cancelled(reply_id) or (handle and handle.cancelled):
+      return SendResult(success=False, message_id=reply_id, error="cancelled")
+
     session = self.streams.get_or_create(
       reply_id,
       chat_id=route.get("chat_id", chat_id),
@@ -955,10 +1006,6 @@ class CustomChatAdapter(BasePlatformAdapter):
       thread_id=route.get("thread_id") or None,
       session_id=route.get("session_id") or None,
     )
-
-    handle = self.state.get_stream(reply_id)
-    if handle and handle.cancelled:
-      return SendResult(success=False, message_id=reply_id)
 
     text = "" if content is None else str(content)
     if text:
@@ -1001,6 +1048,12 @@ class CustomChatAdapter(BasePlatformAdapter):
     if not delta:
       return SendResult(success=True, message_id=line_id)
 
+    # Re-check: a cancel may have interleaved during the assistant_start emit
+    # above and already sent the interrupted assistant_done. Emitting a delta now
+    # would be a delta-after-done ordering violation.
+    if self.state.is_cancelled(reply_id):
+      return SendResult(success=False, message_id=reply_id, error="cancelled")
+
     seq = self.streams.next_sequence(reply_id)
     await self._emit_outbound(
       chat_id=session.chat_id,
@@ -1040,7 +1093,7 @@ class CustomChatAdapter(BasePlatformAdapter):
       thread_id=route.get("thread_id") or None,
       session_id=route.get("session_id") or None,
     )
-    self._tool_progress_ids.add(notice_id)
+    self._remember_tool_progress_id(notice_id)
     return SendResult(success=True, message_id=notice_id)
 
   async def send(
@@ -1076,7 +1129,7 @@ class CustomChatAdapter(BasePlatformAdapter):
     reply_id = str(meta.get("reply_id") or reply_id)
 
     handle = self.state.get_stream(reply_id)
-    if handle and handle.cancelled:
+    if self.state.is_cancelled(reply_id) or (handle and handle.cancelled):
       self.state.end_stream(reply_id)
       return SendResult(success=False, message_id=reply_id, error="cancelled")
 
@@ -1159,6 +1212,10 @@ class CustomChatAdapter(BasePlatformAdapter):
         },
         message_id=tts_notice_id,
       )
+      # Cancel may have arrived during the (slow) TTS/synthesis awaits.
+      if self.state.is_cancelled(reply_id):
+        await self._cleanup_reply_state(session, reply_id)
+        return SendResult(success=False, message_id=reply_id, error="cancelled")
       payload: dict[str, Any] = {
         "message_id": reply_id,
         "mime_type": str(audio_meta.get("mime_type") or audio["mime_type"]),
@@ -1228,6 +1285,13 @@ class CustomChatAdapter(BasePlatformAdapter):
         thread_id=route.get("thread_id") or None,
         session_id=route.get("session_id") or None,
       )
+      # Re-check after the (awaited) embed/attachment work: a cancel that
+      # interleaved during those awaits already emitted the interrupted
+      # assistant_done, so emitting another here would be a duplicate + a
+      # start-after-done ordering violation.
+      if self.state.is_cancelled(reply_id):
+        await self._cleanup_reply_state(session, reply_id)
+        return SendResult(success=False, message_id=reply_id, error="cancelled")
       done_payload: dict[str, Any] = {
         "message_id": line_id,
         "final_text": final,
@@ -1474,7 +1538,7 @@ class CustomChatAdapter(BasePlatformAdapter):
       metadata=next_metadata,
       message_id=msg_id,
     )
-    self._tool_progress_ids.add(msg_id)
+    self._remember_tool_progress_id(msg_id)
     return result
 
   async def send_exec_approval(

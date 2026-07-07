@@ -98,8 +98,11 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
         return out
     out.setdefault("schema_version", SCHEMA_VERSION)
     out.setdefault("platform", PLATFORM_NAME)
+    # chat_id is client-owned (the browser owns its workspace:<uuid> namespace,
+    # which is what enables multiple chats), so it stays a default. user_id is
+    # the BFF's single configured identity and must NOT be spoofable — force it.
     out.setdefault("chat_id", settings.web_chat_id)
-    out.setdefault("user_id", settings.web_user_id)
+    out["user_id"] = settings.web_user_id
     out.setdefault("timestamp", _now_iso())
     out.setdefault("event_id", str(uuid.uuid4()))
     if out.get("type") == "message.create" and isinstance(out.get("payload"), dict):
@@ -109,6 +112,54 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     ):
         out["payload"] = _normalize_uploaded_payload(out["payload"], settings)
     return out
+
+
+_PONG_FRAME = json.dumps({"type": "pong"})
+
+
+def _truncate(text: str, limit: int = 300) -> str:
+    return text if len(text) <= limit else f"{text[:limit]}…[{len(text)} bytes total]"
+
+
+def process_client_frame(raw: str, settings: Settings) -> tuple[str, str | None]:
+    """Classify one browser->BFF frame.
+
+    Returns ("pong", frame) to answer a heartbeat locally, ("forward", frame)
+    to relay the enriched envelope upstream, or ("drop", None) for frames that
+    must not reach upstream. Drops are logged — a silently discarded frame
+    surfaces client-side as an unexplained missing reply.
+    """
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("dropping non-JSON client frame: %s", _truncate(raw))
+        return ("drop", None)
+    if not isinstance(data, dict):
+        logger.warning("dropping non-object client frame: %s", _truncate(raw))
+        return ("drop", None)
+    if data.get("type") == "ping":
+        # Answer app-level heartbeats here: the heartbeat measures the
+        # browser<->BFF link, while BFF<->upstream liveness is covered by the
+        # websockets protocol-level keepalive. This also keeps the web chat
+        # alive against upstreams that don't understand app-level pings.
+        return ("pong", _PONG_FRAME)
+    return ("forward", json.dumps(enrich_inbound(data, settings)))
+
+
+def log_upstream_error_frame(raw: str) -> None:
+    """Surface assistant_error frames in the BFF journal so failures are
+    diagnosable server-side without attaching browser devtools."""
+    try:
+        event = json.loads(raw)
+        payload = event.get("payload") or {}
+        logger.warning(
+            "upstream assistant_error: code=%s chat_id=%s message=%s",
+            payload.get("code"),
+            event.get("chat_id"),
+            _truncate(str(payload.get("message", "")), 200),
+        )
+    except Exception:
+        logger.warning("upstream assistant_error (unparseable): %s", _truncate(raw))
 
 
 def build_client_register(settings: Settings) -> dict[str, Any]:
@@ -137,6 +188,9 @@ async def proxy_chat(client_ws: WebSocket, settings: Settings) -> None:
         async with websockets.connect(
             settings.custom_chat_ws_url,
             additional_headers=headers,
+            # Upstream may send large frames (inline media); the 1 MiB default
+            # would close the whole chat on the first oversized message.
+            max_size=16 * 1024 * 1024,
         ) as upstream:
             await upstream.send(json.dumps(build_client_register(settings)))
             await _relay(client_ws, upstream, settings)
@@ -159,30 +213,39 @@ async def _relay(
         try:
             while True:
                 raw = await client_ws.receive_text()
-                try:
-                    data = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(data, dict):
-                    await upstream.send(json.dumps(enrich_inbound(data, settings)))
-        except WebSocketDisconnect:
+                action, frame = process_client_frame(raw, settings)
+                if action == "pong":
+                    await client_ws.send_text(frame or _PONG_FRAME)
+                elif action == "forward" and frame is not None:
+                    await upstream.send(frame)
+        except WebSocketDisconnect as exc:
+            logger.info("client disconnected: code=%s", exc.code)
+        except ConnectionClosed:
+            # Upstream closed; end this leg cleanly so teardown proceeds.
             pass
 
     async def upstream_to_client() -> None:
         try:
             async for raw in upstream:
+                # Upstream frames should be text; tolerate binary rather than
+                # crashing the relay on send_text(bytes).
+                if isinstance(raw, (bytes, bytearray)):
+                    raw = bytes(raw).decode("utf-8", "ignore")
+                if '"assistant_error"' in raw:
+                    log_upstream_error_frame(raw)
                 await client_ws.send_text(raw)
-        except ConnectionClosed as exc:
-            logger.warning("upstream closed during relay: %s", exc)
+        except (ConnectionClosed, WebSocketDisconnect, RuntimeError) as exc:
+            logger.warning("upstream relay ended: %s", exc)
 
-    done, pending = await asyncio.wait(
-        [
-            asyncio.create_task(client_to_upstream()),
-            asyncio.create_task(upstream_to_client()),
-        ],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    for task in pending:
-        task.cancel()
-    for task in done:
-        _ = task.exception() if not task.cancelled() else None
+    tasks = [
+        asyncio.create_task(client_to_upstream()),
+        asyncio.create_task(upstream_to_client()),
+    ]
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in tasks:
+            task.cancel()
+        # Await the cancelled/finished tasks so no leg keeps running against a
+        # socket that is being torn down and no exception goes unretrieved.
+        await asyncio.gather(*tasks, return_exceptions=True)

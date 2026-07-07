@@ -126,6 +126,24 @@ describe("WsClient", () => {
       expect(socket.readyState).toBe(MockWebSocket.OPEN);
     });
 
+    it("treats any inbound frame as liveness, not just a pong", () => {
+      const onMessage = vi.fn();
+      const client = new WsClient(onMessage, () => undefined);
+      client.connect();
+      const socket = instances[0]!;
+      socket.open();
+
+      vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+      expect(JSON.parse(socket.sent[0]!).type).toBe("ping");
+
+      // No pong, but a regular event arrives — the link is clearly alive.
+      socket.emit({ type: "assistant_message", payload: {} });
+      expect(onMessage).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS + 1);
+      expect(socket.readyState).toBe(MockWebSocket.OPEN);
+    });
+
     it("closes the socket when no pong arrives within the timeout", () => {
       const client = new WsClient(() => undefined, () => undefined);
       client.connect();

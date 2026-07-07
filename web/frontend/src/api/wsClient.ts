@@ -125,6 +125,10 @@ export class WsClient {
 
   connect(): void {
     this.clearReconnectTimer();
+    // A fresh connect is never an intentional close. Reset the flag so a prior
+    // disconnect() (e.g. an effect-cleanup / remount cycle) cannot make the
+    // first genuine drop of the new socket be swallowed as "intentional".
+    this.intentionalClose = false;
     if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
       return;
     }
@@ -144,12 +148,14 @@ export class WsClient {
       this.startHeartbeat();
     };
     socket.onmessage = (ev) => {
+      // Any inbound frame proves the link is alive, not just a pong — a
+      // pending heartbeat timeout must not kill a connection that is actively
+      // delivering data (e.g. a stream delaying the pong, or a peer that
+      // answers pings with something other than a pong).
+      this.clearPongTimer();
       try {
         const data = JSON.parse(ev.data as string) as EventEnvelope;
-        if ((data as { type?: string }).type === "pong") {
-          this.clearPongTimer();
-          return;
-        }
+        if ((data as { type?: string }).type === "pong") return;
         this.onMessage(data);
       } catch {
         /* ignore malformed */
@@ -191,7 +197,9 @@ export class WsClient {
   disconnect(): void {
     this.clearReconnectTimer();
     this.intentionalClose = true;
-    this.retries = this.maxRetries;
+    // clearReconnectTimer + closeSocket() (which nulls onclose) already prevent
+    // any reconnect; do NOT pin retries to maxRetries — that state would survive
+    // into the next connect() and suppress reconnect on the first real drop.
     this.closeSocket();
   }
 

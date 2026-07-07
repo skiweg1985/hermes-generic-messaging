@@ -251,6 +251,38 @@
   user-select: none;
 }
 
+.msg-reply-context {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(560px, 100%);
+  min-width: 0;
+  margin-bottom: calc(var(--s-2) * -0.5);
+  padding: var(--s-2) var(--s-3);
+  border-left: 2px solid var(--text-quaternary);
+  border-radius: var(--r-md);
+  background: var(--accent-faint);
+}
+
+.msg-reply-context-label {
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 16px;
+}
+
+.msg-reply-context-preview {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .msg-user-bubble {
   max-width: min(560px, 100%);
   min-width: 0;

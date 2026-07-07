@@ -10,6 +10,9 @@ export interface MessageMetadata {
   title?: string;
   interrupted?: boolean;
   lineIds: string[];
+  replyToLineId?: string;
+  replyToLabel?: string;
+  replyToPreview?: string;
 }
 
 export type MessagePart =

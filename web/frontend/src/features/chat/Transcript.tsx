@@ -65,26 +65,33 @@ export function Transcript({
     return labels;
   }, [lines, turns]);
 
-  // Turns, die beim Öffnen der Session schon da waren (oder kurz danach per
-  // Hydration/Replay eintreffen), sind Historie und dürfen nicht als "frisch
-  // gesendet" animieren. Alles, was später dazukommt, gilt als Send-Moment.
-  const knownTurnsRef = useRef<{ chatId: string; ids: Set<string>; openedAt: number } | null>(null);
+  // Only a turn the user just appended should play the send animation. We key
+  // this off the *shape* of the change, not wall-clock time: a genuine send adds
+  // a single turn at the tail, whereas a bulk hydration/replay brings in many
+  // turns at once (or replaces the set) and must never animate. Time-based
+  // grace windows misfire when hydration/replay resolves late.
+  const knownTurnsRef = useRef<{ chatId: string; ids: Set<string> } | null>(null);
+  const freshIdsRef = useRef<Set<string>>(new Set());
+  const currentIds = turns.map((turn) => turn.id);
   if (knownTurnsRef.current?.chatId !== chatId) {
-    knownTurnsRef.current = {
-      chatId,
-      ids: new Set(turns.map((turn) => turn.id)),
-      openedAt: performance.now(),
-    };
-  }
-  const known = knownTurnsRef.current;
-  const isFreshTurn = (turnId: string): boolean => {
-    if (known.ids.has(turnId)) return false;
-    if (performance.now() - known.openedAt < 1500) {
-      known.ids.add(turnId);
-      return false;
+    // Opening a session: everything present is history.
+    knownTurnsRef.current = { chatId, ids: new Set(currentIds) };
+    freshIdsRef.current = new Set();
+  } else {
+    const prev = knownTurnsRef.current;
+    const appeared = currentIds.filter((id) => !prev.ids.has(id));
+    // A single tail append is a send; larger deltas are hydration/replay.
+    if (appeared.length > 0 && appeared.length <= 2) {
+      const lastId = currentIds[currentIds.length - 1];
+      for (const id of appeared) {
+        if (id === lastId) freshIdsRef.current.add(id);
+      }
     }
-    return true;
-  };
+    // Idempotent under StrictMode's double render: the second pass sees prev.ids
+    // already equal to currentIds, so `appeared` is empty and nothing changes.
+    knownTurnsRef.current = { chatId, ids: new Set(currentIds) };
+  }
+  const isFreshTurn = (turnId: string): boolean => freshIdsRef.current.has(turnId);
 
   const [lightboxImages, setLightboxImages] = useState<MediaImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);

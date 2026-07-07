@@ -15,6 +15,22 @@ from app.core.network import resolve_custom_chat_ws_url, resolve_public_media_ba
 logger = logging.getLogger(__name__)
 
 
+def _env_int(name: str, default: int, *, fallback_name: str | None = None) -> int:
+    """Parse an integer env var, logging and falling back on a malformed value
+    instead of raising (a ValueError here would 500 every request via the
+    lru_cache'd get_settings)."""
+    raw = os.getenv(name)
+    if raw is None and fallback_name is not None:
+        raw = os.getenv(fallback_name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        logger.warning("%s=%r is not an integer; using %d", name, raw, default)
+        return default
+
+
 def _load_web_dotenv() -> None:
     env_path = Path(__file__).resolve().parents[3] / ".env"
     if not env_path.is_file():
@@ -61,11 +77,10 @@ def get_settings() -> Settings:
     allowed_uploads = os.getenv("WEB_ALLOWED_UPLOAD_MIME_TYPES", "").strip()
     parsed_allowed_uploads = [m.strip() for m in allowed_uploads.split(",") if m.strip()]
     cors = [o.strip() for o in origins.split(",") if o.strip()] or None
-    max_upload_bytes = int(
-        os.getenv(
-            "WEB_MAX_UPLOAD_BYTES",
-            os.getenv("WEB_MAX_AUDIO_BYTES", str(20 * 1024 * 1024)),
-        )
+    max_upload_bytes = _env_int(
+        "WEB_MAX_UPLOAD_BYTES",
+        20 * 1024 * 1024,
+        fallback_name="WEB_MAX_AUDIO_BYTES",
     )
     custom_chat_target = os.getenv("CUSTOM_CHAT_TARGET", "").strip()
     legacy_ws_url = os.getenv("CUSTOM_CHAT_WS_URL", "ws://127.0.0.1:8765")
@@ -78,7 +93,7 @@ def get_settings() -> Settings:
         fallback_url=legacy_ws_url,
     )
     public_port_raw = os.getenv("WEB_PUBLIC_PORT", "").strip()
-    public_port = int(public_port_raw) if public_port_raw else None
+    public_port = _env_int("WEB_PUBLIC_PORT", 0) or None if public_port_raw else None
     public_media_base_url = resolve_public_media_base_url(
         explicit=os.getenv("WEB_PUBLIC_MEDIA_BASE_URL"),
         public_host=os.getenv("WEB_PUBLIC_HOST"),

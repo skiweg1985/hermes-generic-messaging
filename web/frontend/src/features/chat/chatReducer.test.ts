@@ -294,11 +294,25 @@ describe("chatReducer", () => {
     expect(session(s).typingStartedAt).toBeUndefined();
   });
 
-  it("allows server typing events after a completed answer", () => {
+  it("ignores late typing after a completed answer until the next user turn", () => {
     let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1", turn_message_id: "r1" }),
+    });
+    s = chatReducer(s, {
       type: "INBOUND_EVENT",
       event: ev("assistant_done", { message_id: "r1", final_text: "done" }),
     });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("typing", { state: "start" }),
+    });
+    // A stray/reordered typing:start after the turn finished must not flash the
+    // indicator on a completed conversation.
+    expect(session(s).typing).toBe(false);
+
+    // The next user turn re-opens typing (openTyping clears typingClosed).
+    s = chatReducer(s, { type: "USER_TEXT", text: "next" });
     s = chatReducer(s, {
       type: "INBOUND_EVENT",
       event: ev("typing", { state: "start" }),
@@ -658,6 +672,97 @@ describe("chatReducer", () => {
     });
     expect(session(s).lines[0].kind).toBe("video");
     expect(session(s).lines[0].videoUrl).toContain("clip.webm");
+  });
+
+  it("preserves lastSequence when assistant_start is replayed mid-stream", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 1, delta: "Hello" }),
+    });
+    // Reconnect re-emits assistant_start for the same turn.
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    // Replayed deltas (seq <= lastSequence) must be ignored, not re-appended.
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", sequence: 1, delta: "Hello" }),
+    });
+    expect(session(s).lines[0].text).toBe("Hello");
+  });
+
+  it("dedupes duplicate assistant_image delivery by message_id", () => {
+    const event = ev("assistant_image", {
+      message_id: "i1",
+      url: "https://example.local/cat.png",
+      caption: "cat",
+    });
+    let s = chatReducer(base, { type: "INBOUND_EVENT", event });
+    s = chatReducer(s, { type: "INBOUND_EVENT", event });
+    expect(session(s).lines.filter((l) => l.kind === "image")).toHaveLength(1);
+  });
+
+  it("clears streaming on the active line when the assistant errors", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1", turn_message_id: "r1" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", delta: "partial" }),
+    });
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_error", { message_id: "r1", code: "ERR", message: "boom" }),
+    });
+    const line = session(s).lines.find((l) => l.id === "r1");
+    expect(line?.streaming).toBe(false);
+    expect(session(s).streamingMessageId).toBeNull();
+    // A late delta must not resurrect the finished stream.
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_delta", { message_id: "r1", delta: " late" }),
+    });
+    expect(session(s).streamingMessageId).toBeNull();
+    expect(session(s).lines.find((l) => l.id === "r1")?.text).toBe("partial");
+  });
+
+  it("flushes the whole reorder buffer in order when it overflows", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    // seq 1 never arrives, so deltas 2..66 all buffer. The 65th (> the cap of 64)
+    // overflows and must flush everything in order — not strand the lower-seq
+    // chunks or misorder text.
+    const seqs = Array.from({ length: 65 }, (_, i) => i + 2); // 2..66
+    for (const seq of seqs) {
+      s = chatReducer(s, {
+        type: "INBOUND_EVENT",
+        event: ev("assistant_delta", { message_id: "r1", sequence: seq, delta: `${seq},` }),
+      });
+    }
+    const line = session(s).lines[0];
+    expect(line.text).toBe(seqs.map((n) => `${n},`).join(""));
+    expect(line.pendingDeltas).toBeUndefined();
+  });
+
+  it("does not throw on an event missing its payload", () => {
+    const malformed = {
+      schema_version: "v1",
+      event_id: "e1",
+      timestamp: "2026-05-23T10:00:00Z",
+      platform: "custom_chat",
+      chat_id: "c1",
+      user_id: "u1",
+      type: "assistant_delta",
+    } as unknown as EventEnvelope;
+    expect(() => chatReducer(base, { type: "INBOUND_EVENT", event: malformed })).not.toThrow();
   });
 
   it("upserts tool progress notices by message_id", () => {

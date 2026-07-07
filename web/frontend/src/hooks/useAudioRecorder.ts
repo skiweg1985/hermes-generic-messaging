@@ -76,20 +76,22 @@ export function useAudioRecorder() {
     }
   }, [startLevelMeter]);
 
-  const stop = useCallback((): Promise<Blob> => {
+  const stop = useCallback((options?: { tailMs?: number }): Promise<Blob> => {
     if (stopPromiseRef.current) return stopPromiseRef.current;
+    const recorder = mediaRef.current;
+    // Not recording: reject transiently WITHOUT caching, so a stray stop() does
+    // not poison stopPromiseRef and wedge every future recording.
+    if (!recorder) return Promise.reject(new Error("not recording"));
+    const tailMs = Math.max(0, options?.tailMs ?? 0);
     const promise = new Promise<Blob>((resolve, reject) => {
-      const recorder = mediaRef.current;
-      if (!recorder) {
-        reject(new Error("not recording"));
-        return;
-      }
-      mediaRef.current = null;
       const cleanup = () => {
         recorder.stream.getTracks().forEach((t) => t.stop());
         chunksRef.current = [];
         stopLevelMeter();
         setRecording(false);
+        // Free mediaRef only once the recorder has actually stopped, so start()'s
+        // `if (mediaRef.current) return` guard blocks a restart mid-stop.
+        mediaRef.current = null;
         stopPromiseRef.current = null;
       };
       recorder.onstop = () => {
@@ -102,12 +104,22 @@ export function useAudioRecorder() {
         cleanup();
         reject(event.error);
       };
-      if (recorder.state === "inactive") {
-        recorder.onstop(new Event("stop"));
-        return;
+      const finish = () => {
+        if (mediaRef.current !== recorder) return; // superseded/cleaned already
+        if (recorder.state === "inactive") {
+          recorder.onstop?.(new Event("stop"));
+          return;
+        }
+        recorder.requestData();
+        recorder.stop();
+      };
+      // Keep capturing for tailMs after release so the last syllable, still in
+      // the mic pipeline, lands in the recording; then actually stop.
+      if (tailMs > 0) {
+        window.setTimeout(finish, tailMs);
+      } else {
+        finish();
       }
-      recorder.requestData();
-      recorder.stop();
     });
     stopPromiseRef.current = promise;
     return promise;

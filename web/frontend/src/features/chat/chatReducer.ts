@@ -7,6 +7,7 @@ import type {
   TranscriptLine,
 } from "../../types/events";
 import { newId } from "../../lib/uuid";
+import { mergeChatStates } from "./sessionPersistence";
 
 const MAX_LABEL_LENGTH = 18;
 const MAX_TITLE_LENGTH = 40;
@@ -66,6 +67,21 @@ export function createChatSession(chatId: string, label = defaultLabel(chatId)):
   };
 }
 
+export interface ReplyContext {
+  lineId: string;
+  label: string;
+  preview: string;
+}
+
+function replyLineFields(replyTo?: ReplyContext): Partial<TranscriptLine> {
+  if (!replyTo) return {};
+  return {
+    replyToLineId: replyTo.lineId,
+    replyToLabel: replyTo.label,
+    replyToPreview: replyTo.preview,
+  };
+}
+
 export const initialChatState = (
   chatId = DEFAULT_CHAT_ID,
   label = "New chat",
@@ -94,6 +110,7 @@ export type ChatAction =
       size: number;
       url: string;
       chatId?: string;
+      replyTo?: ReplyContext;
     }
   | {
       type: "USER_MESSAGE";
@@ -107,6 +124,7 @@ export type ChatAction =
         url: string;
       }>;
       chatId?: string;
+      replyTo?: ReplyContext;
     }
   | { type: "USER_UPLOAD"; filename: string; mime: string; size: number; url?: string; chatId?: string; turnMessageId?: string }
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
@@ -115,11 +133,6 @@ export type ChatAction =
   | { type: "INBOUND_EVENT"; event: EventEnvelope };
 
 const DELTA_BUFFER_CAP = 64;
-const streamBuffers = new Map<string, Map<number, string>>();
-
-function streamBufferKey(chatId: string, messageId: string): string {
-  return `${chatId}\u0000${messageId}`;
-}
 
 function appendLine(session: ChatSession, line: TranscriptLine): ChatSession {
   const lines = session.lines.filter((l) => l.kind !== "empty");
@@ -195,8 +208,11 @@ function markUnread(state: ChatState, chatId: string, eventType: string): ChatSt
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "HYDRATE_STATE":
+      // Merge the remote snapshot against the *current* reducer state (not a
+      // caller-captured snapshot) so events dispatched while the fetch was in
+      // flight are not clobbered.
       return {
-        ...action.state,
+        ...mergeChatStates(state, action.state),
         recording: state.recording,
       };
     case "SET_ACTIVE_CHAT":
@@ -234,18 +250,20 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const { turnMessageId, text, attachments } = action;
       return updateSession(state, action.chatId ?? state.activeChatId, (session) => {
         let next: ChatSession = openTyping(session);
+        let replyFields = replyLineFields(action.replyTo);
         if (text.trim()) {
           next = appendLine(next, {
             id: turnMessageId,
             kind: "user",
             text: text.trim(),
             turnMessageId,
+            ...replyFields,
           });
+          replyFields = {};
         }
         for (const att of attachments) {
-          next = appendLine(
-            next,
-            buildAttachmentLine({
+          next = appendLine(next, {
+            ...buildAttachmentLine({
               id: att.attachmentId,
               role: "user",
               filename: att.filename,
@@ -254,7 +272,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
               url: att.url,
               turnMessageId,
             }),
-          );
+            ...replyFields,
+          });
+          replyFields = {};
         }
         return next;
       });
@@ -279,6 +299,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           sizeBytes: action.size,
           mimeType: action.mime,
           turnMessageId: action.turnMessageId,
+          ...replyLineFields(action.replyTo),
         }),
       );
     case "USER_UPLOAD":
@@ -356,10 +377,15 @@ function parseToolStatus(value: unknown): ToolStatus | undefined {
   return undefined;
 }
 
+/**
+ * Applies a streaming delta to a line, buffering out-of-order chunks in the
+ * line's own `pendingDeltas` map. Pure: never mutates shared state, so React's
+ * StrictMode double-invocation of the reducer is safe and abandoned buffers are
+ * garbage-collected with the line/session instead of leaking module-globally.
+ */
 function applyDeltaToLine(
   line: TranscriptLine,
   delta: string,
-  bufferKey: string,
   sequence?: number,
 ): TranscriptLine {
   if (sequence == null || !Number.isFinite(sequence)) {
@@ -374,51 +400,51 @@ function applyDeltaToLine(
   }
 
   if (seq === last + 1) {
-    let next = { ...line, text: line.text + delta, streaming: true, lastSequence: seq };
-    const buffer = streamBuffers.get(bufferKey);
-    if (buffer) {
-      let cursor = seq + 1;
-      while (buffer.has(cursor)) {
-        next = { ...next, text: next.text + (buffer.get(cursor) ?? ""), lastSequence: cursor };
-        buffer.delete(cursor);
-        cursor += 1;
-      }
-      if (buffer.size === 0) streamBuffers.delete(bufferKey);
+    const pending = { ...(line.pendingDeltas ?? {}) };
+    let text = line.text + delta;
+    let cursor = seq + 1;
+    while (pending[cursor] != null) {
+      text += pending[cursor];
+      delete pending[cursor];
+      cursor += 1;
     }
-    return next;
+    return {
+      ...line,
+      text,
+      streaming: true,
+      lastSequence: cursor - 1,
+      pendingDeltas: Object.keys(pending).length > 0 ? pending : undefined,
+    };
   }
 
-  let buffer = streamBuffers.get(bufferKey);
-  if (!buffer) {
-    buffer = new Map();
-    streamBuffers.set(bufferKey, buffer);
+  const pending = { ...(line.pendingDeltas ?? {}) };
+  if (Object.keys(pending).length >= DELTA_BUFFER_CAP) {
+    // Reorder buffer full (pathological gap that never filled): flush everything
+    // we have — including this chunk — in sequence order, best-effort. Appending
+    // this chunk directly instead would strand the lower-sequence buffered chunks
+    // (they can never flush past the advanced lastSequence) and misorder text.
+    pending[seq] = delta;
+    return flushDeltaBuffer({ ...line, streaming: true, pendingDeltas: pending });
   }
-  if (buffer.size < DELTA_BUFFER_CAP) {
-    buffer.set(seq, delta);
-  } else {
-    return { ...line, text: line.text + delta, streaming: true, lastSequence: seq };
-  }
-  return line;
+  pending[seq] = delta;
+  return { ...line, pendingDeltas: pending };
 }
 
-function flushDeltaBuffer(bufferKey: string, line: TranscriptLine): TranscriptLine {
-  const buffer = streamBuffers.get(bufferKey);
-  if (!buffer || buffer.size === 0) return line;
-  const keys = [...buffer.keys()].sort((a, b) => a - b);
-  let next = line;
-  const last = line.lastSequence ?? 0;
+function flushDeltaBuffer(line: TranscriptLine): TranscriptLine {
+  const pending = line.pendingDeltas;
+  if (!pending) return line;
+  const keys = Object.keys(pending)
+    .map(Number)
+    .sort((a, b) => a - b);
+  let text = line.text;
+  let last = line.lastSequence ?? 0;
   for (const seq of keys) {
     if (seq > last) {
-      next = {
-        ...next,
-        text: next.text + (buffer.get(seq) ?? ""),
-        lastSequence: seq,
-      };
+      text += pending[seq];
+      last = seq;
     }
-    buffer.delete(seq);
   }
-  streamBuffers.delete(bufferKey);
-  return next;
+  return { ...line, text, lastSequence: last, pendingDeltas: undefined };
 }
 
 function fileLabel(filename: string, mime: string, size: number): string {
@@ -541,8 +567,11 @@ function finalizeRunningToolNotices(
 }
 
 function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatSession {
-  const p = event.payload;
-  const chatId = event.chat_id || session.chatId;
+  // Defensive: a malformed or unexpected frame may lack `payload`. Never
+  // dereference it unguarded — this reducer runs in React's render phase where
+  // a throw would unmount the whole app (there is no error boundary above it).
+  const p: Record<string, unknown> =
+    event.payload && typeof event.payload === "object" ? event.payload : {};
   switch (event.type) {
     case "assistant_start": {
       const messageId = String(p.message_id ?? newId());
@@ -550,16 +579,27 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
         p.turn_message_id != null ? String(p.turn_message_id) : undefined;
       const streamTurnId = turnMessageId ?? messageId;
       const existing = session.lines.find((line) => line.id === messageId);
-      const line: TranscriptLine = {
-        id: messageId,
-        kind: "assistant",
-        text: existing?.text ?? "",
-        title: existing?.title,
-        turnMessageId,
-        threadId: event.thread_id,
-        sessionId: event.session_id,
-        streaming: true,
-      };
+      // Preserve accumulated stream state on a replayed/duplicate start (e.g.
+      // reconnect re-emitting the turn). Dropping lastSequence/pendingDeltas
+      // would reset delta dedup and re-append already-rendered text.
+      const line: TranscriptLine = existing
+        ? {
+            ...existing,
+            kind: "assistant",
+            turnMessageId,
+            threadId: event.thread_id ?? existing.threadId,
+            sessionId: event.session_id ?? existing.sessionId,
+            streaming: true,
+          }
+        : {
+            id: messageId,
+            kind: "assistant",
+            text: "",
+            turnMessageId,
+            threadId: event.thread_id,
+            sessionId: event.session_id,
+            streaming: true,
+          };
       return {
         ...upsertLine(
           { ...withoutTyping(session), streamingMessageId: messageId, streamTurnId },
@@ -572,10 +612,10 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       };
     }
     case "assistant_delta": {
+      if (p.message_id == null) return session;
       const messageId = String(p.message_id);
       const delta = String(p.delta ?? "");
       const sequence = p.sequence != null ? Number(p.sequence) : undefined;
-      const bufferKey = streamBufferKey(chatId, messageId);
       const idx = findAssistantLineIndex(session.lines, messageId);
       if (idx < 0) {
         const line = applyDeltaToLine(
@@ -588,7 +628,6 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
             streaming: true,
           },
           delta,
-          bufferKey,
           sequence,
         );
         return appendLine(
@@ -598,19 +637,24 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       }
       const existing = session.lines[idx]!;
       if (!existing.streaming && session.streamingMessageId !== messageId) {
-        streamBuffers.delete(bufferKey);
         return session;
       }
-      const nextLine = applyDeltaToLine(existing, delta, bufferKey, sequence);
+      const nextLine = applyDeltaToLine(existing, delta, sequence);
       if (nextLine === existing) return session;
       const lines = [...session.lines];
       lines[idx] = nextLine;
       return touchSession({ ...withoutTyping(session), lines, streamingMessageId: messageId });
     }
     case "assistant_segment": {
+      if (p.message_id == null) return session;
       const turnMessageId = String(p.message_id);
       const segmentMessageId = String(p.segment_message_id ?? newId());
       const label = p.label != null ? String(p.label) : undefined;
+      // Duplicate delivery (reconnect replay) of the same segment must not add a
+      // second line with an identical id.
+      if (session.lines.some((l) => l.id === segmentMessageId)) {
+        return session;
+      }
       const lines = finalizeStreamingLines(
         session.lines,
         turnMessageId,
@@ -637,6 +681,7 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       return nextSession;
     }
     case "assistant_done": {
+      if (p.message_id == null) return session;
       const messageId = String(p.message_id);
       const interrupted = p.interrupted === true;
       const rawFinalText = p.final_text != null ? String(p.final_text) : undefined;
@@ -646,11 +691,10 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
           ? String(p.reasoning_text)
           : undefined;
       const idx = findAssistantLineIndex(session.lines, messageId);
-      const bufferKey = streamBufferKey(chatId, messageId);
       let lines = session.lines;
       if (idx >= 0) {
         lines = [...lines];
-        let line = flushDeltaBuffer(bufferKey, lines[idx]!);
+        const line = flushDeltaBuffer(lines[idx]!);
         lines[idx] = {
           ...line,
           text: finalText ?? line.text,
@@ -772,7 +816,9 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     case "assistant_image": {
       const messageId = String(p.message_id ?? newId());
       const imageUrl = String(p.url ?? "");
-      return appendLine(
+      // Upsert by id so a duplicate/replayed delivery does not add a second
+      // identical image line (also avoids duplicate React keys in turnGrouping).
+      return upsertLine(
         withoutTyping(session),
         {
           id: messageId,
@@ -794,7 +840,9 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const mime = String(p.mime_type ?? "application/octet-stream");
       const size = Number(p.size_bytes ?? 0);
       const url = String(p.url ?? p.file_ref ?? "");
-      return appendLine(
+      // Upsert by id so a duplicate/replayed delivery does not add a second
+      // identical file line.
+      return upsertLine(
         withoutTyping(session),
         buildAttachmentLine({
           id: messageId,
@@ -824,6 +872,10 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
     case "typing": {
       const state = String(p.state ?? "");
       if (state === "start") {
+        // Suppress a stray/reordered typing:start after the turn already
+        // completed (assistant_done sets typingClosed). Reset by the next user
+        // turn via openTyping — otherwise a finished chat flashes "typing…".
+        if (session.typingClosed) return session;
         return touchSession({
           ...session,
           typing: true,
@@ -836,11 +888,20 @@ function reduceSessionInbound(session: ChatSession, event: EventEnvelope): ChatS
       const messageId = p.message_id != null ? String(p.message_id) : undefined;
       const belongsToActiveStream =
         !messageId || session.streamingMessageId === messageId || session.streamTurnId === messageId;
+      // Clear `streaming` on the errored turn's lines so a late delta cannot
+      // resurrect the stream and remote hydrate is no longer blocked forever.
+      const clearedLines = belongsToActiveStream
+        ? finalizeStreamingLines(
+            session.lines,
+            session.streamTurnId ?? messageId ?? "",
+            session.streamingMessageId,
+          )
+        : session.lines;
       return {
         ...appendLine({
           ...session,
           lines: finalizeRunningToolNotices(
-            session.lines,
+            clearedLines,
             "error",
             belongsToActiveStream ? (session.streamTurnId ?? messageId) : messageId,
             messageId ?? null,
