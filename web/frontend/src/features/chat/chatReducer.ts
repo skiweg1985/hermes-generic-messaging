@@ -419,8 +419,12 @@ function applyDeltaToLine(
 
   const pending = { ...(line.pendingDeltas ?? {}) };
   if (Object.keys(pending).length >= DELTA_BUFFER_CAP) {
-    // Reorder buffer full — apply directly rather than growing unbounded.
-    return { ...line, text: line.text + delta, streaming: true, lastSequence: seq };
+    // Reorder buffer full (pathological gap that never filled): flush everything
+    // we have — including this chunk — in sequence order, best-effort. Appending
+    // this chunk directly instead would strand the lower-sequence buffered chunks
+    // (they can never flush past the advanced lastSequence) and misorder text.
+    pending[seq] = delta;
+    return flushDeltaBuffer({ ...line, streaming: true, pendingDeltas: pending });
   }
   pending[seq] = delta;
   return { ...line, pendingDeltas: pending };

@@ -732,6 +732,26 @@ describe("chatReducer", () => {
     expect(session(s).lines.find((l) => l.id === "r1")?.text).toBe("partial");
   });
 
+  it("flushes the whole reorder buffer in order when it overflows", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_start", { message_id: "r1" }),
+    });
+    // seq 1 never arrives, so deltas 2..66 all buffer. The 65th (> the cap of 64)
+    // overflows and must flush everything in order — not strand the lower-seq
+    // chunks or misorder text.
+    const seqs = Array.from({ length: 65 }, (_, i) => i + 2); // 2..66
+    for (const seq of seqs) {
+      s = chatReducer(s, {
+        type: "INBOUND_EVENT",
+        event: ev("assistant_delta", { message_id: "r1", sequence: seq, delta: `${seq},` }),
+      });
+    }
+    const line = session(s).lines[0];
+    expect(line.text).toBe(seqs.map((n) => `${n},`).join(""));
+    expect(line.pendingDeltas).toBeUndefined();
+  });
+
   it("does not throw on an event missing its payload", () => {
     const malformed = {
       schema_version: "v1",
