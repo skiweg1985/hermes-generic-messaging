@@ -33,6 +33,14 @@ def test_health_stays_public_when_bff_auth_is_configured(monkeypatch):
     assert response.status_code == 200
 
 
+def test_whitespace_web_auth_token_does_not_enable_auth(monkeypatch):
+    _reset_settings(monkeypatch, "   ")
+
+    response = client.get("/api/v1/sessions")
+
+    assert response.status_code == 200
+
+
 def test_protected_http_endpoint_rejects_missing_bff_auth(monkeypatch):
     _reset_settings(monkeypatch, "secret-token")
 
@@ -49,6 +57,15 @@ def test_protected_http_endpoint_accepts_bearer_bff_auth(monkeypatch):
         "/api/v1/sessions",
         headers={"Authorization": "Bearer secret-token"},
     )
+
+    assert response.status_code == 200
+    assert response.json()["version"] == 1
+
+
+def test_protected_http_endpoint_accepts_query_bff_auth(monkeypatch):
+    _reset_settings(monkeypatch, "secret-token")
+
+    response = client.get("/api/v1/sessions?auth_token=secret-token")
 
     assert response.status_code == 200
     assert response.json()["version"] == 1

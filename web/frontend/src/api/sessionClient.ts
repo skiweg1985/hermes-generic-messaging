@@ -22,7 +22,7 @@ export async function loadRemoteChatState(fallback: ChatState): Promise<ChatStat
 }
 
 export async function persistRemoteChatState(state: ChatState): Promise<void> {
-  await fetch(SESSIONS_ENDPOINT, {
+  const res = await fetch(SESSIONS_ENDPOINT, {
     method: "PUT",
     headers: {
       ...bffAuthHeaders(),
@@ -31,4 +31,7 @@ export async function persistRemoteChatState(state: ChatState): Promise<void> {
     },
     body: JSON.stringify(toStoredState(state)),
   });
+  if (!res.ok) {
+    throw new Error(`SESSION_PERSIST_FAILED: ${res.status} ${res.statusText}`.trim());
+  }
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, WebSocket
+from fastapi import Depends, Header, HTTPException, Query, WebSocket
 
 from app.core.config import Settings, get_settings
 
@@ -20,7 +20,7 @@ MISCONFIGURED_DETAIL = {
 
 
 def bff_auth_enabled(settings: Settings) -> bool:
-    return bool(settings.web_auth_token or settings.web_require_auth)
+    return bool(_configured_token(settings) or settings.web_require_auth)
 
 
 def _configured_token(settings: Settings) -> str:
@@ -48,6 +48,8 @@ def require_http_bff_auth(
     settings: Annotated[Settings, Depends(get_settings)],
     authorization: Annotated[str | None, Header(alias="Authorization")] = None,
     x_bff_auth: Annotated[str | None, Header(alias="X-BFF-Auth")] = None,
+    auth_token: Annotated[str | None, Query(alias="auth_token")] = None,
+    token: Annotated[str | None, Query(alias="token")] = None,
 ) -> None:
     """Protect browser-facing HTTP endpoints when BFF auth is configured.
 
@@ -64,7 +66,7 @@ def require_http_bff_auth(
         raise HTTPException(status_code=503, detail=MISCONFIGURED_DETAIL)
     if _token_matches(_bearer_token(authorization), settings) or _token_matches(
         x_bff_auth, settings
-    ):
+    ) or _token_matches(auth_token or token, settings):
         return
     raise HTTPException(status_code=401, detail=UNAUTHORIZED_DETAIL)
 

@@ -121,8 +121,9 @@ Dann schützt das BFF diese Flächen:
 - `GET /api/v1/media/{file_id}`
 - `GET/PUT /api/v1/sessions`
 
-Clients senden den Token per Authorization-Bearer-Header oder `X-BFF-Auth`. Für
-Browser-WebSockets wird zusätzlich `?auth_token=...` unterstützt, weil Browser
+Clients senden den Token per Authorization-Bearer-Header, `X-BFF-Auth` oder —
+für Browser-Subresources wie Bilder/Audio/Video — per `?auth_token=...`. Für
+Browser-WebSockets wird ebenfalls `?auth_token=...` unterstützt, weil Browser
 beim `WebSocket`-Konstruktor keine beliebigen Header setzen können. Die
 mitgelieferte Frontend-App liest den Token aus `VITE_WEB_AUTH_TOKEN` oder aus
 `localStorage["custom-chat:bff-auth-token"]`.
