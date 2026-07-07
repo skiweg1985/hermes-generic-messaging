@@ -86,6 +86,8 @@ Die wichtigsten Einstellungen stehen in `web/.env`.
 | `CUSTOM_CHAT_TARGET` | leer | Ziel des Plugins, z. B. `127.0.0.1:8765` oder `ws://host:8765` |
 | `CUSTOM_CHAT_WS_URL` | `ws://127.0.0.1:8765` | Legacy-Fallback, wenn `CUSTOM_CHAT_TARGET` fehlt |
 | `CUSTOM_CHAT_BEARER_TOKEN` | leer | Token für die Verbindung zum Plugin |
+| `WEB_AUTH_TOKEN` | leer | Optionaler Token für Browser/BFF-Zugriff auf `/ws/chat` und geschützte `/api/v1/*`-Routen |
+| `WEB_REQUIRE_AUTH` | `false` | Erzwingt BFF-Auth und schlägt fehl, wenn `WEB_AUTH_TOKEN` fehlt |
 | `WEB_CHAT_ID` | `workspace:demo` | Fallback-Chat, wenn ein Client keine `chat_id` sendet |
 | `WEB_USER_ID` | `user-demo` | Fallback-Benutzer, wenn ein Client keine `user_id` sendet |
 | `WEB_MEDIA_UPLOAD_DIR` | `./data/uploads` | Speicherort für Uploads |
@@ -99,6 +101,35 @@ Die wichtigsten Einstellungen stehen in `web/.env`.
 
 **Tipp:** Verwende für neue Installationen `CUSTOM_CHAT_TARGET`. Es ist
 lesbarer als mehrere einzelne Host-/Port-Variablen.
+
+## 🔐 BFF-Zugriffsschutz
+
+Für reine localhost-Entwicklung bleibt die Web-App ohne zusätzlichen Browser-Token
+nutzbar. Sobald das BFF im LAN oder öffentlich erreichbar ist, solltest du aber
+einen separaten Browser/BFF-Token setzen:
+
+```bash
+WEB_AUTH_TOKEN=ein-zweiter-langer-zufaelliger-token
+WEB_REQUIRE_AUTH=true
+```
+
+Dann schützt das BFF diese Flächen:
+
+- `WS /ws/chat`
+- `GET /api/v1/diagnostics`
+- `POST /api/v1/media/upload`
+- `GET /api/v1/media/{file_id}`
+- `GET/PUT /api/v1/sessions`
+
+Clients senden den Token per Authorization-Bearer-Header, `X-BFF-Auth` oder —
+für Browser-Subresources wie Bilder/Audio/Video — per `?auth_token=...`. Für
+Browser-WebSockets wird ebenfalls `?auth_token=...` unterstützt, weil Browser
+beim `WebSocket`-Konstruktor keine beliebigen Header setzen können. Die
+mitgelieferte Frontend-App liest den Token aus `VITE_WEB_AUTH_TOKEN` oder aus
+`localStorage["custom-chat:bff-auth-token"]`.
+
+`/api/v1/health` bleibt bewusst unauthentifiziert, damit Load Balancer und
+Container-Healthchecks weiterhin funktionieren.
 
 ## 🌐 Medien-URLs richtig setzen
 
@@ -255,6 +286,7 @@ Die detaillierten Event-Formate stehen in der
 
 - [ ] `custom_chat` Plugin läuft und ist vom BFF erreichbar.
 - [ ] BFF und Plugin verwenden denselben Bearer Token.
+- [ ] Bei LAN-/Produktionsbetrieb ist `WEB_AUTH_TOKEN` gesetzt oder ein Reverse Proxy schützt alle BFF-Routen.
 - [ ] Medien-URLs sind aus Browser- und Hermes-Sicht erreichbar.
 - [ ] Upload-Limits im BFF und im Plugin passen zusammen.
 - [ ] `WEB_SESSION_STORE_PATH` liegt auf persistentem Speicher.

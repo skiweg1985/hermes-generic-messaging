@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket
+from fastapi import Depends, FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import diagnostics, health, media, sessions
+from app.core.auth import require_http_bff_auth, require_websocket_bff_auth
 from app.core.config import get_settings
 from app.ws.chat_proxy import proxy_chat
 
@@ -40,14 +41,20 @@ else:
     )
 
 app.include_router(health.router)
-app.include_router(diagnostics.router)
-app.include_router(media.router)
-app.include_router(sessions.router)
+app.include_router(
+    diagnostics.router,
+    dependencies=[Depends(require_http_bff_auth)],
+)
+app.include_router(media.router, dependencies=[Depends(require_http_bff_auth)])
+app.include_router(sessions.router, dependencies=[Depends(require_http_bff_auth)])
 
 
 @app.websocket("/ws/chat")
 async def ws_chat(websocket: WebSocket) -> None:
-    await proxy_chat(websocket, get_settings())
+    settings = get_settings()
+    if not await require_websocket_bff_auth(websocket, settings):
+        return
+    await proxy_chat(websocket, settings)
 
 
 def _mount_frontend() -> None:

@@ -1,3 +1,4 @@
+import { appendBffAuthQuery } from "./bffAuth";
 import type { ButtonClickPayload, EventEnvelope, MessageAttachment, ReplyTarget } from "../types/events";
 import { newId } from "../lib/uuid";
 
@@ -27,7 +28,7 @@ interface SendContext {
 
 function wsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/ws/chat`;
+  return appendBffAuthQuery(`${proto}//${window.location.host}/ws/chat`);
 }
 
 function nowIso(): string {

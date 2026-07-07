@@ -14,6 +14,16 @@ describe("resolveMediaUrl", () => {
     );
   });
 
+  it("adds BFF auth query tokens to same-origin media URLs", () => {
+    vi.stubGlobal("window", {
+      location: { href: "http://127.0.0.1:5173/" },
+      localStorage: { getItem: () => "secret-token" },
+    });
+    expect(resolveMediaUrl("/api/v1/media/abc-123")).toBe(
+      "/api/v1/media/abc-123?auth_token=secret-token",
+    );
+  });
+
   it("leaves unrelated URLs unchanged", () => {
     vi.stubGlobal("window", { location: { href: "http://127.0.0.1:5173/" } });
     expect(resolveMediaUrl("https://example.local/cat.png")).toBe(

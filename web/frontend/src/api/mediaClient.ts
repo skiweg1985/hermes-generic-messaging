@@ -1,3 +1,5 @@
+import { bffAuthHeaders } from "./bffAuth";
+
 export interface UploadResult {
   file_id: string;
   url: string;
@@ -10,6 +12,7 @@ export async function uploadMedia(file: Blob, filename: string): Promise<UploadR
   form.append("file", file, filename);
   const res = await fetch("/api/v1/media/upload", {
     method: "POST",
+    headers: bffAuthHeaders(),
     body: form,
   });
   if (!res.ok) {

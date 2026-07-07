@@ -1,3 +1,5 @@
+import { appendBffAuthQuery } from "../api/bffAuth";
+
 const BFF_MEDIA_PATH = /^\/api\/v1\/media\/([^/?#]+)/;
 
 /**
@@ -8,13 +10,13 @@ export function resolveMediaUrl(url: string | undefined): string {
   const trimmed = (url ?? "").trim();
   if (!trimmed) return "";
 
-  if (trimmed.startsWith("/api/v1/media/")) return trimmed;
+  if (trimmed.startsWith("/api/v1/media/")) return appendBffAuthQuery(trimmed);
 
   try {
     const parsed = new URL(trimmed, window.location.href);
     const match = parsed.pathname.match(BFF_MEDIA_PATH);
     if (match) {
-      return `/api/v1/media/${match[1]}${parsed.search}${parsed.hash}`;
+      return appendBffAuthQuery(`/api/v1/media/${match[1]}${parsed.search}${parsed.hash}`);
     }
   } catch {
     /* keep original */
