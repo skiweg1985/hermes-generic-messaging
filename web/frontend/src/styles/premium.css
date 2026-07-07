@@ -336,9 +336,12 @@ body {
 
 .transcript {
   /* Oben Platz für die absolute TopBar (Glass-Overlay), unten für den
-     schwebenden Composer; Mobile setzt eigene Werte im 720px-Block. */
-  padding: calc(var(--topbar-height, 56px) + 28px) 28px
-    calc(var(--composer-clearance, 128px) + 18px);
+     schwebenden Composer; Mobile setzt eigene Werte im 720px-Block.
+     Der obere Einzug läuft über --transcript-top-inset (Padding auf
+     .transcript-content statt auf dem Scroller): padding-top auf dem
+     Scroller verschiebt in iOS-WebKit den Anker der sticky Day-Pills. */
+  --transcript-top-inset: calc(var(--topbar-height, 56px) + 28px);
+  padding: 0 28px calc(var(--composer-clearance, 128px) + 18px);
   scroll-padding-bottom: calc(
     var(--composer-clearance, 128px) + 18px
   );
@@ -1253,7 +1256,8 @@ body {
   }
 
   .transcript {
-    padding: calc(var(--topbar-height, 54px) + 22px) 14px calc(var(--composer-clearance, 96px) + 6px);
+    --transcript-top-inset: calc(var(--topbar-height, 54px) + 22px);
+    padding: 0 14px calc(var(--composer-clearance, 96px) + 6px);
     scroll-padding-bottom: calc(var(--composer-clearance, 96px) + 6px);
     scroll-behavior: auto;
   }
