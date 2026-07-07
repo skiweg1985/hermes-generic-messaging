@@ -278,6 +278,34 @@ body {
     isolation: isolate;
   }
 
+  /* Fade-Maske unten (Pendant zum Mobile-Glas-Dock): Nachrichten blenden auf
+     dem Weg unter den Composer weich aus statt hart an der Kante zu enden. */
+  .composer-region::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(100% + 16px);
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(10, 10, 12, 0.16) 68%,
+      rgba(10, 10, 12, 0.42) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 46%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 46%, #000 100%);
+  }
+
+  .composer-region > .composer {
+    position: relative;
+    z-index: 1;
+  }
+
   .transcript-jump,
   .transcript-toast {
     bottom: calc(var(--composer-clearance, 128px) + 12px);
@@ -294,6 +322,15 @@ body {
     );
     border-bottom-color: rgba(255, 255, 255, 0.24);
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  }
+
+  .composer-region::before {
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(248, 250, 252, 0.14) 68%,
+      rgba(248, 250, 252, 0.3) 100%
+    );
   }
 }
 
@@ -861,8 +898,10 @@ body {
   -webkit-backdrop-filter: blur(22px) saturate(1.2);
 }
 
+/* Bleibt auch fokussiert Milchglas — der Transcript scheint weiter durch,
+   nur Kontrast und Kontur ziehen leicht an. */
 .composer:focus-within {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
   border-color: color-mix(in srgb, var(--accent-strong) 22%, var(--line-hairline));
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.28) inset,

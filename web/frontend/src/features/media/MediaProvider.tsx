@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface MediaImage {
@@ -12,6 +12,9 @@ export interface MediaImage {
 interface MediaContextValue {
   images: MediaImage[];
   registerImage: (image: MediaImage) => void;
+  /** Thumbnail-DOM fürs Shared-Element (FLIP) der Lightbox; null beim Unmount. */
+  registerImageElement: (id: string, el: HTMLElement | null) => void;
+  getImageElement: (id: string) => HTMLElement | null;
   openAt: (id: string) => void;
   openImage: (image: MediaImage) => void;
 }
@@ -31,10 +34,24 @@ interface MediaProviderProps {
  */
 export function MediaProvider({ children, registryKey, onOpenLightbox }: MediaProviderProps) {
   const [images, setImages] = useState<MediaImage[]>([]);
+  const elementsRef = useRef<Map<string, HTMLElement>>(new Map());
 
+  // Kein clear() der Element-Map beim Chat-Wechsel: die Ref-Cleanups der
+  // unmountenden ImageCards räumen selbst auf, und dieser Effekt liefe NACH
+  // den Ref-Callbacks der neuen Karten — er würde deren Einträge löschen.
   useEffect(() => {
     setImages([]);
   }, [registryKey]);
+
+  const registerImageElement = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) elementsRef.current.set(id, el);
+    else elementsRef.current.delete(id);
+  }, []);
+
+  const getImageElement = useCallback(
+    (id: string) => elementsRef.current.get(id) ?? null,
+    [],
+  );
 
   const registerImage = useCallback((image: MediaImage) => {
     setImages((prev) => {
@@ -72,8 +89,8 @@ export function MediaProvider({ children, registryKey, onOpenLightbox }: MediaPr
   );
 
   const value = useMemo<MediaContextValue>(
-    () => ({ images, registerImage, openAt, openImage }),
-    [images, registerImage, openAt, openImage],
+    () => ({ images, registerImage, registerImageElement, getImageElement, openAt, openImage }),
+    [images, registerImage, registerImageElement, getImageElement, openAt, openImage],
   );
 
   return <MediaContext.Provider value={value}>{children}</MediaContext.Provider>;

@@ -204,6 +204,29 @@
   border-radius: 999px;
   background: var(--text-primary);
 }
+
+/* Unread-Badge mit Zähler; poppt beim Hochzählen (Remount via key=count). */
+.rail-session-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: var(--text-on-solid);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  animation: hermes-pop var(--dur-slow) var(--ease-soft-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-session-badge {
+    animation: none;
+  }
+}
 .rail-session-typing .dot-pulse {
   display: block;
   width: 6px;
@@ -903,23 +926,35 @@
     display: none;
   }
 
-  .rail.rail-drawer-open {
+  .rail.rail-drawer-open,
+  .rail.rail-drawer-closing {
     display: flex;
     position: fixed;
     inset: 0 auto 0 0;
     width: min(var(--rail-width), calc(100vw - 28px));
     z-index: calc(var(--z-overlay) + 1);
     box-shadow: var(--shadow-overlay);
-    animation: hermes-rail-slide-in var(--dur-base) var(--ease-standard);
+    animation: hermes-rail-slide-in var(--dur-slow) var(--ease-soft-out);
   }
-  .rail.rail-drawer-open .rail-workspace {
+  .rail.rail-drawer-closing {
+    animation: hermes-rail-slide-out var(--dur-base) var(--ease-soft-in) both;
+    pointer-events: none;
+  }
+  .rail.rail-drawer-open .rail-workspace,
+  .rail.rail-drawer-closing .rail-workspace {
     padding-right: 36px;
   }
-  .rail.rail-drawer-open .rail-drawer-close {
+  .rail.rail-drawer-open .rail-drawer-close,
+  .rail.rail-drawer-closing .rail-drawer-close {
     display: grid;
   }
   .rail-backdrop {
     display: block;
+    animation: hermes-fade-in var(--dur-slow) var(--ease-standard) both;
+  }
+  .rail-backdrop-closing {
+    animation: hermes-fade-out var(--dur-base) var(--ease-standard) both;
+    pointer-events: none;
   }
   .rail-edge-toggle {
     display: none;
@@ -942,7 +977,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rail.rail-drawer-open {
+  .rail.rail-drawer-open,
+  .rail.rail-drawer-closing,
+  .rail-backdrop,
+  .rail-backdrop-closing {
     animation: none;
+  }
+  .rail.rail-drawer-closing {
+    display: none;
   }
 }

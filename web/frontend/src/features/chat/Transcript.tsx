@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AssistantButton, TranscriptLine } from "../../types/events";
 import { useScrollFollow } from "../../hooks/useScrollFollow";
 import { groupTurnsFromLines } from "./model/groupMessages";
+import type { MessageTurn } from "./model/messageTypes";
 import { TurnGroup } from "./TurnGroup";
 import { IconArrowUp } from "../shell/icons";
 import { MediaProvider, type MediaImage } from "../media/MediaProvider";
@@ -43,6 +44,26 @@ export function Transcript({
   }, [lines, typing]);
 
   const { scrollerRef, isPinned, hasNew, scrollToBottom } = useScrollFollow(trigger, 120, chatId);
+
+  // Day separators: label a turn with the day of its earliest stamped line.
+  // Older transcripts predate line timestamps — those turns simply get no pill.
+  const dayLabelByTurnId = useMemo(() => {
+    const atById = new Map(lines.map((line) => [line.id, line.at]));
+    const labels = new Map<string, string>();
+    let previousDayKey: string | null = null;
+    for (const turn of turns) {
+      const at = turnTimestamp(turn, atById);
+      if (!at) continue;
+      const day = new Date(at);
+      if (Number.isNaN(day.getTime())) continue;
+      const dayKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+      if (dayKey !== previousDayKey) {
+        labels.set(turn.id, dayLabel(day));
+        previousDayKey = dayKey;
+      }
+    }
+    return labels;
+  }, [lines, turns]);
 
   // Only a turn the user just appended should play the send animation. We key
   // this off the *shape* of the change, not wall-clock time: a genuine send adds
@@ -146,17 +167,26 @@ export function Transcript({
             <EmptyState />
           ) : (
             <div className="transcript-content">
-              {turns.map((turn) => (
-                <TurnGroup
-                  key={turn.id}
-                  turn={turn}
-                  freshUser={isFreshTurn(turn.id)}
-                  turnActive={turnActive}
-                  onButtonClick={onButtonClick}
-                  onMessageAction={setActionTarget}
-                  onReplyLine={onReplyLine}
-                />
-              ))}
+              {turns.map((turn) => {
+                const sepLabel = dayLabelByTurnId.get(turn.id);
+                return (
+                  <Fragment key={turn.id}>
+                    {sepLabel ? (
+                      <div className="day-sep" aria-hidden>
+                        <span className="day-sep-pill t-meta">{sepLabel}</span>
+                      </div>
+                    ) : null}
+                    <TurnGroup
+                      turn={turn}
+                      freshUser={isFreshTurn(turn.id)}
+                      turnActive={turnActive}
+                      onButtonClick={onButtonClick}
+                      onMessageAction={setActionTarget}
+                      onReplyLine={onReplyLine}
+                    />
+                  </Fragment>
+                );
+              })}
               {typing ? (
                 <div className="turn turn-typing motion-rise-in-soft">
                   <div className="turn-outputs">
@@ -201,6 +231,38 @@ export function Transcript({
       />
     </MediaProvider>
   );
+}
+
+function turnTimestamp(
+  turn: MessageTurn,
+  atById: Map<string, string | undefined>,
+): string | undefined {
+  const messages = turn.user ? [turn.user, ...turn.outputs] : turn.outputs;
+  for (const message of messages) {
+    for (const lineId of message.metadata.lineIds) {
+      const at = atById.get(lineId);
+      if (at) return at;
+    }
+  }
+  return undefined;
+}
+
+function dayLabel(day: Date): string {
+  const startOfDay = (d: Date) => {
+    const copy = new Date(d);
+    copy.setHours(0, 0, 0, 0);
+    return copy.getTime();
+  };
+  const today = startOfDay(new Date());
+  const target = startOfDay(day);
+  if (target >= today) return "Today";
+  if (target >= today - 24 * 3600_000) return "Yesterday";
+  return day.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(day.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}),
+  });
 }
 
 async function copyText(text: string): Promise<void> {

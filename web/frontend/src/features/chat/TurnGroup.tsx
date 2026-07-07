@@ -34,6 +34,7 @@ export function TurnGroup({
           <PartRenderer
             message={turn.user}
             alignRight
+            fresh={freshUser}
             turnActive={turnActive}
             onButtonClick={onButtonClick}
             onMessageAction={onMessageAction}
