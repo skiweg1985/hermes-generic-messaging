@@ -10,14 +10,20 @@ const FLASH_MS = 1400;
 
 /** Scrollt zur zitierten Original-Nachricht und lässt sie kurz aufblitzen. */
 export function scrollToQuotedLine(lineId: string): void {
-  const el = document.querySelector<HTMLElement>(`[data-line-id="${CSS.escape(lineId)}"]`);
-  if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
-  el.classList.remove(FLASH_CLASS);
-  // Reflow, damit ein erneuter Klick die Animation neu startet.
-  void el.offsetWidth;
-  el.classList.add(FLASH_CLASS);
-  window.setTimeout(() => el.classList.remove(FLASH_CLASS), FLASH_MS);
+  // Eine Zeile kann mehrere Surfaces rendern (z.B. Caption + Audio-Karte, die
+  // sich die Line-ID teilen) — zum ersten scrollen, alle aufblitzen lassen.
+  const els = document.querySelectorAll<HTMLElement>(`[data-line-id="${CSS.escape(lineId)}"]`);
+  if (els.length === 0) return;
+  els[0]!.scrollIntoView({ behavior: "smooth", block: "center" });
+  for (const el of els) {
+    el.classList.remove(FLASH_CLASS);
+    // Reflow, damit ein erneuter Klick die Animation neu startet.
+    void el.offsetWidth;
+    el.classList.add(FLASH_CLASS);
+  }
+  window.setTimeout(() => {
+    for (const el of els) el.classList.remove(FLASH_CLASS);
+  }, FLASH_MS);
 }
 
 /**
