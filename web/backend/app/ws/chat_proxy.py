@@ -114,6 +114,54 @@ def enrich_inbound(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
     return out
 
 
+_PONG_FRAME = json.dumps({"type": "pong"})
+
+
+def _truncate(text: str, limit: int = 300) -> str:
+    return text if len(text) <= limit else f"{text[:limit]}…[{len(text)} bytes total]"
+
+
+def process_client_frame(raw: str, settings: Settings) -> tuple[str, str | None]:
+    """Classify one browser->BFF frame.
+
+    Returns ("pong", frame) to answer a heartbeat locally, ("forward", frame)
+    to relay the enriched envelope upstream, or ("drop", None) for frames that
+    must not reach upstream. Drops are logged — a silently discarded frame
+    surfaces client-side as an unexplained missing reply.
+    """
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("dropping non-JSON client frame: %s", _truncate(raw))
+        return ("drop", None)
+    if not isinstance(data, dict):
+        logger.warning("dropping non-object client frame: %s", _truncate(raw))
+        return ("drop", None)
+    if data.get("type") == "ping":
+        # Answer app-level heartbeats here: the heartbeat measures the
+        # browser<->BFF link, while BFF<->upstream liveness is covered by the
+        # websockets protocol-level keepalive. This also keeps the web chat
+        # alive against upstreams that don't understand app-level pings.
+        return ("pong", _PONG_FRAME)
+    return ("forward", json.dumps(enrich_inbound(data, settings)))
+
+
+def log_upstream_error_frame(raw: str) -> None:
+    """Surface assistant_error frames in the BFF journal so failures are
+    diagnosable server-side without attaching browser devtools."""
+    try:
+        event = json.loads(raw)
+        payload = event.get("payload") or {}
+        logger.warning(
+            "upstream assistant_error: code=%s chat_id=%s message=%s",
+            payload.get("code"),
+            event.get("chat_id"),
+            _truncate(str(payload.get("message", "")), 200),
+        )
+    except Exception:
+        logger.warning("upstream assistant_error (unparseable): %s", _truncate(raw))
+
+
 def build_client_register(settings: Settings) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -165,14 +213,15 @@ async def _relay(
         try:
             while True:
                 raw = await client_ws.receive_text()
-                try:
-                    data = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(data, dict):
-                    await upstream.send(json.dumps(enrich_inbound(data, settings)))
-        except (WebSocketDisconnect, ConnectionClosed):
-            # Either side closed; end this leg cleanly so teardown proceeds.
+                action, frame = process_client_frame(raw, settings)
+                if action == "pong":
+                    await client_ws.send_text(frame or _PONG_FRAME)
+                elif action == "forward" and frame is not None:
+                    await upstream.send(frame)
+        except WebSocketDisconnect as exc:
+            logger.info("client disconnected: code=%s", exc.code)
+        except ConnectionClosed:
+            # Upstream closed; end this leg cleanly so teardown proceeds.
             pass
 
     async def upstream_to_client() -> None:
@@ -182,6 +231,8 @@ async def _relay(
                 # crashing the relay on send_text(bytes).
                 if isinstance(raw, (bytes, bytearray)):
                     raw = bytes(raw).decode("utf-8", "ignore")
+                if '"assistant_error"' in raw:
+                    log_upstream_error_frame(raw)
                 await client_ws.send_text(raw)
         except (ConnectionClosed, WebSocketDisconnect, RuntimeError) as exc:
             logger.warning("upstream relay ended: %s", exc)

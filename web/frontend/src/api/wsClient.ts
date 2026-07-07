@@ -148,12 +148,14 @@ export class WsClient {
       this.startHeartbeat();
     };
     socket.onmessage = (ev) => {
+      // Any inbound frame proves the link is alive, not just a pong — a
+      // pending heartbeat timeout must not kill a connection that is actively
+      // delivering data (e.g. a stream delaying the pong, or a peer that
+      // answers pings with something other than a pong).
+      this.clearPongTimer();
       try {
         const data = JSON.parse(ev.data as string) as EventEnvelope;
-        if ((data as { type?: string }).type === "pong") {
-          this.clearPongTimer();
-          return;
-        }
+        if ((data as { type?: string }).type === "pong") return;
         this.onMessage(data);
       } catch {
         /* ignore malformed */
