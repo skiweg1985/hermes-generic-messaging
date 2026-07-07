@@ -1,3 +1,4 @@
+import { bffAuthHeaders } from "./bffAuth";
 import type { ChatState } from "../types/events";
 import { stateFromStoredState, toStoredState, type StoredState } from "../features/chat/sessionPersistence";
 
@@ -6,7 +7,7 @@ const SESSIONS_ENDPOINT = "/api/v1/sessions";
 export async function fetchStoredChatState(): Promise<StoredState | null> {
   const res = await fetch(SESSIONS_ENDPOINT, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: { ...bffAuthHeaders(), Accept: "application/json" },
   });
   if (!res.ok) return null;
   return (await res.json()) as StoredState;
@@ -24,6 +25,7 @@ export async function persistRemoteChatState(state: ChatState): Promise<void> {
   await fetch(SESSIONS_ENDPOINT, {
     method: "PUT",
     headers: {
+      ...bffAuthHeaders(),
       "Content-Type": "application/json",
       Accept: "application/json",
     },

@@ -50,6 +50,8 @@ class Settings(BaseModel):
     custom_chat_target: str = ""
     custom_chat_ws_url: str = "ws://127.0.0.1:8765"
     custom_chat_bearer_token: str = ""
+    web_auth_token: str = ""
+    web_require_auth: bool = False
     web_chat_id: str = "workspace:demo"
     web_user_id: str = "user-demo"
     media_upload_dir: str = "./data/uploads"
@@ -113,6 +115,9 @@ def get_settings() -> Settings:
         custom_chat_target=custom_chat_target,
         custom_chat_ws_url=custom_chat_ws_url,
         custom_chat_bearer_token=os.getenv("CUSTOM_CHAT_BEARER_TOKEN", ""),
+        web_auth_token=os.getenv("WEB_AUTH_TOKEN", ""),
+        web_require_auth=os.getenv("WEB_REQUIRE_AUTH", "").strip().lower()
+        in {"1", "true", "yes"},
         web_chat_id=os.getenv("WEB_CHAT_ID", "workspace:demo"),
         web_user_id=os.getenv("WEB_USER_ID", "user-demo"),
         media_upload_dir=os.getenv("WEB_MEDIA_UPLOAD_DIR", "./data/uploads"),
