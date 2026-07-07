@@ -366,6 +366,42 @@ describe("chatReducer", () => {
     expect(s.activeChatId).toBe("c1");
   });
 
+  it("does not mark the active chat unread while the tab is visible", () => {
+    const s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", { message_id: "r1", final_text: "hi" }),
+    });
+    expect(session(s).unread).toBe(false);
+    expect(session(s).unreadCount ?? 0).toBe(0);
+  });
+
+  it("counts unread for the active chat when received while hidden", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", { message_id: "r1", final_text: "hi" }),
+      receivedWhileHidden: true,
+    });
+    expect(session(s).unread).toBe(true);
+    expect(session(s).unreadCount).toBe(1);
+    s = chatReducer(s, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_image", { message_id: "r2", url: "http://x/i.png" }),
+      receivedWhileHidden: true,
+    });
+    expect(session(s).unreadCount).toBe(2);
+  });
+
+  it("clears the active chat's hidden-tab unread count on SET_ACTIVE_CHAT", () => {
+    let s = chatReducer(base, {
+      type: "INBOUND_EVENT",
+      event: ev("assistant_done", { message_id: "r1", final_text: "hi" }),
+      receivedWhileHidden: true,
+    });
+    s = chatReducer(s, { type: "SET_ACTIVE_CHAT", chatId: "c1" });
+    expect(session(s).unread).toBe(false);
+    expect(session(s).unreadCount).toBe(0);
+  });
+
   it("keeps parallel streams separated by chat_id", () => {
     let s = chatReducer(base, { type: "CREATE_CHAT", chatId: "c2", label: "two" });
     s = chatReducer(s, {

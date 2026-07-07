@@ -16,6 +16,8 @@ import {
 import { getDraft, type Draft, type DraftAction } from "./draftStore";
 import { loadChatState, persistChatState } from "./sessionPersistence";
 import { replyTargetFromLine } from "./messageActions";
+import { maybeNotify } from "./notifications";
+import { isBackgrounded } from "../../hooks/useUnreadSignals";
 import { newId } from "../../lib/uuid";
 import { normalizeMimeType } from "../../lib/normalizeMimeType";
 import type {
@@ -146,7 +148,13 @@ export function useChatController(): ChatController {
   const stateRef = useRef(state);
   stateRef.current = state;
   const conn = useConnectionStore(
-    useCallback((event) => dispatch({ type: "INBOUND_EVENT", event }), []),
+    useCallback((event) => {
+      const hidden = isBackgrounded();
+      dispatch({ type: "INBOUND_EVENT", event, receivedWhileHidden: hidden });
+      maybeNotify(event, stateRef.current, hidden, (chatId) =>
+        dispatch({ type: "SET_ACTIVE_CHAT", chatId }),
+      );
+    }, []),
   );
   const { client, connection, connected, reconnecting, link, upstream, upstreamLoading, reconnect, refreshDiagnostics } =
     conn;

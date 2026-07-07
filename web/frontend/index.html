@@ -5,7 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0a0a0c" />
+    <script>
+      // Resolve the persisted theme preference before first paint so the page
+      // never flashes the wrong theme. Must mirror src/lib/theme.ts.
+      (function () {
+        var theme = "dark";
+        try {
+          var pref = localStorage.getItem("hermes.theme");
+          var mode = pref === "light" || pref === "dark" ? pref : "system";
+          var light =
+            mode === "system"
+              ? window.matchMedia("(prefers-color-scheme: light)").matches
+              : mode === "light";
+          theme = light ? "light" : "dark";
+        } catch (e) {
+          /* storage blocked — keep the dark default */
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+        var tc = document.querySelector('meta[name="theme-color"]');
+        if (tc) tc.setAttribute("content", theme === "light" ? "#f7f8fa" : "#0a0a0c");
+        var cs = document.querySelector('meta[name="color-scheme"]');
+        if (cs) cs.setAttribute("content", theme);
+      })();
+    </script>
     <title>Hermes</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

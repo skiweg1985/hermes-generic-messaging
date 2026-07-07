@@ -130,7 +130,7 @@ export type ChatAction =
   | { type: "USER_ERROR"; code: string; message: string; chatId?: string }
   | { type: "BUTTON_CLICKED"; chatId: string; lineId: string; buttonId: string }
   | { type: "CLEAR_TYPING"; chatId: string }
-  | { type: "INBOUND_EVENT"; event: EventEnvelope };
+  | { type: "INBOUND_EVENT"; event: EventEnvelope; receivedWhileHidden?: boolean };
 
 const DELTA_BUFFER_CAP = 64;
 
@@ -195,8 +195,15 @@ const UNREAD_COUNTED_EVENTS = new Set([
   "assistant_error",
 ]);
 
-function markUnread(state: ChatState, chatId: string, eventType: string): ChatState {
-  if (chatId === state.activeChatId) return state;
+function markUnread(
+  state: ChatState,
+  chatId: string,
+  eventType: string,
+  receivedWhileHidden: boolean,
+): ChatState {
+  // The active chat only accumulates unread while the tab is backgrounded —
+  // that count feeds the tab-title/favicon badges and is cleared on refocus.
+  if (chatId === state.activeChatId && !receivedWhileHidden) return state;
   const counted = UNREAD_COUNTED_EVENTS.has(eventType);
   return updateSession(state, chatId, (session) => ({
     ...session,
@@ -339,7 +346,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         session.typing ? touchSession({ ...session, typing: false, typingStartedAt: undefined }) : session,
       );
     case "INBOUND_EVENT":
-      return reduceInbound(state, action.event);
+      return reduceInbound(state, action.event, action.receivedWhileHidden ?? false);
     default:
       return state;
   }
@@ -521,10 +528,14 @@ function buildAttachmentLine(params: {
   };
 }
 
-function reduceInbound(state: ChatState, event: EventEnvelope): ChatState {
+function reduceInbound(
+  state: ChatState,
+  event: EventEnvelope,
+  receivedWhileHidden: boolean,
+): ChatState {
   const chatId = event.chat_id || state.activeChatId;
   const routed = updateSession(state, chatId, (session) => reduceSessionInbound(session, event));
-  return markUnread(routed, chatId, event.type);
+  return markUnread(routed, chatId, event.type, receivedWhileHidden);
 }
 
 function finalizeStreamingLines(

@@ -669,6 +669,41 @@
   color: var(--text-primary);
 }
 
+.peek-segmented {
+  display: flex;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--accent-faint);
+}
+.peek-segment {
+  flex: 1;
+  height: 26px;
+  border-radius: calc(var(--r-md) - 2px);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.peek-segment:hover {
+  color: var(--text-secondary);
+}
+.peek-segment-active,
+.peek-segment-active:hover {
+  background: var(--surface-4);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.peek-section > .peek-inline-action {
+  align-self: flex-start;
+}
+.peek-note {
+  margin: 0;
+  color: var(--text-quaternary);
+}
+
 /* ── Connection diagnostics (session peek) ───────────────────────────── */
 
 .peek-section-head {

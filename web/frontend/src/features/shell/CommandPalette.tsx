@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SLASH_COMMANDS } from "../chat/slashCommands";
+import type { ThemePreference } from "../../lib/theme";
 import { IconSearch, IconSlash, IconPlus, IconClose } from "./icons";
 
 interface CommandPaletteProps {
@@ -9,6 +10,8 @@ interface CommandPaletteProps {
   onRunCommand: (command: string) => void;
   onSelectChat: (chatId: string) => void;
   sessions: Array<{ chatId: string; label: string }>;
+  themePreference: ThemePreference;
+  onSetTheme: (preference: ThemePreference) => void;
 }
 
 interface Item {
@@ -27,6 +30,8 @@ export function CommandPalette({
   onRunCommand,
   onSelectChat,
   sessions,
+  themePreference,
+  onSetTheme,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -52,6 +57,17 @@ export function CommandPalette({
           onClose();
         },
       },
+      ...(["dark", "light", "system"] as const).map((pref) => ({
+        id: `action:theme-${pref}`,
+        group: "actions" as const,
+        label: `Theme: ${pref === "dark" ? "Dark" : pref === "light" ? "Light" : "System"}`,
+        hint: themePreference === pref ? "Active" : undefined,
+        search: `theme appearance color scheme switch ${pref}`,
+        run: () => {
+          onSetTheme(pref);
+          onClose();
+        },
+      })),
     ];
     const commands: Item[] = SLASH_COMMANDS.map((c) => ({
       id: `cmd:${c.name}`,
@@ -83,7 +99,7 @@ export function CommandPalette({
         (it.hint ?? "").toLowerCase().includes(q) ||
         (it.search ?? "").toLowerCase().includes(q),
     );
-  }, [query, sessions, onCreateChat, onRunCommand, onSelectChat, onClose]);
+  }, [query, sessions, onCreateChat, onRunCommand, onSelectChat, onClose, themePreference, onSetTheme]);
 
   useEffect(() => {
     setActive(0);
