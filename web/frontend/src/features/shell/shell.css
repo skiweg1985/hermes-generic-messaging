@@ -896,13 +896,35 @@
 /* ── Sidebar behaviour ───────────────────────────────────────────────── */
 
 /* Wide screens (desktop / laptop / large tablet landscape): the sidebar is
-   docked and expanded by default, but can be collapsed via the header toggle. */
+   docked and expanded by default, but can be collapsed via the header toggle.
+   Collapse/expand animates by transitioning the rail's grid track to 0. */
 @media (min-width: 1081px) {
+  .shell-root {
+    transition: grid-template-columns var(--dur-slow) var(--ease-soft-out);
+  }
   .shell-root.shell-rail-hidden {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 0px minmax(0, 1fr);
+  }
+  .rail {
+    min-width: 0;
+    overflow: hidden;
+    transition:
+      padding var(--dur-slow) var(--ease-soft-out),
+      visibility 0s linear 0s;
+  }
+  /* Keep content at its expanded width so the shrinking rail clips it
+     instead of squishing it mid-animation. */
+  .rail > * {
+    min-width: calc(var(--rail-width) - 2 * var(--s-3));
   }
   .shell-root.shell-rail-hidden .rail {
-    display: none;
+    padding-left: 0;
+    padding-right: 0;
+    visibility: hidden;
+    /* Flip visibility only after the track has finished collapsing. */
+    transition:
+      padding var(--dur-slow) var(--ease-soft-out),
+      visibility 0s linear var(--dur-slow);
   }
 }
 
