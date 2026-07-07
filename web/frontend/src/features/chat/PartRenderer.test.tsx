@@ -38,6 +38,79 @@ describe("PartRenderer", () => {
     expect(html).toContain("audio-card-right");
   });
 
+  it("embeds the reply quote inside the user text bubble", () => {
+    const message: ChatMessage = {
+      messageId: "turn-reply",
+      role: "user",
+      status: "done",
+      metadata: {
+        turnMessageId: "turn-reply",
+        lineIds: ["reply-line"],
+        replyToLineId: "orig-line",
+        replyToLabel: "Hermes",
+        replyToPreview: "Original message text",
+      },
+      parts: [{ type: "text", text: "my answer", streaming: false }],
+    };
+
+    const html = renderToStaticMarkup(
+      <PartRenderer
+        message={message}
+        alignRight={false}
+        turnActive={false}
+        onButtonClick={noop}
+        onMessageAction={noop}
+        onReplyLine={vi.fn()}
+      />,
+    );
+
+    // Quote lives inside the bubble, before the reply text.
+    const bubbleIndex = html.indexOf("msg-user-bubble");
+    const quoteIndex = html.indexOf("msg-quote");
+    expect(quoteIndex).toBeGreaterThan(bubbleIndex);
+    expect(quoteIndex).toBeLessThan(html.indexOf("my answer"));
+    expect(html).toContain("Hermes");
+    expect(html).toContain("Original message text");
+    expect(html).not.toContain("msg-quote-standalone");
+  });
+
+  it("renders a standalone quote block above media-only replies", () => {
+    const message: ChatMessage = {
+      messageId: "turn-voice-reply",
+      role: "user",
+      status: "done",
+      metadata: {
+        turnMessageId: "turn-voice-reply",
+        lineIds: ["voice-line"],
+        replyToLineId: "orig-line",
+        replyToLabel: "Hermes",
+        replyToPreview: "Original message text",
+      },
+      parts: [
+        {
+          type: "audio",
+          url: "https://example.local/voice.mp4",
+          mimeType: "audio/mp4",
+          lineId: "voice-line",
+        },
+      ],
+    };
+
+    const html = renderToStaticMarkup(
+      <PartRenderer
+        message={message}
+        alignRight={false}
+        turnActive={false}
+        onButtonClick={noop}
+        onMessageAction={noop}
+        onReplyLine={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("msg-quote-standalone");
+    expect(html).toContain("Original message text");
+  });
+
   it("renders multi-tool raw progress text as a visible activity timeline", () => {
     const message: ChatMessage = {
       messageId: "tool-turn",

@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import type { AssistantButton, TranscriptLine } from "../../types/events";
 import type { ChatMessage, MessagePart } from "./model/messageTypes";
 import { MessageUser } from "./messages/MessageUser";
+import { MessageQuote, type QuoteContext } from "./messages/MessageQuote";
 import { MessageAssistant } from "./messages/MessageAssistant";
 import { MessageReasoning } from "./messages/MessageReasoning";
 import { NoticeCard } from "./messages/NoticeCard";
@@ -159,17 +160,24 @@ export function PartRenderer({
 
   const replyLabel = message.metadata.replyToLabel;
   const replyPreview = message.metadata.replyToPreview;
-  const showReplyContext = message.role === "user" && Boolean(replyLabel || replyPreview);
+  const quote: QuoteContext | undefined =
+    message.role === "user" && (replyLabel || replyPreview)
+      ? {
+          lineId: message.metadata.replyToLineId,
+          label: replyLabel,
+          preview: replyPreview,
+        }
+      : undefined;
+  // Das Zitat sitzt in der ersten Text-Bubble (Telegram-Stil). Bei reinen
+  // Medien-Replies (Voice/Bild/Datei) hängt es als eigener Block über der Karte.
+  const quoteHostIndex = message.parts.findIndex((part) => part.type === "text");
 
   return (
     <div className="message-part-stack">
-      {showReplyContext ? (
+      {quote && quoteHostIndex < 0 ? (
         <div className="turn-user-row">
-          <div className="msg-reply-context" aria-label={`In reply to ${replyLabel ?? "message"}`}>
-            {replyLabel ? <span className="msg-reply-context-label">{replyLabel}</span> : null}
-            {replyPreview ? (
-              <span className="msg-reply-context-preview">{replyPreview}</span>
-            ) : null}
+          <div className="msg-quote-standalone">
+            <MessageQuote quote={quote} />
           </div>
         </div>
       ) : null}
@@ -190,7 +198,11 @@ export function PartRenderer({
                 <div key={key} className={partAlignRight ? "turn-user-row" : undefined}>
                   {withActions(
                     userLine,
-                    <MessageUser line={userLine} receipt={fresh && message.role === "user"} />,
+                    <MessageUser
+                      line={userLine}
+                      receipt={fresh && message.role === "user"}
+                      quote={index === quoteHostIndex ? quote : undefined}
+                    />,
                     partAlignRight,
                   )}
                 </div>

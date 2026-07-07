@@ -143,6 +143,7 @@ export function MessageActionSurface({
   return (
     <div
       ref={surfaceRef}
+      data-line-id={line.id}
       className={`message-action-surface${alignRight ? " message-action-surface-right" : ""}${
         swiping ? " message-action-surface-swiping" : ""
       }${

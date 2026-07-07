@@ -1,18 +1,22 @@
 import type { TranscriptLine } from "../../../types/events";
 import { MarkdownText } from "../MarkdownText";
+import { MessageQuote, type QuoteContext } from "./MessageQuote";
 
 interface MessageUserProps {
   line: TranscriptLine;
   /** Zeigt den animierten "Gesendet"-Haken (nur für frisch gesendete Turns). */
   receipt?: boolean;
+  /** Zitierte Original-Nachricht — eingebettet oben in der Bubble (Telegram-Stil). */
+  quote?: QuoteContext;
 }
 
-export function MessageUser({ line, receipt = false }: MessageUserProps) {
+export function MessageUser({ line, receipt = false, quote }: MessageUserProps) {
   const isCommand = line.kind === "command";
   return (
     <div className="msg-user motion-rise-in-soft">
       <div className="msg-user-stack">
         <div className={`msg-user-bubble${isCommand ? " msg-user-bubble-command" : ""}`}>
+          {quote ? <MessageQuote quote={quote} /> : null}
           {isCommand ? (
             <span className="msg-user-cmd">{line.text}</span>
           ) : (
