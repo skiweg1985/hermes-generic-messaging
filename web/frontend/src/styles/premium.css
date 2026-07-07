@@ -312,8 +312,8 @@ body {
   }
 }
 
-@media (min-width: 721px) and (prefers-color-scheme: light) {
-  .topbar::before {
+@media (min-width: 721px) {
+  html[data-theme="light"] .topbar::before {
     background: linear-gradient(
       180deg,
       rgba(248, 250, 252, 0.66) 0%,
@@ -324,7 +324,7 @@ body {
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
   }
 
-  .composer-region::before {
+  html[data-theme="light"] .composer-region::before {
     background: linear-gradient(
       180deg,
       transparent 0%,
@@ -1137,25 +1137,23 @@ body {
   background: rgba(0, 0, 0, 0.82);
 }
 
-@media (prefers-color-scheme: light) {
-  .shell-root {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 220px),
-      var(--surface-canvas);
-  }
+html[data-theme="light"] .shell-root {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 220px),
+    var(--surface-canvas);
+}
 
-  .stage {
-    background:
-      var(--chat-pattern),
-      radial-gradient(1100px 720px at 84% -160px, var(--chat-wash-a), transparent 70%),
-      radial-gradient(940px 680px at -8% 106%, var(--chat-wash-b), transparent 72%),
-      radial-gradient(900px 520px at 72% -180px, rgba(40, 60, 80, 0.06), transparent 70%),
-      var(--surface-canvas);
-  }
+html[data-theme="light"] .stage {
+  background:
+    var(--chat-pattern),
+    radial-gradient(1100px 720px at 84% -160px, var(--chat-wash-a), transparent 70%),
+    radial-gradient(940px 680px at -8% 106%, var(--chat-wash-b), transparent 72%),
+    radial-gradient(900px 520px at 72% -180px, rgba(40, 60, 80, 0.06), transparent 70%),
+    var(--surface-canvas);
+}
 
-  .composer:focus-within {
-    box-shadow: var(--shadow-lg);
-  }
+html[data-theme="light"] .composer:focus-within {
+  box-shadow: var(--shadow-lg);
 }
 
 @media (max-width: 720px) {
@@ -1560,8 +1558,8 @@ body {
 }
 
 
-@media (max-width: 720px) and (prefers-color-scheme: light) {
-  .topbar::before {
+@media (max-width: 720px) {
+  html[data-theme="light"] .topbar::before {
     background: linear-gradient(
       180deg,
       rgba(248, 250, 252, 0.64) 0%,
@@ -1574,8 +1572,8 @@ body {
     -webkit-backdrop-filter: blur(12px) saturate(128%);
   }
 
-  .topbar-icon-btn,
-  .topbar-rail-toggle {
+  html[data-theme="light"] .topbar-icon-btn,
+  html[data-theme="light"] .topbar-rail-toggle {
     background: rgba(255, 255, 255, 0.34);
     border-color: rgba(255, 255, 255, 0.34);
     box-shadow:
@@ -1583,12 +1581,12 @@ body {
       0 4px 12px rgba(15, 23, 42, 0.045);
   }
 
-  .topbar-icon-btn:hover:not(:disabled),
-  .topbar-rail-toggle:hover:not(:disabled) {
+  html[data-theme="light"] .topbar-icon-btn:hover:not(:disabled),
+  html[data-theme="light"] .topbar-rail-toggle:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.48);
   }
 
-  .composer-region::before {
+  html[data-theme="light"] .composer-region::before {
     background: linear-gradient(
       180deg,
       transparent 0%,
@@ -1597,7 +1595,8 @@ body {
     );
   }
 
-  html.keyboard-open .composer-region::before {
+  /* Compound selector: data-theme and .keyboard-open live on the same <html>. */
+  html[data-theme="light"].keyboard-open .composer-region::before {
     background: linear-gradient(
       180deg,
       transparent 0%,
@@ -1606,7 +1605,7 @@ body {
     );
   }
 
-  .composer::before {
+  html[data-theme="light"] .composer::before {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.14)),
       rgba(255, 255, 255, 0.54);
@@ -1618,7 +1617,7 @@ body {
       inset 0 1px 0 rgba(255, 255, 255, 0.42);
   }
 
-  .composer-icon-record {
+  html[data-theme="light"] .composer-icon-record {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14)),
       rgba(255, 255, 255, 0.46);
@@ -1630,7 +1629,7 @@ body {
       0 5px 14px rgba(15, 23, 42, 0.055);
   }
 
-  .composer-slash-pill {
+  html[data-theme="light"] .composer-slash-pill {
     background: rgba(255, 255, 255, 0.34);
     border-color: rgba(255, 255, 255, 0.34);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);

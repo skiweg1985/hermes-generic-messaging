@@ -2,8 +2,15 @@ import { useEffect } from "react";
 import type { ChatSession, ConnectionStatus } from "../../types/events";
 import type { WsCloseInfo } from "../../api/wsClient";
 import type { UpstreamDiagnostics } from "../../api/diagnosticsClient";
+import type { ThemePreference } from "../../lib/theme";
 import { ConnectionDiagnostics } from "./ConnectionDiagnostics";
 import { IconClose } from "./icons";
+
+const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
 
 interface SessionPeekProps {
   open: boolean;
@@ -17,6 +24,12 @@ interface SessionPeekProps {
   onReconnect: () => void;
   onRefreshDiagnostics: () => void;
   userId: string;
+  themePreference: ThemePreference;
+  onSetTheme: (preference: ThemePreference) => void;
+  notificationsSupported: boolean;
+  notificationsEnabled: boolean;
+  notificationsPermission: NotificationPermission;
+  onToggleNotifications: () => void;
 }
 
 function formatTime(value: string | undefined): string {
@@ -48,6 +61,12 @@ export function SessionPeek({
   onReconnect,
   onRefreshDiagnostics,
   userId,
+  themePreference,
+  onSetTheme,
+  notificationsSupported,
+  notificationsEnabled,
+  notificationsPermission,
+  onToggleNotifications,
 }: SessionPeekProps) {
   useEffect(() => {
     if (!open) return;
@@ -117,6 +136,61 @@ export function SessionPeek({
               <dd className="t-body-sm">WebSocket</dd>
             </div>
           </dl>
+        </section>
+
+        <section className="peek-section">
+          <div className="t-label peek-section-label">Appearance</div>
+          <div className="peek-segmented" role="radiogroup" aria-label="Theme">
+            {THEME_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={themePreference === opt.value}
+                className={`peek-segment${
+                  themePreference === opt.value ? " peek-segment-active" : ""
+                }`}
+                onClick={() => onSetTheme(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="peek-section">
+          <div className="t-label peek-section-label">Notifications</div>
+          {!notificationsSupported ? (
+            <p className="t-meta peek-note">
+              Notifications are not supported in this browser.
+            </p>
+          ) : notificationsPermission === "denied" ? (
+            <>
+              <button type="button" className="peek-inline-action" disabled>
+                Enable notifications
+              </button>
+              <p className="t-meta peek-note">
+                Blocked by the browser — allow notifications for this site in
+                your browser settings.
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="peek-inline-action"
+                onClick={onToggleNotifications}
+              >
+                {notificationsEnabled
+                  ? "Disable notifications"
+                  : "Enable notifications"}
+              </button>
+              <p className="t-meta peek-note">
+                Get notified about new messages while this tab is in the
+                background.
+              </p>
+            </>
+          )}
         </section>
 
         <ConnectionDiagnostics

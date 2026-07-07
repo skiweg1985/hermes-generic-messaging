@@ -12,6 +12,9 @@ import { useChatController } from "./useChatController";
 import { chatDisplayTitle } from "./chatReducer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useKeyboardInset } from "../../hooks/useKeyboardInset";
+import { useTheme } from "../../hooks/useTheme";
+import { useUnreadSignals } from "../../hooks/useUnreadSignals";
+import { useNotificationSettings } from "../../hooks/useNotificationSettings";
 import "../shell/shell.css";
 import "../composer/composer.css";
 import "../media/media.css";
@@ -37,8 +40,11 @@ export function ChatPage() {
   const [dropOver, setDropOver] = useState(false);
   const dragCounter = useRef(0);
   const composerRef = useRef<ComposerHandle>(null);
+  const theme = useTheme();
+  const notifications = useNotificationSettings();
 
   useKeyboardInset();
+  useUnreadSignals(ctrl.sessions, ctrl.activeChatId, ctrl.setActiveChat);
 
   useEffect(() => {
     try {
@@ -225,6 +231,8 @@ export function ChatPage() {
           chatId: s.chatId,
           label: chatDisplayTitle(s),
         }))}
+        themePreference={theme.preference}
+        onSetTheme={theme.setPreference}
       />
 
       <SessionPeek
@@ -239,6 +247,12 @@ export function ChatPage() {
         onReconnect={ctrl.reconnect}
         onRefreshDiagnostics={ctrl.refreshDiagnostics}
         userId={ctrl.userId}
+        themePreference={theme.preference}
+        onSetTheme={theme.setPreference}
+        notificationsSupported={notifications.supported}
+        notificationsEnabled={notifications.enabled}
+        notificationsPermission={notifications.permission}
+        onToggleNotifications={() => void notifications.toggle()}
       />
 
       {import.meta.env.DEV ? <ViewportDebugOverlay /> : null}
