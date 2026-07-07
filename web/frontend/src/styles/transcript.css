@@ -26,7 +26,13 @@
   overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: var(--s-8) var(--s-6)
+  /* Kein padding-top auf dem Scroller: iOS-WebKit misst den top-Offset von
+     position:sticky ab der Content-Kante (Scroller-Padding wird also auf den
+     Sticky-Offset addiert) — die Day-Pills hingen dadurch um die Padding-Höhe
+     zu tief mitten im Nachrichtentext. Der obere Einzug lebt deshalb als
+     --transcript-top-inset auf .transcript-content bzw. .transcript-empty. */
+  --transcript-top-inset: var(--s-8);
+  padding: 0 var(--s-6)
     calc(var(--composer-clearance, 112px) + var(--s-4));
   scroll-padding-bottom: calc(
     var(--composer-clearance, 112px) + var(--s-4)
@@ -40,6 +46,7 @@
   max-width: var(--content-max-width);
   min-width: 0;
   margin: 0 auto;
+  padding-top: var(--transcript-top-inset);
   display: flex;
   flex-direction: column;
   gap: var(--s-8);
@@ -54,7 +61,7 @@
   justify-content: center;
   gap: var(--s-2);
   color: var(--text-secondary);
-  padding: var(--s-16) var(--s-4);
+  padding: calc(var(--transcript-top-inset) + var(--s-16)) var(--s-4) var(--s-16);
   text-align: center;
 }
 .transcript-empty-title {
