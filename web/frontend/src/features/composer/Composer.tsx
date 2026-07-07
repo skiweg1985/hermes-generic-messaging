@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
@@ -25,6 +26,7 @@ import {
   IconPaperclip,
   IconMic,
   IconAlert,
+  IconChevronUp,
   IconClose,
   IconLock,
   IconReply,
@@ -343,17 +345,106 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     [onStopRecord, recordElapsed, recordStartedAt, showRecordNotice],
   );
 
-  const handleRecordPointerDown = async (e: PointerEvent<HTMLButtonElement>) => {
-    if (disabled || recording || recordGesture !== "idle") return;
+  const beginRecordGesture = useCallback(
+    async (pointerId: number) => {
+      try {
+        await onStartRecord();
+      } catch {
+        if (recordPointerRef.current?.pointerId === pointerId) {
+          recordPointerRef.current = null;
+          setRecordGesture("idle");
+          setRecordStartedAt(null);
+          setRecordElapsed(0);
+          setRecordLockProgress(0);
+        }
+        return;
+      }
+
+      const state = recordPointerRef.current;
+      if (!state || state.pointerId !== pointerId || state.started) {
+        return;
+      }
+      state.started = true;
+      state.recordedAt = Date.now();
+      setRecordStartedAt(state.recordedAt);
+      if (state.pendingStop) {
+        void finishRecording(state.pendingStop === "send");
+        return;
+      }
+      setRecordGesture(state.locked ? "locked" : "pressing");
+    },
+    [finishRecording, onStartRecord],
+  );
+
+  // Track the active gesture on window, not on the button: the button
+  // re-renders (and used to disable itself) mid-gesture, and iOS Safari then
+  // silently drops pointerup/pointercancel — the state machine desyncs and the
+  // recording can never be stopped again. Window listeners always see the end
+  // of the touch.
+  useEffect(() => {
+    if (recordGesture !== "starting" && recordGesture !== "pressing") return;
+
+    const handleMove = (e: globalThis.PointerEvent) => {
+      const state = recordPointerRef.current;
+      if (!state || state.pointerId !== e.pointerId || state.locked) return;
+      const deltaY = Math.max(0, state.startY - e.clientY);
+      const progress = Math.min(1, deltaY / RECORD_LOCK_DISTANCE);
+      setRecordLockProgress(progress);
+      if (progress >= 1) {
+        state.locked = true;
+        state.pendingStop = null;
+        setRecordGesture("locked");
+      }
+    };
+    const handleEnd = (send: boolean) => (e: globalThis.PointerEvent) => {
+      const state = recordPointerRef.current;
+      if (!state || state.pointerId !== e.pointerId || state.locked) return;
+      if (!state.started) {
+        state.pendingStop = send ? "send" : "cancel";
+        setRecordGesture("finishing");
+        return;
+      }
+      void finishRecording(send);
+    };
+    const handleUp = handleEnd(true);
+    const handleCancel = handleEnd(false);
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleCancel);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleCancel);
+    };
+  }, [recordGesture, finishRecording]);
+
+  const handleRecordPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
+    const state = recordPointerRef.current;
+    if (recordGesture === "locked") {
+      // Locked recording: stop on pointerdown, not on click — iOS Safari does
+      // not reliably synthesize clicks after pointer gestures on this button.
+      e.preventDefault();
+      void finishRecording(true);
+      return;
+    }
+    if (recordGesture === "starting" || recordGesture === "finishing") return;
+    if (recordGesture === "pressing") {
+      // A new pointerdown with the pointerId we are tracking means that
+      // pointer already ended without us seeing the pointerup (iOS reuses
+      // ids). The recording is running detached — treat the tap as stop.
+      if (state && state.pointerId === e.pointerId) {
+        e.preventDefault();
+        void finishRecording(true);
+      }
+      return;
+    }
+    if (disabled || recording) return;
     e.preventDefault();
-    const button = e.currentTarget;
-    const pointerId = e.pointerId;
-    button.setPointerCapture(pointerId);
-    const startAt = Date.now();
     recordPointerRef.current = {
-      pointerId,
+      pointerId: e.pointerId,
       startY: e.clientY,
-      startAt,
+      startAt: Date.now(),
       recordedAt: null,
       started: false,
       locked: false,
@@ -363,79 +454,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     setRecordStartedAt(null);
     setRecordElapsed(0);
     setRecordLockProgress(0);
-    try {
-      await onStartRecord();
-    } catch {
-      recordPointerRef.current = null;
-      setRecordGesture("idle");
-      setRecordStartedAt(null);
-      setRecordElapsed(0);
-      setRecordLockProgress(0);
-      return;
-    }
-
-    const state = recordPointerRef.current;
-    if (!state || state.pointerId !== pointerId) {
-      return;
-    }
-    state.started = true;
-    state.recordedAt = Date.now();
-    setRecordStartedAt(state.recordedAt);
-    if (state.pendingStop) {
-      void finishRecording(state.pendingStop === "send");
-      return;
-    }
-    setRecordGesture(state.locked ? "locked" : "pressing");
-  };
-
-  const handleRecordPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
-    const state = recordPointerRef.current;
-    if (!state || state.pointerId !== e.pointerId || state.locked) return;
-    const deltaY = Math.max(0, state.startY - e.clientY);
-    const progress = Math.min(1, deltaY / RECORD_LOCK_DISTANCE);
-    setRecordLockProgress(progress);
-    if (progress >= 1) {
-      state.locked = true;
-      state.pendingStop = null;
-      setRecordGesture("locked");
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        /* pointer capture may already be gone on some mobile browsers */
-      }
-    }
-  };
-
-  const handleRecordPointerUp = (e: PointerEvent<HTMLButtonElement>) => {
-    const state = recordPointerRef.current;
-    if (!state || state.pointerId !== e.pointerId || state.locked) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-    if (!state.started) {
-      state.pendingStop = "send";
-      setRecordGesture("finishing");
-      return;
-    }
-    void finishRecording(true);
-  };
-
-  const handleRecordPointerCancel = (e: PointerEvent<HTMLButtonElement>) => {
-    const state = recordPointerRef.current;
-    if (!state || state.pointerId !== e.pointerId) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-    if (!state.started) {
-      state.pendingStop = "cancel";
-      setRecordGesture("finishing");
-      return;
-    }
-    void finishRecording(false);
+    void beginRecordGesture(e.pointerId);
   };
 
   const formatElapsed = (ms: number) => {
@@ -453,14 +472,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const recordBusy = recordGesture === "starting" || recordGesture === "finishing";
   const sendDisabled = disabled || recordingActive || (!canSend && !streaming) || hasUploading;
   const recordButtonLabel = recordLocked
-    ? "Aufnahme beenden und senden"
+    ? "Aufnahme senden"
     : recordStarting
       ? "Mikrofon startet"
       : recordingActive
         ? "Aufnahme läuft"
         : "Sprachnachricht aufnehmen";
   const recordButtonTitle = recordLocked
-    ? "Aufnahme beenden und senden"
+    ? "Aufnahme senden"
     : recordingActive
       ? "Nach oben wischen zum Fixieren"
       : "Gedrückt halten für Sprachnachricht";
@@ -505,7 +524,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     : recordGesture === "finishing"
       ? "Aufnahme wird beendet…"
       : recordLocked
-        ? "Fixiert: Stop beendet und sendet"
+        ? "Fixiert · ↑ senden · ✕ verwerfen"
         : "Nach oben wischen zum Fixieren";
 
   return (
@@ -629,20 +648,32 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               ))}
             </div>
             {!recordLocked ? (
-              <div className="composer-record-lock-rail" aria-hidden>
+              <div
+                className="composer-record-lock-rail"
+                aria-hidden
+                style={{ "--lock-progress": recordLockProgress } as CSSProperties}
+              >
                 <span
                   className="composer-record-lock-target"
-                  style={{
-                    transform: `translateY(${Math.round((1 - recordLockProgress) * 28)}px)`,
-                    opacity: 0.45 + recordLockProgress * 0.55,
-                  }}
+                  style={
+                    recordLockProgress > 0.5
+                      ? { color: "var(--text-on-solid)" }
+                      : undefined
+                  }
                 >
                   <IconLock size={13} />
+                </span>
+                <span className="composer-record-lock-chevron">
+                  <IconChevronUp size={15} />
                 </span>
                 <span className="composer-record-lock-label">Fixieren</span>
               </div>
             ) : null}
-            <div className="composer-recording-lock-hint t-meta">
+            <div
+              className={`composer-recording-lock-hint t-meta${
+                recordLocked && !recordBusy ? " composer-recording-lock-hint-locked" : ""
+              }`}
+            >
               {!recordBusy ? <IconLock size={12} /> : null}
               <span>{recordHint}</span>
             </div>
@@ -701,19 +732,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               type="button"
               className={`composer-icon composer-icon-record${recordingActive ? " composer-icon-recording" : ""}${
                 recordLocked ? " composer-icon-recording-locked" : ""
-              }`}
-              disabled={recordBusy || (disabled && !recordingActive)}
+              }${recordBusy ? " composer-icon-record-busy" : ""}`}
+              // Never disable mid-gesture: a disabled button stops receiving
+              // pointer events on iOS, which loses the pointerup and wedges
+              // the recording. Busy states are guarded in the handlers.
+              disabled={disabled && !recordingActive}
               onPointerDown={handleRecordPointerDown}
-              onPointerMove={handleRecordPointerMove}
-              onPointerUp={handleRecordPointerUp}
-              onPointerCancel={handleRecordPointerCancel}
               onClick={() => {
+                // Keyboard fallback (Enter/Space). After a tap, pointerdown
+                // has already finished the recording and recordLocked is
+                // false again, so this cannot double-fire.
                 if (recordLocked) void finishRecording(true);
               }}
               aria-label={recordButtonLabel}
               title={recordButtonTitle}
             >
-              {recordLocked ? <IconStop size={14} /> : <IconMic size={14} />}
+              {recordLocked ? <IconArrowUp size={14} /> : <IconMic size={14} />}
               <span className="composer-shortcut" aria-hidden>⌥V</span>
             </button>
             <button

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Web UI: Fixierte Sprachaufnahmen lassen sich auf iOS wieder zuverlässig beenden — die Aufnahme-Geste wird über Window-Pointer-Listener statt Button-Events verfolgt (verlorene `pointerup`/`pointercancel` können den Zustandsautomaten nicht mehr verklemmen), der Mic-Button deaktiviert sich nicht mehr mitten in der Geste (ein `disabled`-Button erhält auf iOS keine Pointer-Events mehr) und der Stopp reagiert auf `pointerdown` statt auf den unzuverlässig synthetisierten `click`
+- Web UI: Nach dem Stoppen einer Sprachaufnahme blockiert der Composer nicht mehr für die Dauer des Uploads — Upload und Versand laufen entkoppelt weiter, Fehler werden weiterhin im Transcript gemeldet
+
+### Changed
+
+- Web UI: Fixieren-UI der Sprachaufnahme überarbeitet — Wisch-Leiste mit Füllstand, Chevron und Schloss, das mit dem Fortschritt einrastet; im fixierten Zustand wird der Mic-Button zum Primär-Button „Aufnahme senden" (Send-Optik statt Danger-Rot), daneben ein ✕ zum Verwerfen und ein „Fixiert"-Hinweis-Chip; der ✕-Button liegt auf Mobile in der Aktionszeile statt in einer impliziten Grid-Spalte am Displayrand
+
 ### Added
 
 - BFF: `GET /api/v1/diagnostics` prüft die Erreichbarkeit des Upstream-WebSockets (Hermes Gateway) und liefert Ziel-Host sowie Status
