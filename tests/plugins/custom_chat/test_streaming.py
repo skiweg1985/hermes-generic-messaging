@@ -105,6 +105,41 @@ async def test_segment_boundary_emits_assistant_segment(adapter: CustomChatAdapt
 
 
 @pytest.mark.asyncio
+async def test_send_draft_rechecks_cancel_between_start_and_delta(
+    adapter: CustomChatAdapter, parse_sent_events
+):
+    adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
+    ws = MockWebSocket()
+    adapter._reply_routes["stream-x"] = {
+        "chat_id": "c1",
+        "user_id": "u1",
+        "thread_id": "",
+        "session_id": "",
+    }
+    adapter._ws_by_chat["c1"] = ws
+    adapter.state.register_stream("stream-x")
+
+    original_emit = adapter._emit_outbound
+
+    async def emit_and_cancel_after_start(**kwargs):
+        result = await original_emit(**kwargs)
+        # Simulate a cancel that interleaves right after assistant_start is sent.
+        if kwargs.get("event_type") == "assistant_start":
+            adapter.state.mark_cancelled("stream-x")
+        return result
+
+    adapter._emit_outbound = emit_and_cancel_after_start  # type: ignore[method-assign]
+
+    await adapter.send_draft("c1", 1, "Hello", metadata={"reply_id": "stream-x"})
+
+    types = [e["type"] for e in parse_sent_events(ws)]
+    assert "assistant_start" in types
+    # The re-check must suppress the delta that would otherwise land after the
+    # interrupted assistant_done.
+    assert "assistant_delta" not in types
+
+
+@pytest.mark.asyncio
 async def test_reasoning_prepend_on_send(adapter: CustomChatAdapter, parse_sent_events):
     adapter._hub = WebSocketHub("127.0.0.1", 0, on_message=adapter._on_ws_message)
     ws = MockWebSocket()

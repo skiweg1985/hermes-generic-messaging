@@ -180,7 +180,9 @@ def _normalize_session(session: dict[str, Any]) -> dict[str, Any] | None:
     normalized["pendingAttachments"] = []
     normalized["typing"] = False
     normalized.pop("typingStartedAt", None)
-    normalized["typingClosed"] = False
+    # Preserve typingClosed so the client's late-typing guard survives a
+    # server round-trip (a completed turn stays closed).
+    normalized["typingClosed"] = bool(session.get("typingClosed", False))
     normalized["unread"] = bool(normalized.get("unread", False))
     return normalized
 

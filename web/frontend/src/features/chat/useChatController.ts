@@ -674,6 +674,9 @@ export function useChatController(): ChatController {
         dispatch(notConnectedError(chatId));
         return;
       }
+      // Delivered — the line-level clickedButtonId guard prevents re-clicks.
+      // Release the in-flight key so it neither leaks nor blocks a re-offered row.
+      pendingButtonClicksRef.current.delete(clickKey);
       dispatch({ type: "BUTTON_CLICKED", chatId, lineId: line.id, buttonId: button.id });
     },
     [client, connected, state.activeChatId],

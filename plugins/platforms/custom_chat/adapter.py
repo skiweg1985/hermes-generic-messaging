@@ -1048,6 +1048,12 @@ class CustomChatAdapter(BasePlatformAdapter):
     if not delta:
       return SendResult(success=True, message_id=line_id)
 
+    # Re-check: a cancel may have interleaved during the assistant_start emit
+    # above and already sent the interrupted assistant_done. Emitting a delta now
+    # would be a delta-after-done ordering violation.
+    if self.state.is_cancelled(reply_id):
+      return SendResult(success=False, message_id=reply_id, error="cancelled")
+
     seq = self.streams.next_sequence(reply_id)
     await self._emit_outbound(
       chat_id=session.chat_id,

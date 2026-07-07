@@ -112,7 +112,10 @@ function trimSession(session: ChatSession): ChatSession {
     streamTurnId: null,
     typing: false,
     typingStartedAt: undefined,
-    typingClosed: false,
+    // Preserve typingClosed (do NOT force false): a completed turn stays closed
+    // so the late-typing guard survives persist/hydrate/merge — otherwise a
+    // winning remote snapshot re-enables stray typing on a finished conversation.
+    typingClosed: session.typingClosed ?? false,
   };
 }
 
