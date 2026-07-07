@@ -258,61 +258,105 @@
   padding: 12px 16px 6px;
 }
 
+/* ── Fixieren-Rail ────────────────────────────────────────────────────────
+   Vertikale Pille über dem Mic-Button. --lock-progress (0…1) kommt vom
+   Wisch-Fortschritt aus Composer.tsx: die Füllung steigt von unten, das
+   Schloss wächst leicht mit und färbt sich beim Erreichen akzentfarben. */
 .composer-record-lock-rail {
+  --lock-progress: 0;
   position: absolute;
-  right: 18px;
-  bottom: calc(100% + 8px);
-  width: 48px;
-  height: 96px;
+  /* Über dem Mic-Button: desktop links in der Aktionsleiste, mobil (siehe
+     Media-Query unten) rechts. */
+  left: 52px;
+  bottom: calc(100% + 10px);
+  width: 46px;
+  height: 118px;
   border-radius: 999px;
   background: var(--surface-overlay);
   border: 1px solid var(--line-hairline);
   box-shadow: var(--shadow-md);
-  display: grid;
-  place-items: start center;
-  padding: 9px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 11px;
+  overflow: hidden;
   pointer-events: none;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   animation: hermes-fade-in var(--dur-fast) var(--ease-standard);
 }
 
-.composer-record-lock-rail::after {
-  content: "↑";
+.composer-record-lock-rail::before {
+  content: "";
   position: absolute;
-  bottom: 25px;
-  left: 0;
-  right: 0;
-  color: var(--text-tertiary);
-  font-size: 14px;
-  line-height: 1;
-  text-align: center;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent-strong) 16%, transparent);
+  transform: scaleY(var(--lock-progress));
+  transform-origin: bottom;
+  transition: transform 60ms linear;
 }
 
 .composer-record-lock-target {
-  width: 24px;
-  height: 24px;
+  position: relative;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   display: grid;
   place-items: center;
   background: var(--accent-faint);
   color: var(--text-secondary);
-  transition:
-    transform var(--dur-fast) linear,
-    opacity var(--dur-fast) linear,
-    color var(--dur-fast) var(--ease-standard);
+  transform: scale(calc(1 + var(--lock-progress) * 0.16));
+  transition: transform 60ms linear;
+}
+
+/* Akzent-Füllung des Schloss-Kreises, blendet mit dem Fortschritt ein. */
+.composer-record-lock-target::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent-strong);
+  opacity: var(--lock-progress);
+  transition: opacity 60ms linear;
+}
+
+.composer-record-lock-target svg {
+  position: relative;
+}
+
+.composer-record-lock-chevron {
+  position: relative;
+  color: var(--text-tertiary);
+  line-height: 0;
+  opacity: calc(1 - var(--lock-progress));
+  animation: hermes-lock-nudge 1.15s var(--ease-standard) infinite;
 }
 
 .composer-record-lock-label {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 8px;
+  position: relative;
   color: var(--text-tertiary);
-  font-size: 8.5px;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
   line-height: 1;
-  letter-spacing: 0;
   text-align: center;
+}
+
+@keyframes hermes-lock-nudge {
+  0%,
+  100% {
+    transform: translateY(2px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-record-lock-chevron {
+    animation: none;
+  }
 }
 
 .composer-recording-dot {
@@ -388,8 +432,20 @@
   white-space: nowrap;
 }
 
-.composer-recording-locked .composer-recording-lock-hint {
-  color: var(--text-primary);
+/* Fixiert: Hinweis wird zum Akzent-Chip mit kurzem Pop beim Einrasten. */
+.composer-recording-lock-hint-locked {
+  color: var(--text-secondary);
+  background: var(--accent-faint);
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 24%, transparent);
+  padding: 4px 10px;
+  border-radius: 999px;
+  animation: hermes-scale-in var(--dur-base) var(--ease-soft-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-recording-lock-hint-locked {
+    animation: none;
+  }
 }
 
 .composer-actions {
@@ -504,11 +560,39 @@
   animation: hermes-dot-pulse 1.4s var(--ease-standard) infinite;
 }
 
+/* Fixiert: der Mic-Button wird zum Primär-Button "Aufnahme senden". */
 .composer-icon-recording-locked,
 .composer-icon-recording-locked:hover:not(:disabled) {
-  color: #ffffff;
-  background: var(--state-danger);
-  animation: none;
+  color: var(--text-on-solid);
+  background: var(--accent-strong);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 8px 22px color-mix(in srgb, var(--accent-strong) 34%, transparent);
+  animation: hermes-lock-pop 340ms var(--ease-soft-out);
+}
+
+@keyframes hermes-lock-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-icon-recording-locked {
+    animation: none;
+  }
+}
+
+/* Stop/Start läuft gerade: nur dimmen, NIE disablen — ein disabled Button
+   verliert auf iOS die laufenden Pointer-Events. */
+.composer-icon-record-busy {
+  opacity: 0.55;
 }
 
 .composer-recording-cancel {
@@ -911,6 +995,14 @@
     display: none;
   }
 
+  /* Fixierte Aufnahme: ✕ sitzt links neben dem Senden-Button statt in einer
+     impliziten fünften Grid-Spalte am Displayrand. */
+  .composer-recording-cancel {
+    grid-column: 3;
+    grid-row: 10;
+    justify-self: end;
+  }
+
   .composer-hint {
     display: none;
   }
@@ -920,6 +1012,14 @@
       240px,
       max(140px, calc(100svh - var(--composer-clearance, 112px) - var(--app-keyboard-inset, 0px) - 72px))
     );
+  }
+}
+
+@media (max-width: 720px) {
+  /* Mobil sitzt der Mic-Button rechts (Grid-Spalte 4) — Rail darüber. */
+  .composer-record-lock-rail {
+    left: auto;
+    right: 15px;
   }
 }
 

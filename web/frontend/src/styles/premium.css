@@ -938,10 +938,13 @@ body {
   border-radius: 14px;
 }
 
+/* Fixierte Aufnahme: der Mic-Button wird zum Primär-Button "Aufnahme
+   senden" und übernimmt die Send-Optik statt Danger-Rot (Rot bleibt dem
+   ✕-Verwerfen vorbehalten). */
 .composer-icon.composer-icon-recording-locked,
 .composer-icon.composer-icon-recording-locked:hover:not(:disabled) {
-  color: #ffffff;
-  background: var(--state-danger);
+  color: var(--text-on-solid);
+  background: var(--accent-strong);
 }
 
 .composer-send {

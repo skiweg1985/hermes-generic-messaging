@@ -51,6 +51,14 @@ export function IconLibrary({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconChevronUp({ size, ...rest }: IconProps) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="m6 15 6-6 6 6" />
+    </svg>
+  );
+}
+
 export function IconChevronDown({ size, ...rest }: IconProps) {
   return (
     <svg {...base(size)} {...rest}>

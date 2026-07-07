@@ -707,87 +707,103 @@ export function useChatController(): ChatController {
     async (options: { send?: boolean } = { send: true }) => {
       const shouldSend = options.send !== false;
       const chatId = recordingChatIdRef.current ?? stateRef.current.activeChatId;
+      let blob: Blob;
       try {
         // Keep capturing briefly after release so the last syllable, which is
         // still in the mic input pipeline, lands in the recording.
-        const blob = await stopRec({ tailMs: shouldSend ? RECORD_TAIL_MS : 0 });
+        blob = await stopRec({ tailMs: shouldSend ? RECORD_TAIL_MS : 0 });
         recordingChatIdRef.current = null;
-        if (!shouldSend || blob.size === 0) return;
-        if (!connectedRef.current) {
-          dispatch(notConnectedError(chatId));
-          return;
-        }
-        const replyTarget = draftFor(chatId).replyTarget;
-        const outboundText = "";
-
-        const mime = normalizeMimeType(blob.type || "audio/webm");
-        const filename = voiceFilenameForMime(mime);
-        const file = new File([blob], filename, { type: mime });
-        const upload = await uploadMedia(file, filename);
-        if (!connectedRef.current) {
-          dispatch(notConnectedError(chatId));
-          return;
-        }
-
-        const turnMessageId = newId();
-        const attachmentId = newId();
-        dispatch({
-          type: "USER_VOICE",
-          chatId,
-          turnMessageId,
-          attachmentId,
-          mime: upload.mime_type,
-          size: upload.size_bytes,
-          url: upload.url,
-          replyTo: replyTarget
-            ? {
-                lineId: replyTarget.lineId,
-                label: replyTarget.label,
-                preview: replyTarget.preview,
-              }
-            : undefined,
-        });
-        const delivered = client.sendMessage(
-          {
-            messageId: turnMessageId,
-            text: outboundText,
-            replyTarget,
-            attachments: [
-              {
-                attachment_id: attachmentId,
-                mime_type: upload.mime_type,
-                size_bytes: upload.size_bytes,
-                url: upload.url,
-                file_ref: upload.url,
-                filename,
-              },
-            ],
-          },
-          chatId,
-          USER_ID,
-          contextFor(stateRef.current.sessionsById[chatId] ?? createChatSession(chatId)),
-        );
-
-        if (!delivered) {
-          dispatch({
-            type: "USER_ERROR",
-            code: "WS_NOT_CONNECTED",
-            message: "voice message not delivered - reconnect and resend",
-            chatId,
-          });
-        } else if (replyTarget) {
-          draftDispatch({ type: "CLEAR_REPLY_TARGET", chatId });
-        }
       } catch {
         recordingChatIdRef.current = null;
         if (!shouldSend) return;
         dispatch({
           type: "USER_ERROR",
           code: "RECORD_FAILED",
-          message: shouldSend ? "could not send voice message" : "could not finalize recording",
+          message: "could not finalize recording",
           chatId,
         });
+        return;
       }
+      if (!shouldSend || blob.size === 0) return;
+      if (!connectedRef.current) {
+        dispatch(notConnectedError(chatId));
+        return;
+      }
+      const replyTarget = draftFor(chatId).replyTarget;
+
+      // Resolve as soon as the recorder has stopped so the composer leaves its
+      // "finishing" state immediately; upload + delivery continue detached.
+      void (async () => {
+        try {
+          const outboundText = "";
+
+          const mime = normalizeMimeType(blob.type || "audio/webm");
+          const filename = voiceFilenameForMime(mime);
+          const file = new File([blob], filename, { type: mime });
+          const upload = await uploadMedia(file, filename);
+          if (!connectedRef.current) {
+            dispatch(notConnectedError(chatId));
+            return;
+          }
+
+          const turnMessageId = newId();
+          const attachmentId = newId();
+          dispatch({
+            type: "USER_VOICE",
+            chatId,
+            turnMessageId,
+            attachmentId,
+            mime: upload.mime_type,
+            size: upload.size_bytes,
+            url: upload.url,
+            replyTo: replyTarget
+              ? {
+                  lineId: replyTarget.lineId,
+                  label: replyTarget.label,
+                  preview: replyTarget.preview,
+                }
+              : undefined,
+          });
+          const delivered = client.sendMessage(
+            {
+              messageId: turnMessageId,
+              text: outboundText,
+              replyTarget,
+              attachments: [
+                {
+                  attachment_id: attachmentId,
+                  mime_type: upload.mime_type,
+                  size_bytes: upload.size_bytes,
+                  url: upload.url,
+                  file_ref: upload.url,
+                  filename,
+                },
+              ],
+            },
+            chatId,
+            USER_ID,
+            contextFor(stateRef.current.sessionsById[chatId] ?? createChatSession(chatId)),
+          );
+
+          if (!delivered) {
+            dispatch({
+              type: "USER_ERROR",
+              code: "WS_NOT_CONNECTED",
+              message: "voice message not delivered - reconnect and resend",
+              chatId,
+            });
+          } else if (replyTarget) {
+            draftDispatch({ type: "CLEAR_REPLY_TARGET", chatId });
+          }
+        } catch {
+          dispatch({
+            type: "USER_ERROR",
+            code: "RECORD_FAILED",
+            message: "could not send voice message",
+            chatId,
+          });
+        }
+      })();
     },
     [stopRec],
   );
