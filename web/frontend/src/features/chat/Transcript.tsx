@@ -288,8 +288,17 @@ async function copyText(text: string): Promise<void> {
 function EmptyState() {
   return (
     <div className="transcript-empty">
+      <div className="transcript-empty-orb" aria-hidden />
       <div className="transcript-empty-title t-title">Start a conversation</div>
       <p className="t-secondary transcript-empty-hint">Hermes is ready.</p>
+      <div className="transcript-empty-shortcuts">
+        <span className="transcript-empty-chip">
+          <kbd>⌘K</kbd> Commands
+        </span>
+        <span className="transcript-empty-chip">
+          <kbd>⌘/</kbd> Slash menu
+        </span>
+      </div>
     </div>
   );
 }

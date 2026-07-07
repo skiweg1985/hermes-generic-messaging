@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import type { TranscriptLine } from "../../types/events";
 import { downloadMedia } from "../../lib/downloadMedia";
 import { resolveMediaUrl } from "../../lib/resolveMediaUrl";
@@ -16,6 +16,7 @@ export function ImageCard({ line, alignRight }: ImageCardProps) {
   const media = useMediaContext();
   const tapRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const suppressClickRef = useRef(false);
+  const [loaded, setLoaded] = useState(false);
   const url = resolveMediaUrl(line.imageUrl);
   const registerImage = media?.registerImage;
 
@@ -89,7 +90,7 @@ export function ImageCard({ line, alignRight }: ImageCardProps) {
     <figure
       className={`media-image-card${alignRight ? " media-image-card-right" : ""} motion-rise-in-soft`}
     >
-      <div className="media-image-frame">
+      <div className={`media-image-frame${loaded ? "" : " media-image-loading"}`}>
         <button
           type="button"
           className="media-image-trigger"
@@ -108,11 +109,18 @@ export function ImageCard({ line, alignRight }: ImageCardProps) {
           aria-label="Open image fullscreen"
         >
           <img
-            ref={(el) => registerImageElement?.(lineId, el)}
+            ref={(el) => {
+              registerImageElement?.(lineId, el);
+              // Aus dem Cache bediente Bilder feuern kein onLoad mehr —
+              // ohne diesen Check bliebe das Skeleton dauerhaft stehen.
+              if (el?.complete && el.naturalWidth > 0) setLoaded(true);
+            }}
             src={url}
             alt={line.caption ?? "image"}
             loading="lazy"
             className="media-image-img"
+            onLoad={() => setLoaded(true)}
+            onError={() => setLoaded(true)}
           />
         </button>
         {downloadUrl ? (

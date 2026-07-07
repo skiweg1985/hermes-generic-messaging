@@ -44,6 +44,52 @@
   max-height: 560px;
   width: auto;
   height: auto;
+  transition:
+    opacity 300ms var(--ease-soft-out),
+    filter 420ms var(--ease-soft-out);
+}
+
+/* ── Lade-Skeleton + Blur-up ─────────────────────────────────────────────
+   Solange das Bild lädt, hält ein Shimmer-Platzhalter die Fläche; beim
+   onLoad blendet das Bild mit einem weichen Blur-up ein statt hart zu
+   ploppen. .media-image-loading setzt ImageCard.tsx, bis load/error feuert. */
+
+.media-image-loading .media-image-trigger {
+  min-width: min(280px, 70vw);
+  min-height: 180px;
+}
+
+.media-image-loading .media-image-trigger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 32%,
+    color-mix(in srgb, var(--text-primary) 8%, transparent) 50%,
+    transparent 68%
+  );
+  animation: hermes-shimmer 1.6s linear infinite;
+  pointer-events: none;
+}
+
+.media-image-loading .media-image-img {
+  opacity: 0;
+  filter: blur(12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-image-img {
+    transition: opacity 200ms var(--ease-standard);
+    filter: none;
+  }
+  .media-image-loading .media-image-img {
+    filter: none;
+  }
+  .media-image-loading .media-image-trigger::after {
+    animation: none;
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  }
 }
 
 .media-image-download {

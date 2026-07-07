@@ -107,7 +107,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         <span className="markdown-code-language">{label}</span>
         <button
           type="button"
-          className="markdown-code-copy"
+          className={`markdown-code-copy${copied ? " markdown-code-copy-copied" : ""}`}
           onClick={() => {
             void navigator.clipboard?.writeText(code).then(() => {
               setCopied(true);
@@ -115,6 +115,19 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
             });
           }}
         >
+          {copied ? (
+            <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
+              <path
+                className="markdown-code-check"
+                d="M2 6.4l2.7 2.7L10 3.4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : null}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>

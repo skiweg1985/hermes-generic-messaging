@@ -787,6 +787,9 @@ body {
 }
 
 .markdown-code-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   height: 24px;
   padding: 0 9px;
   border-radius: 8px;
@@ -798,6 +801,32 @@ body {
 .markdown-code-copy:hover {
   background: var(--accent-faint);
   color: var(--text-primary);
+}
+
+/* Kopiert-Feedback: Success-Tönung mit kleinem Pop, der Haken zeichnet sich
+   wie beim Delivered-Receipt (hermes-check-draw). */
+.markdown-code-copy-copied,
+.markdown-code-copy-copied:hover {
+  color: var(--state-success);
+  background: var(--state-success-bg);
+  animation: hermes-pop var(--dur-slow) var(--ease-soft-out);
+}
+
+.markdown-code-check {
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: hermes-check-draw 300ms var(--ease-soft-out) 40ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-code-copy-copied,
+  .markdown-code-copy-copied:hover {
+    animation: none;
+  }
+  .markdown-code-check {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
 }
 
 .markdown-code-block pre {

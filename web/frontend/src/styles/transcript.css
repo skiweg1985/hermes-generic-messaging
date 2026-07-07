@@ -68,6 +68,107 @@
   margin: 0 2px;
 }
 
+/* Gestaffelter Einstieg: Orb, Titel, Hint und Chips steigen nacheinander ein. */
+.transcript-empty > * {
+  animation: hermes-rise-in var(--dur-slow) var(--ease-soft-out) both;
+}
+.transcript-empty > :nth-child(2) {
+  animation-delay: 70ms;
+}
+.transcript-empty > :nth-child(3) {
+  animation-delay: 140ms;
+}
+.transcript-empty > :nth-child(4) {
+  animation-delay: 210ms;
+}
+
+/* Hermes-Orb: die Chat-Washes (einzige erlaubte Chroma-Quelle, s. tokens.css)
+   als weiche Kugel, die langsam "atmet". Glow liegt auf dem ::after und
+   animiert nur opacity/scale — bleibt damit compositor-freundlich. */
+.transcript-empty-orb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--s-2);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.2), transparent 54%),
+    linear-gradient(140deg, var(--chat-wash-a), var(--chat-wash-b)),
+    var(--surface-2);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.14) inset,
+    0 14px 36px rgba(0, 0, 0, 0.16);
+  animation:
+    hermes-rise-in var(--dur-slow) var(--ease-soft-out) both,
+    hermes-orb-breathe 6s var(--ease-standard) 400ms infinite;
+}
+
+.transcript-empty-orb::after {
+  content: "";
+  position: absolute;
+  inset: -22px;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--chat-wash-a) 62%, var(--chat-wash-b)),
+    transparent 68%
+  );
+  animation: hermes-orb-glow 6s var(--ease-standard) 400ms infinite;
+  pointer-events: none;
+}
+
+@keyframes hermes-orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+
+@keyframes hermes-orb-glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.12); }
+}
+
+.transcript-empty-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.transcript-empty-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  border: 1px solid var(--line-hairline);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+}
+
+.transcript-empty-chip kbd {
+  margin: 0;
+}
+
+/* Auf Touch-Geräten sind Tastatur-Shortcuts bedeutungslos. */
+@media (pointer: coarse) {
+  .transcript-empty-shortcuts {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transcript-empty > *,
+  .transcript-empty-orb,
+  .transcript-empty-orb::after {
+    animation: none;
+  }
+}
+
 .transcript-jump {
   position: absolute;
   bottom: var(--s-4);
