@@ -34,6 +34,10 @@ Dependabot prüft wöchentlich:
 
 Patch- und Minor-Updates werden gruppiert, damit Wartungs-PRs überschaubar bleiben. Major-Updates werden absichtlich nicht in die Patch/Minor-Gruppen gepackt und sollten einzeln geprüft werden.
 
+Für normale Versionsupdates gilt ein 14-Tage-Cooldown. Dependabot öffnet Routine-PRs erst, wenn die neue Version mindestens 14 Tage alt ist. Das reduziert das Risiko, frisch kompromittierte oder unmittelbar zurückgezogene Releases automatisch zu übernehmen.
+
+Der Cooldown gilt bewusst nicht für Dependabot Security Updates. Wenn GitHub eine bekannte Advisory erkennt, soll der Fix ohne künstliche Wartezeit vorgeschlagen werden.
+
 ## Sicherheitsupdates
 
 Zusätzlich zu den geplanten Version-Update-PRs sollte GitHub Dependabot Security Updates aktiviert sein. Diese PRs sind für bekannte Advisories priorisiert und sollten vor Routine-Maintenance behandelt werden.
@@ -42,8 +46,10 @@ Empfohlene Reihenfolge beim Abarbeiten:
 
 1. Kritische Security Updates isoliert mergen.
 2. High/Moderate Security Updates prüfen und zeitnah mergen.
-3. Patch/Minor-Gruppen mergen, wenn CI grün ist.
+3. Patch/Minor-Gruppen erst nach dem 14-Tage-Cooldown mergen, wenn CI grün ist.
 4. Major-Updates separat planen und testen.
+
+Diese Policy schützt nicht gegen jede Supply-Chain-Attacke. Sie kombiniert aber mehrere Kontrollen: verzögerte Routine-Updates, Security-Update-Ausnahmen, reproduzierbare npm-Installationen mit Lockfile, Dependency Review, Audit-Checks und Branch Protection mit required CI.
 
 ## Branch Protection
 

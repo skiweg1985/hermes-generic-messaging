@@ -7,6 +7,8 @@ updates:
       day: monday
       time: "06:00"
       timezone: Europe/Zurich
+    cooldown:
+      default-days: 14
     labels:
       - dependencies
       - github-actions
@@ -22,6 +24,8 @@ updates:
       day: monday
       time: "06:15"
       timezone: Europe/Zurich
+    cooldown:
+      default-days: 14
     labels:
       - dependencies
       - frontend
@@ -46,6 +50,8 @@ updates:
       day: monday
       time: "06:30"
       timezone: Europe/Zurich
+    cooldown:
+      default-days: 14
     labels:
       - dependencies
       - python
@@ -69,6 +75,8 @@ updates:
       day: monday
       time: "06:45"
       timezone: Europe/Zurich
+    cooldown:
+      default-days: 14
     labels:
       - dependencies
       - docker
