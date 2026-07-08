@@ -11,6 +11,7 @@ Referenz- oder Fehlerbehebungsseiten.
 | verstehen, was das Projekt macht | [Projektüberblick](../README.md) |
 | das Hermes-Plugin installieren | [custom_chat Plugin](custom_chat.md) |
 | die Browser-Oberfläche betreiben | [Web-App](web-app.md) |
+| CI und Dependency Updates verstehen | [Dependency Management und CI](dependency-management.md) |
 | einen eigenen Client bauen | [Schnittstellenreferenz](interface_contract.md) |
 | Beispielnachrichten sehen | [Event-Beispiele](examples/custom-chat-events-v1.json) |
 | alte Umsetzungspläne einordnen | [Historische Pläne](plans/path-discovery.md) |
