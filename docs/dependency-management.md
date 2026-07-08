@@ -8,9 +8,9 @@ Der Workflow `.github/workflows/ci.yml` läuft auf Pull Requests, Pushes nach `m
 
 Er prüft:
 
-- Python-Installation mit `.[dev,web]`
-- `pip check`
-- `pip-audit`
+- Python-Installation per `uv sync --locked --extra dev --extra web`
+- `uv pip check`
+- `uv run pip-audit`
 - Python-Tests für Plugin und Web-BFF
 - Frontend-Installation per `npm ci`
 - `npm audit --audit-level=moderate`
@@ -29,7 +29,7 @@ Dependabot prüft wöchentlich:
 
 - GitHub Actions
 - npm-Abhängigkeiten der Web-App
-- Python-Abhängigkeiten aus dem Repository-Root
+- Python-Abhängigkeiten aus dem Repository-Root mit `uv.lock`
 - Docker-Basisimages unter `web/`
 
 Patch- und Minor-Updates werden gruppiert, damit Wartungs-PRs überschaubar bleiben. Major-Updates werden absichtlich nicht in die Patch/Minor-Gruppen gepackt und sollten einzeln geprüft werden.
@@ -49,7 +49,17 @@ Empfohlene Reihenfolge beim Abarbeiten:
 3. Patch/Minor-Gruppen erst nach dem 14-Tage-Cooldown mergen, wenn CI grün ist.
 4. Major-Updates separat planen und testen.
 
-Diese Policy schützt nicht gegen jede Supply-Chain-Attacke. Sie kombiniert aber mehrere Kontrollen: verzögerte Routine-Updates, Security-Update-Ausnahmen, reproduzierbare npm-Installationen mit Lockfile, Dependency Review, Audit-Checks und Branch Protection mit required CI.
+Diese Policy schützt nicht gegen jede Supply-Chain-Attacke. Sie kombiniert aber mehrere Kontrollen: verzögerte Routine-Updates, Security-Update-Ausnahmen, reproduzierbare npm-Installationen mit Lockfile, reproduzierbare Python-Installationen mit `uv.lock`, Dependency Review, Audit-Checks und Branch Protection mit required CI.
+
+## Pinning-Policy
+
+Python-Abhängigkeiten werden über `uv.lock` konkret aufgelöst. Die CI installiert ausschließlich mit `uv sync --locked`, damit Pull Requests nicht unbemerkt andere Python-Versionen ziehen.
+
+Die Frontend-Abhängigkeiten bleiben über `package-lock.json` und `npm ci` reproduzierbar.
+
+GitHub Actions werden auf Commit-SHAs gepinnt. Kommentare neben den Pins dokumentieren den zugehörigen Major-Track, während Dependabot die Pins weiter aktualisieren kann.
+
+Das BFF-Docker-Image nutzt ein digest-gepinntes Base Image. Dadurch zeigt `python:3.12-slim` weiterhin die beabsichtigte Linie, aber der konkrete Image-Inhalt ist an den `sha256`-Digest gebunden.
 
 ## Branch Protection
 
